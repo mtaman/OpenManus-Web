@@ -1,58 +1,46 @@
 """
-OpenManus Web Dashboard - Main Application Entrypoint
-FastAPI server orchestrating OpenManus agents and serving Web API.
+Main FastAPI application entry point.
+Configures CORS, lifespan hooks, and mounts routers.
 """
 
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
+from omweb.job_manager import job_manager
 from omweb.routers import status, run, files, config_rtr, mcp
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: Initialize shared system state or recovery hooks
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manages application startup and shutdown lifecycle."""
+    # Startup: Load jobs from disk
+    await job_manager.initialize()
     yield
-    # Shutdown: Clean up connections and active job workers
+    # Shutdown: Ensure persistent state is flushed
+    await job_manager.persist_to_disk()
 
 
 app = FastAPI(
-    title="OpenManus Web Dashboard API",
+    title="OpenManus Web API",
     version="1.0.0",
-    description="Sovereign Backend API supporting Manus.im-style capabilities over OpenManus",
-    lifespan=lifespan,
+    description="Backend API for OpenManus Web Dashboard",
+    lifespan=lifespan
 )
 
-# Enforce secure CORS policy for Next.js frontend
-origins = [
-    "http://localhost:3088",
-    "http://127.0.0.1:3088",
-]
-
+# CORS setup for frontend dev server
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["http://localhost:3088", "http://127.0.0.1:3088"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register modular API routers
+# Register routers
 app.include_router(status.router, prefix="/api/status", tags=["Status"])
 app.include_router(run.router, prefix="/api/run", tags=["Run"])
 app.include_router(files.router, prefix="/api/files", tags=["Files"])
 app.include_router(config_rtr.router, prefix="/api/config", tags=["Config"])
 app.include_router(mcp.router, prefix="/api/mcp", tags=["MCP"])
-
-
-@app.get("/", include_in_schema=False)
-async def root():
-    return JSONResponse(
-        content={
-            "service": "OpenManus Web Dashboard API",
-            "status": "online",
-            "docs": "/docs",
-        }
-    )
