@@ -1,22 +1,16 @@
-# =============================================================================
-# OpenManus Web Dashboard - Frontend Startup Script
-# =============================================================================
-$ErrorActionPreference = "Stop"
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host " Starting OpenManus Web - Frontend Server" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
 
-$RootDir = Split-Path -Parent$MyInvocation.MyCommand.Path
-$FrontendDir = Join-Path$RootDir "frontend"
+$frontendDir = "D:\AI\OpenManus-Web\frontend"
 
-Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "Starting OpenManus Web Frontend (:3088)..." -ForegroundColor Cyan
-Write-Host "==========================================" -ForegroundColor Cyan
-
-Set-Location $FrontendDir
-
-if (-not (Test-Path "node_modules")) {
-    Write-Warning "node_modules directory not detected."
-    Write-Host "Installing frontend dependencies with pnpm..." -ForegroundColor Yellow
-    pnpm install
+if (-not (Test-Path $frontendDir)) {
+    Write-Host "[ERROR] Frontend directory not found at: $frontendDir" -ForegroundColor Red
+    Exit 1
 }
 
-Write-Host "Launching Next.js development server on http://localhost:3088..." -ForegroundColor Green
-pnpm dev --port 3088
+Set-Location $frontendDir
+
+Write-Host "[INFO] Starting Next.js frontend on port 3088..." -ForegroundColor Green
+$env:PORT = "3088"
+npm run dev -- -p 3088
