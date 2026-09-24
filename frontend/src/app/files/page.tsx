@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ArrowLeft
 } from "lucide-react";
+import { FilePreviewModal } from "@/components/files/file-preview-modal";
 
 interface FileItem {
   name: string;
@@ -31,6 +32,8 @@ export default function FilesPage() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<string | null>(null);
+  const [deletingPath, setDeletingPath] = useState<string | null>(null);
 
   const fetchFiles = async (path: string = "") => {
     try {
@@ -67,6 +70,26 @@ export default function FilesPage() {
     fetchFiles(parent);
   };
 
+  const handleDelete = async (filePath: string) => {
+    const confirmDelete = window.confirm(`Move "${filePath}" to .trash?`);
+    if (!confirmDelete) return;
+
+    try {
+      setDeletingPath(filePath);
+      const res = await fetch(`/api/files?path=${encodeURIComponent(filePath)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to delete file");
+      }
+      await fetchFiles(currentPath);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete file");
+    } finally {
+      setDeletingPath(null);
+    }
+  };
+
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return "0 B";
     const k = 1024;
@@ -76,18 +99,18 @@ export default function FilesPage() {
   };
 
   const getFileIcon = (file: FileItem) => {
-    if (file.is_dir) return <Folder className="h-4 w-4 text-amber-500 fill-amber-500/20"/>;
+    if (file.is_dir) return <Folder className="h-4 w-4 text-amber-500 fill-amber-500/20" />;
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
     if (["ts", "tsx", "js", "jsx", "py", "json", "html", "css"].includes(ext)) {
-      return <FileCode className="h-4 w-4 text-blue-500"/>;
+      return <FileCode className="h-4 w-4 text-blue-500" />;
     }
     if (["png", "jpg", "jpeg", "svg", "webp"].includes(ext)) {
-      return <ImageIcon className="h-4 w-4 text-emerald-500"/>;
+      return <ImageIcon className="h-4 w-4 text-emerald-500" />;
     }
     if (["md", "txt", "log"].includes(ext)) {
-      return <FileText className="h-4 w-4 text-slate-400"/>;
+      return <FileText className="h-4 w-4 text-slate-400" />;
     }
-    return <GenericFile className="h-4 w-4 text-muted-foreground"/>;
+    return <GenericFile className="h-4 w-4 text-muted-foreground" />;
   };
 
   return (
@@ -108,7 +131,7 @@ export default function FilesPage() {
           disabled={loading}
           className="self-start sm:self-auto flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border bg-card text-foreground text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
         >
-          <RefreshCw className={loading ? "animate-spin" : ""} />
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           <span>{t("common.refresh", "Refresh")}</span>
         </button>
       </div>
@@ -119,13 +142,13 @@ export default function FilesPage() {
           onClick={() => fetchFiles("")}
           className="flex items-center gap-1.5 font-medium text-foreground hover:text-primary transition-colors"
         >
-          <FolderOpen className="h-4 w-4 text-primary"/>
+          <FolderOpen className="h-4 w-4 text-primary" />
           <span>workspace</span>
         </button>
 
         {currentPath && (
           <>
-            <ChevronRight className="h-4 w-4 rtl:rotate-180 text-muted-foreground shrink-0"/>
+            <ChevronRight className="h-4 w-4 rtl:rotate-180 text-muted-foreground shrink-0" />
             <span className="font-mono text-xs text-foreground">{currentPath}</span>
           </>
         )}
@@ -135,7 +158,7 @@ export default function FilesPage() {
             onClick={handleNavigateUp}
             className="ms-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            <ArrowLeft className="h-3.5 w-3.5 rtl:rotate-180"/>
+            <ArrowLeft className="h-3.5 w-3.5 rtl:rotate-180" />
             <span>Up</span>
           </button>
         )}
@@ -149,7 +172,7 @@ export default function FilesPage() {
           </div>
         ) : loading && files.length === 0 ? (
           <div className="p-12 text-center text-sm text-muted-foreground">
-            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary"/>
+            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
             Loading files...
           </div>
         ) : files.length === 0 ? (
@@ -199,14 +222,29 @@ export default function FilesPage() {
                       <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                         {!file.is_dir && (
                           <>
+                            <button
+                              onClick={() => setPreviewTarget(file.path)}
+                              title="Preview"
+                              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
                             <a
                               href={`/api/files/download?path=${encodeURIComponent(file.path)}`}
                               download
                               title="Download"
                               className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                             >
-                              <Download className="h-4 w-4"/>
+                              <Download className="h-4 w-4" />
                             </a>
+                            <button
+                              onClick={() => handleDelete(file.path)}
+                              disabled={deletingPath === file.path}
+                              title="Delete (Move to trash)"
+                              className="p-1.5 rounded-md hover:bg-muted text-rose-500 hover:text-rose-600 transition-colors disabled:opacity-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </>
                         )}
                       </div>
@@ -218,6 +256,12 @@ export default function FilesPage() {
           </div>
         )}
       </div>
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        filePath={previewTarget}
+        onClose={() => setPreviewTarget(null)}
+      />
     </div>
   );
 }
