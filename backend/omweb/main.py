@@ -1,35 +1,27 @@
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+﻿import sys
+import asyncio
+
+# Set Proactor event loop policy on Windows to support subprocesses (Playwright/Chrome)
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from omweb.job_manager import job_manager
 from omweb.routers import status, run, files, config_rtr, mcp, setup
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    await job_manager.initialize()
-    yield
-    await job_manager.persist_to_disk()
-
-app = FastAPI(
-    title="OpenManus Web API",
-    version="1.0.0",
-    description="Backend API for OpenManus Web Dashboard",
-    lifespan=lifespan
-)
+app = FastAPI(title="OpenManus Web API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3088", "http://127.0.0.1:3088"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(setup.router, prefix="/api/setup", tags=["Setup"])
-app.include_router(status.router, prefix="/api/status", tags=["Status"])
-app.include_router(run.router, prefix="/api/run", tags=["Run"])
-app.include_router(files.router, prefix="/api/files", tags=["Files"])
-app.include_router(config_rtr.router, prefix="/api/config", tags=["Config"])
-app.include_router(mcp.router, prefix="/api/mcp", tags=["MCP"])
+app.include_router(status.router, prefix="/api", tags=["status"])
+app.include_router(run.router, prefix="/api/run", tags=["run"])
+app.include_router(files.router, prefix="/api/files", tags=["files"])
+app.include_router(config_rtr.router, prefix="/api/config", tags=["config"])
+app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])
+app.include_router(setup.router, prefix="/api/setup", tags=["setup"])

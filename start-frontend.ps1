@@ -1,4 +1,4 @@
-Write-Host "=========================================" -ForegroundColor Cyan
+﻿Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host " Starting OpenManus Web - Frontend Server" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 

@@ -1,0 +1,16 @@
+﻿{
+  "app": {
+    "title": "OpenManus Web Arabic",
+    "status": {
+      "running": "Active",
+      "idle": "Ready",
+      "completed": "Finished",
+      "failed": "Failed"
+    },
+    "actions": {
+      "send": "Send",
+      "cancel": "Cancel",
+      "copy_trace": "Copy"
+    }
+  }
+}

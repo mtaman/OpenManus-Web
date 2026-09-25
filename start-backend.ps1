@@ -1,4 +1,4 @@
-Write-Host "========================================" -ForegroundColor Cyan
+﻿Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " Starting OpenManus Web - Backend Server " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
@@ -7,7 +7,6 @@ $venvPython = "$backendDir\.venv\Scripts\python.exe"
 
 if (-not (Test-Path $venvPython)) {
     Write-Host "[ERROR] Virtual environment not found at: $venvPython" -ForegroundColor Red
-    Write-Host "Please ensure the backend virtual environment is created." -ForegroundColor Yellow
     Exit 1
 }
 

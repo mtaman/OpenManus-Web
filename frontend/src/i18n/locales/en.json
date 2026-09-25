@@ -1,0 +1,16 @@
+﻿{
+  "app": {
+    "title": "OpenManus Web",
+    "status": {
+      "running": "Agent running",
+      "idle": "Ready",
+      "completed": "Task finished",
+      "failed": "Task failed"
+    },
+    "actions": {
+      "send": "Send",
+      "cancel": "Cancel run",
+      "copy_trace": "Copy trace"
+    }
+  }
+}
