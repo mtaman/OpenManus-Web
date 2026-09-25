@@ -1,26 +1,16 @@
-"""
-Main FastAPI application entry point.
-Configures CORS, lifespan hooks, and mounts routers.
-"""
-
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from omweb.job_manager import job_manager
-from omweb.routers import status, run, files, config_rtr, mcp
-
+from omweb.routers import status, run, files, config_rtr, mcp, setup
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Manages application startup and shutdown lifecycle."""
-    # Startup: Load jobs from disk
     await job_manager.initialize()
     yield
-    # Shutdown: Ensure persistent state is flushed
     await job_manager.persist_to_disk()
-
 
 app = FastAPI(
     title="OpenManus Web API",
@@ -29,7 +19,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS setup for frontend dev server
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3088", "http://127.0.0.1:3088"],
@@ -38,7 +27,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
+app.include_router(setup.router, prefix="/api/setup", tags=["Setup"])
 app.include_router(status.router, prefix="/api/status", tags=["Status"])
 app.include_router(run.router, prefix="/api/run", tags=["Run"])
 app.include_router(files.router, prefix="/api/files", tags=["Files"])

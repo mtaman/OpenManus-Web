@@ -1,86 +1,56 @@
-"""
-SSE Event formatting and streaming generator for real-time agent output.
-Compliant with AG-UI-inspired event protocol.
-"""
-
-import asyncio
 import json
-import logging
-from typing import AsyncGenerator
-from sse_starlette.sse import ServerSentEvent
+import asyncio
+from enum import Enum
+from typing import Any, Dict, Optional, AsyncGenerator
+from pydantic import BaseModel, Field
 
-import omweb.job_manager as jm_module
-from omweb.models import JobEvent, JobStatus
+# Global, persistent event queues across the entire process
+GLOBAL_JOB_QUEUES: Dict[str, asyncio.Queue] = {}
 
-logger = logging.getLogger("omweb.sse")
+def get_or_create_queue(job_id: str) -> asyncio.Queue:
+    if job_id not in GLOBAL_JOB_QUEUES:
+        GLOBAL_JOB_QUEUES[job_id] = asyncio.Queue()
+    return GLOBAL_JOB_QUEUES[job_id]
 
-# Ping keep-alive interval in seconds
-PING_INTERVAL_SECONDS = 15
+class SSEEventType(str, Enum):
+    STEP_START = "step_start"
+    THOUGHT = "thought"
+    TOOL_CALL = "tool_call"
+    OBSERVATION = "observation"
+    STEP_END = "step_end"
+    FINAL = "final"
+    ERROR = "error"
+    STATUS = "status"
 
+class SSEEvent(BaseModel):
+    type: SSEEventType
+    step: int = 1
+    data: Dict[str, Any] = Field(default_factory=dict)
 
-async def job_event_generator(job_id: str) -> AsyncGenerator[ServerSentEvent, None]:
+    def to_sse_payload(self) -> Dict[str, Any]:
+        return {
+            "event": self.type.value,
+            "data": self.model_dump_json()
+        }
+
+async def job_event_generator(job_id: str) -> AsyncGenerator[Dict[str, Any], None]:
     """
-    Subscribes to JobManager queue for a job and yields SSE formatted events.
-    Sends existing historical snapshot on connect, then streams real-time updates.
-    Yields a 'done' event when job reaches a terminal state.
+    Streams SSE events for a specific job from the central queue safely.
     """
-    manager = jm_module.job_manager
-    job = manager.get_job(job_id)
-    if not job:
-        yield ServerSentEvent(
-            event="error",
-            data=json.dumps({"detail": f"Job {job_id} not found"}),
-        )
-        return
+    queue = get_or_create_queue(job_id)
 
-    # Register active listener queue first to prevent missing events
-    queue: asyncio.Queue = manager.register_queue(job_id)
+    while True:
+        event = await queue.get()
+        if isinstance(event, SSEEvent):
+            yield event.to_sse_payload()
+        elif isinstance(event, dict):
+            yield {
+                "event": event.get("event", "status"),
+                "data": json.dumps(event.get("data", {}))
+            }
+        queue.task_done()
 
-    try:
-        # Yield initial snapshot event
-        yield ServerSentEvent(
-            event="snapshot",
-            data=json.dumps({
-                "job_id": job.id,
-                "status": job.status.value,
-                "prompt": job.prompt,
-                "steps": [s.model_dump(mode="json") for s in job.steps]
-            })
-        )
-
-        # If already terminal prior to connection, complete immediately
-        if job.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
-            yield ServerSentEvent(
-                event="done",
-                data=json.dumps({"job_id": job_id, "status": job.status.value})
-            )
-            return
-
-        while True:
-            try:
-                # Wait for next event from job manager or emit keep-alive ping
-                event: JobEvent = await asyncio.wait_for(queue.get(), timeout=PING_INTERVAL_SECONDS)
-                
-                payload_json = json.dumps(event.payload, default=str)
-                yield ServerSentEvent(
-                    event=event.event_type,
-                    data=payload_json
-                )
-
-                # Check if terminal status was broadcast
-                if event.event_type == "status_change":
-                    current_status = event.payload.get("status")
-                    if current_status in (JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value):
-                        yield ServerSentEvent(
-                            event="done",
-                            data=json.dumps({"job_id": job_id, "status": current_status})
-                        )
-                        break
-
-            except asyncio.TimeoutError:
-                yield ServerSentEvent(event="ping", data="{}")
-
-    except asyncio.CancelledError:
-        logger.info(f"SSE client disconnected for job {job_id}")
-    finally:
-        manager.unregister_queue(job_id, queue)
+        # Stop stream on terminal states
+        event_type = getattr(event, "type", None) or (event.get("event") if isinstance(event, dict) else None)
+        if event_type in (SSEEventType.FINAL, SSEEventType.FINAL.value, SSEEventType.ERROR, SSEEventType.ERROR.value):
+            break

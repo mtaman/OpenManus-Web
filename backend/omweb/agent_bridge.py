@@ -1,174 +1,159 @@
-"""
-Agent Bridge Layer.
-Interfaces FastAPI backend with OpenManus (D:\\AI\\OpenManus - READ ONLY).
-Instruments memory message additions to capture live steps and stream to JobManager.
-"""
-
-import asyncio
-import logging
+import os
 import sys
-from pathlib import Path
-from typing import Any, Dict, Optional
+import asyncio
+from typing import Dict, Any, Optional
+
+OPENMANUS_ROOT = r"D:\AI\OpenManus"
+if OPENMANUS_ROOT not in sys.path:
+    sys.path.insert(0, OPENMANUS_ROOT)
 
 from omweb.job_manager import job_manager
-from omweb.models import JobStatus, StepType
+from omweb.sse_events import SSEEventType, SSEEvent, get_or_create_queue
 
-logger = logging.getLogger("omweb.agent_bridge")
+async def dispatch_event(job_id: str, event: SSEEvent):
+    try:
+        queue = get_or_create_queue(job_id)
+        await queue.put(event)
+    except Exception as e:
+        print(f"[SSE Dispatch Error]: {e}")
 
-# Read-only path to OpenManus root
-OPENMANUS_ROOT = Path(r"D:\AI\OpenManus")
+async def run_agent_job(job_id: str, prompt: str, max_steps: int = 20, **kwargs):
+    if hasattr(job_manager, "start_job"):
+        await job_manager.start_job(job_id)
+    elif hasattr(job_manager, "update_job_status"):
+        await job_manager.update_job_status(job_id, "running")
 
+    await dispatch_event(
+        job_id,
+        SSEEvent(
+            type=SSEEventType.STEP_START,
+            step=1,
+            data={"status": "running", "prompt": prompt}
+        )
+    )
 
-def ensure_openmanus_in_syspath() -> None:
-    """Safely adds OpenManus core directory to sys.path if not present."""
-    openmanus_str = str(OPENMANUS_ROOT.resolve())
-    if openmanus_str not in sys.path:
-        sys.path.insert(0, openmanus_str)
-        logger.info(f"Appended {openmanus_str} to sys.path")
+    last_assistant_thought = ""
 
+    try:
+        from app.agent.manus import Manus
+        from app.schema import Message
 
-class MemoryInterceptor:
-    """
-    Wraps OpenManus Memory.add_message to intercept agent internal steps
-    and broadcast them to the active JobManager.
-    """
+        agent = Manus()
+        if hasattr(agent, "max_steps"):
+            agent.max_steps = max_steps
 
-    def __init__(self, job_id: str):
-        self.job_id = job_id
-        self._original_add_message = None
-        self._target_memory_class = None
+        # Monkey patch execute_tool to broadcast live tool events
+        if hasattr(agent, "execute_tool"):
+            original_exec = agent.execute_tool
 
-    def patch(self) -> None:
-        """Applies monkey-patch to OpenManus Memory class."""
-        ensure_openmanus_in_syspath()
-        try:
-            from app.schema import Memory, Message  # type: ignore
-
-            self._target_memory_class = Memory
-            self._original_add_message = Memory.add_message
-            interceptor_self = self
-
-            def intercepted_add_message(memory_instance, message: Message):
-                # Execute original method
-                result = interceptor_self._original_add_message(memory_instance, message)
-
-                # Process message for step recording
+            async def patched_exec(tool_call, *args, **kwargs):
+                tool_name = getattr(tool_call, "name", "tool")
+                tool_args = getattr(tool_call, "arguments", {})
+                
                 try:
-                    role = getattr(message, "role", "unknown")
-                    content = getattr(message, "content", "")
-                    step_type = StepType.THOUGHT
-
-                    if role == "assistant":
-                        if getattr(message, "tool_calls", None):
-                            step_type = StepType.TOOL_CALL
-                        else:
-                            step_type = StepType.THOUGHT
-                    elif role == "tool":
-                        step_type = StepType.OBSERVATION
-                    elif role == "user":
-                        step_type = StepType.STEP_START
-
-                    # Non-blocking async dispatch of step to JobManager
-                    loop = None
-                    try:
-                        loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        pass
-
-                    if loop and loop.is_running():
-                        asyncio.create_task(
-                            job_manager.add_step(
-                                job_id=interceptor_self.job_id,
-                                step_type=step_type,
-                                content=str(content),
-                                data={"role": role}
-                            )
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(dispatch_event(
+                        job_id,
+                        SSEEvent(
+                            type=SSEEventType.TOOL_CALL,
+                            step=getattr(agent, "current_step", 1),
+                            data={"tool": tool_name, "arguments": tool_args}
                         )
-                except Exception as ex:
-                    logger.warning(f"Error intercepting memory step: {ex}")
+                    ))
+                except Exception:
+                    pass
+
+                result = await original_exec(tool_call, *args, **kwargs)
+
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(dispatch_event(
+                        job_id,
+                        SSEEvent(
+                            type=SSEEventType.OBSERVATION,
+                            step=getattr(agent, "current_step", 1),
+                            data={"tool": tool_name, "output": str(result)}
+                        )
+                    ))
+                except Exception:
+                    pass
 
                 return result
 
-            Memory.add_message = intercepted_add_message
-            logger.info(f"Successfully monkey-patched Memory.add_message for job {self.job_id}")
-        except Exception as e:
-            logger.error(f"Failed to patch OpenManus Memory class: {e}")
+            object.__setattr__(agent, "execute_tool", patched_exec)
 
-    def unpatch(self) -> None:
-        """Restores original Memory.add_message method."""
-        if self._target_memory_class and self._original_add_message:
-            self._target_memory_class.add_message = self._original_add_message
-            logger.info(f"Unpatched Memory.add_message for job {self.job_id}")
+        # Patch memory to track assistant thoughts
+        if hasattr(agent.memory, "messages"):
+            pass
 
+        original_think = agent.think if hasattr(agent, "think") else None
+        if original_think:
+            async def patched_think():
+                nonlocal last_assistant_thought
+                thought_res = await original_think()
+                # Inspect recent messages for assistant thought
+                if hasattr(agent.memory, "messages") and agent.memory.messages:
+                    for m in reversed(agent.memory.messages):
+                        if getattr(m, "role", "") == "assistant" and getattr(m, "content", ""):
+                            last_assistant_thought = str(m.content)
+                            try:
+                                loop = asyncio.get_running_loop()
+                                loop.create_task(dispatch_event(
+                                    job_id,
+                                    SSEEvent(
+                                        type=SSEEventType.THOUGHT,
+                                        step=getattr(agent, "current_step", 1),
+                                        data={"thought": last_assistant_thought}
+                                    )
+                                ))
+                            except Exception:
+                                pass
+                            break
+                return thought_res
 
-async def run_agent_job(job_id: str, prompt: str, max_steps: int = 30) -> None:
-    """
-    Executes an OpenManus agent run lifecycle for a given job.
-    Updates JobManager state from RUNNING to COMPLETED or FAILED.
-    """
-    ensure_openmanus_in_syspath()
-    job = job_manager.get_job(job_id)
-    if not job:
-        logger.error(f"Job {job_id} not found, aborting agent run")
-        return
+            object.__setattr__(agent, "think", patched_think)
 
-    await job_manager.update_status(job_id, JobStatus.RUNNING)
-    await job_manager.add_step(
-        job_id=job_id,
-        step_type=StepType.STEP_START,
-        content=f"Task initiated with prompt: {prompt}",
-        data={"max_steps": max_steps}
-    )
+        result = await agent.run(prompt)
 
-    interceptor = MemoryInterceptor(job_id)
-    interceptor.patch()
+        final_content = ""
+        # If result is just a terminate confirmation, extract real thought
+        res_str = str(result) if result else ""
+        if "completed with status" in res_str or not res_str.strip():
+            final_content = last_assistant_thought if last_assistant_thought else res_str
+        else:
+            final_content = res_str
 
-    try:
-        from app.agent.manus import Manus  # type: ignore
+        if not final_content:
+            final_content = "Task executed successfully."
 
-        agent = Manus()
-        # Execute agent workflow
-        await agent.run(prompt)
-
-        await job_manager.add_step(
-            job_id=job_id,
-            step_type=StepType.FINAL_ANSWER,
-            content="Task executed to completion."
+        await dispatch_event(
+            job_id,
+            SSEEvent(
+                type=SSEEventType.FINAL,
+                step=getattr(agent, "current_step", 1),
+                data={"result": final_content}
+            )
         )
-        await job_manager.update_status(job_id, JobStatus.COMPLETED)
-    except asyncio.CancelledError:
-        logger.info(f"Job {job_id} was cancelled by user.")
-        await job_manager.update_status(job_id, JobStatus.CANCELLED, error_message="Cancelled by user")
+
+        if hasattr(job_manager, "complete_job"):
+            await job_manager.complete_job(job_id, final_content)
+        elif hasattr(job_manager, "update_job_status"):
+            await job_manager.update_job_status(job_id, "completed", result=final_content)
+
     except Exception as e:
-        error_msg = f"Agent execution failed: {str(e)}"
-        logger.exception(error_msg)
-        await job_manager.add_step(
-            job_id=job_id,
-            step_type=StepType.ERROR,
-            content=error_msg
+        error_msg = str(e)
+        print(f"Agent execution failed: {error_msg}")
+        
+        if hasattr(job_manager, "fail_job"):
+            await job_manager.fail_job(job_id, error_msg)
+        elif hasattr(job_manager, "update_job_status"):
+            await job_manager.update_job_status(job_id, "failed", error=error_msg)
+
+        await dispatch_event(
+            job_id,
+            SSEEvent(
+                type=SSEEventType.ERROR,
+                step=1,
+                data={"error": error_msg}
+            )
         )
-        await job_manager.update_status(job_id, JobStatus.FAILED, error_message=error_msg)
-    finally:
-        interceptor.unpatch()
-
-
-def verify_bridge() -> Dict[str, Any]:
-    """
-    Lightweight health check for the bridge environment.
-    Verifies OpenManus path resolution, sys.path integration, and importability.
-    """
-    ensure_openmanus_in_syspath()
-    exists = OPENMANUS_ROOT.exists() and OPENMANUS_ROOT.is_dir()
-    can_import_schema = False
-    try:
-        from app.schema import Memory  # type: ignore
-        can_import_schema = True
-    except Exception as e:
-        logger.warning(f"Verification import failed: {e}")
-
-    return {
-        "openmanus_root": str(OPENMANUS_ROOT),
-        "exists": exists,
-        "sys_path_injected": str(OPENMANUS_ROOT.resolve()) in sys.path,
-        "importable": can_import_schema
-    }
