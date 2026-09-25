@@ -7,11 +7,11 @@ if (-not (Test-Path $venvPython)) {
     exit 1
 }
 
-# Check if port 8088 is occupied
-$portCheck = Get-NetTCPConnection -LocalPort 8088 -ErrorAction SilentlyContinue
-if ($portCheck) {
-    Write-Host "[WARN] Port 8088 is currently in use. Existing process may be active." -ForegroundColor Yellow
-}
+# Free port 8088 if occupied
+Get-NetTCPConnection -LocalPort 8088 -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique |
+    Where-Object { $_ -gt 0 } |
+    ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
 
 Write-Host ">>> Launching Uvicorn with Windows Proactor loop on http://localhost:8088..." -ForegroundColor Green
-& $venvPython -c "import sys, asyncio, uvicorn; asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy()) if sys.platform == 'win32' else None; uvicorn.run('omweb.main:app', host='0.0.0.0', port=8088, reload=True, loop='asyncio')"
+& $venvPython -c "import sys, asyncio, uvicorn; asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy()) if sys.platform == 'win32' else None; uvicorn.run('omweb.main:app', host='0.0.0.0', port=8088, reload=False)"

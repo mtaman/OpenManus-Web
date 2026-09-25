@@ -1,132 +1,114 @@
 ﻿import sys
 import asyncio
-
-if sys.platform == "win32":
-    try:
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    except Exception:
-        pass
-import sys
-import re
-import asyncio
-from typing import Dict, Any, Optional
-
-from omweb.engine_resolver import inject_engine_to_syspath
+import traceback
+from typing import Any, Dict
 from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
-from omweb.config import WORKSPACE_ROOT
+from omweb.job_manager import job_manager
 
-# Dynamically inject active engine root into sys.path
-inject_engine_to_syspath()
+human_answers: Dict[str, asyncio.Event] = {}
+human_data: Dict[str, str] = {}
+active_tasks: Dict[str, asyncio.Task] = {}
+current_active_job_id: Dict[str, str] = {}
 
-def sanitize_code(code: str) -> str:
-    """Strip markdown code block fences if injected by the LLM."""
-    if not isinstance(code, str):
-        return code
-    cleaned = re.sub(r"^```[a-zA-Z]*\n", "", code.strip())
-    cleaned = re.sub(r"\n```$", "", cleaned.strip())
-    return cleaned
-
-async def run_instrumented(job_id: str, prompt: str, max_steps: int = 20) -> None:
-    from app.agent.manus import Manus
-    from app.schema import Memory, Message
-
-    step_counter = 1
-    last_assistant_message = ""
-    original_add_message = Memory.add_message
-
-    def patched_add_message(self, message: Message):
-        nonlocal step_counter, last_assistant_message
-        result = original_add_message(self, message)
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            if message.content and message.role == "assistant":
-                last_assistant_message = message.content
-                asyncio.run_coroutine_threadsafe(
-                    dispatch_event(
+def apply_global_ask_human_patch():
+    """Intercept AskHuman.execute globally in memory to prevent terminal blocking."""
+    try:
+        import app.tool.ask_human as ask_human_module
+        if hasattr(ask_human_module, "AskHuman"):
+            cls = ask_human_module.AskHuman
+            
+            async def patched_execute(self, inquire: str = "", **kwargs):
+                job_id = current_active_job_id.get("current", "")
+                question = inquire or kwargs.get("question") or "Agent requires your feedback."
+                print(f"[BRIDGE] Intercepted ask_human for job {job_id}: {question}")
+                
+                if job_id:
+                    # Dispatch dedicated ask_human tool_call event to frontend
+                    await dispatch_event(
                         job_id,
                         SSEEvent(
-                            type=SSEEventType.THOUGHT,
-                            step=step_counter,
-                            data={"thought": message.content},
-                        ),
-                    ),
-                    loop,
-                )
-
-            if hasattr(message, "tool_calls") and message.tool_calls:
-                for tc in message.tool_calls:
-                    args = getattr(tc, "arguments", {}) or {}
-                    if "code" in args and isinstance(args["code"], str):
-                        args["code"] = sanitize_code(args["code"])
-
-                    asyncio.run_coroutine_threadsafe(
-                        dispatch_event(
-                            job_id,
-                            SSEEvent(
-                                type=SSEEventType.TOOL_CALL,
-                                step=step_counter,
-                                data={
-                                    "tool": getattr(tc, "name", "tool"),
-                                    "toolCallId": getattr(tc, "id", None),
-                                    "arguments": args,
-                                },
-                            ),
-                        ),
-                        loop,
+                            type=SSEEventType.TOOL_CALL,
+                            step=1,
+                            data={"name": "ask_human", "arguments": question}
+                        )
                     )
+                    
+                    wait_event = asyncio.Event()
+                    human_answers[job_id] = wait_event
+                    
+                    # PROPER ASYNCIO EVENT WAIT
+                    try:
+                        await asyncio.wait_for(wait_event.wait(), timeout=600.0)
+                        user_reply = human_data.pop(job_id, "Approved.")
+                    except asyncio.TimeoutError:
+                        user_reply = "No user response provided within timeout."
+                    finally:
+                        human_answers.pop(job_id, None)
+                        
+                    print(f"[BRIDGE] Received human response: {user_reply}")
+                    return f"User response: {user_reply}"
+                return "Proceed with autonomous decision."
+            
+            cls.execute = patched_execute
+            print("[BRIDGE] Successfully applied in-memory patch to AskHuman.execute")
+    except Exception as e:
+        print(f"[BRIDGE WARNING] Could not patch AskHuman: {e}")
 
-            if message.role == "tool":
-                asyncio.run_coroutine_threadsafe(
-                    dispatch_event(
-                        job_id,
-                        SSEEvent(
-                            type=SSEEventType.OBSERVATION,
-                            step=step_counter,
-                            data={
-                                "toolCallId": getattr(message, "tool_call_id", None),
-                                "output": message.content,
-                            },
-                        ),
-                    ),
-                    loop,
-                )
-                step_counter += 1
+# Apply patch immediately on module load
+apply_global_ask_human_patch()
 
+async def run_instrumented(job_id: str, prompt: str) -> None:
+    print(f"\n[BRIDGE] Initializing agent for job: {job_id}")
+    current_active_job_id["current"] = job_id
+    
+    try:
+        from app.agent.manus import Manus
+    except ImportError as e:
+        print(f"[BRIDGE ERROR] Failed to import OpenManus core: {e}")
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": str(e)}))
+        return
+
+    await asyncio.sleep(0.3)
+    await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=1, data={"status": "running"}))
+
+    agent = Manus()
+
+    # Hook agent.step to capture every thought and progress event
+    original_step = agent.step
+
+    async def instrumented_step():
+        curr_step = getattr(agent, "current_step", 1)
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=curr_step, data={"step": curr_step}))
+        result = await original_step()
+        
+        # Stream thoughts
+        if hasattr(agent, "memory") and hasattr(agent.memory, "messages"):
+            for m in reversed(agent.memory.messages[-3:]):
+                role = getattr(m, "role", "")
+                content = getattr(m, "content", "")
+                if role == "assistant" and content:
+                    await dispatch_event(job_id, SSEEvent(type=SSEEventType.THOUGHT, step=curr_step, data={"thought": content}))
+                    break
         return result
 
-    Memory.add_message = patched_add_message
+    agent.step = instrumented_step
 
     try:
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.STATUS, step=1, data={"state": "running"}))
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=1, data={"step": 1}))
-
-        agent = Manus(max_steps=max_steps)
-        await agent.run(prompt)
-
-        final_text = last_assistant_message if last_assistant_message else "Task completed successfully."
-        await dispatch_event(
-            job_id,
-            SSEEvent(
-                type=SSEEventType.FINAL,
-                step=step_counter,
-                data={"result": final_text},
-            ),
-        )
-    except Exception as e:
-        await dispatch_event(
-            job_id,
-            SSEEvent(
-                type=SSEEventType.ERROR,
-                step=step_counter,
-                data={"message": str(e), "code": "execution_failed"},
-            ),
-        )
+        final_out = await agent.run(prompt)
+        print(f"[BRIDGE] Execution completed successfully for job: {job_id}")
+        result_text = str(final_out) if final_out else "Task completed successfully."
+        job_manager.complete_job(job_id, result_text)
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.FINAL, step=getattr(agent, "current_step", 1), data={"result": result_text}))
+    except asyncio.CancelledError:
+        print(f"[BRIDGE] Job was aborted: {job_id}")
+    except Exception as err:
+        tb = traceback.format_exc()
+        print(f"[BRIDGE ERROR] {err}\n{tb}")
+        job_manager.fail_job(job_id, str(err))
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=getattr(agent, "current_step", 1), data={"message": str(err)}))
     finally:
-        Memory.add_message = original_add_message
-
-run_agent_job = run_instrumented
+        human_answers.pop(job_id, None)
+        human_data.pop(job_id, None)
+        active_tasks.pop(job_id, None)
+        if current_active_job_id.get("current") == job_id:
+            current_active_job_id.pop("current", None)

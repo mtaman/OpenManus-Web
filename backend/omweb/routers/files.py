@@ -1,64 +1,81 @@
-﻿from fastapi import APIRouter, HTTPException, Query, Response
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+﻿import os
+import shutil
 from pathlib import Path
-from typing import Dict, Any
-
-from omweb.fs_utils import (
-    ensure_workspace,
-    resolve_safe_path,
-    build_file_tree,
-    move_to_trash
-)
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import FileResponse, PlainTextResponse
+from omweb.config import WORKSPACE_ROOT
 
 router = APIRouter()
 
-class FileSaveRequest(BaseModel):
-    path: str
-    content: str
+def safe_resolve(subpath: str) -> Path:
+    clean_subpath = subpath.lstrip("/\\")
+    target = (WORKSPACE_ROOT / clean_subpath).resolve()
+    if not target.is_relative_to(WORKSPACE_ROOT.resolve()):
+        raise HTTPException(status_code=403, detail="Access denied: Path traversal detected")
+    return target
 
 @router.get("")
-async def list_workspace_files():
-    """Retrieve the full file tree of the workspace."""
-    ws = ensure_workspace()
-    tree = build_file_tree(ws)
-    return {"workspace": str(ws), "files": tree}
+@router.get("/")
+async def list_files():
+    """List all artifacts and files in workspace."""
+    WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
+    items = []
+    for root, dirs, files in os.walk(WORKSPACE_ROOT):
+        for f in files:
+            p = Path(root) / f
+            rel = p.relative_to(WORKSPACE_ROOT)
+            stat = p.stat()
+            ext = p.suffix.lower()
+            file_type = "code"
+            if ext in [".html", ".htm"]:
+                file_type = "html"
+            elif ext in [".md", ".markdown", ".txt"]:
+                file_type = "markdown"
+            elif ext in [".json", ".csv"]:
+                file_type = "data"
+            elif ext in [".png", ".jpg", ".jpeg", ".svg", ".webp"]:
+                file_type = "image"
+
+            items.append({
+                "name": f,
+                "path": str(rel).replace("\\", "/"),
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+                "type": file_type
+            })
+    return {"files": items, "workspace": str(WORKSPACE_ROOT)}
+
+@router.get("/raw")
+@router.get("/raw/")
+@router.get("/raw/{file_path:path}")
+async def get_raw_file(file_path: str = None, path: str = Query(None)):
+    target_rel = file_path or path
+    if not target_rel:
+        raise HTTPException(status_code=400, detail="Missing file path")
+    target = safe_resolve(target_rel)
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="Artifact file not found")
+    
+    ext = target.suffix.lower()
+    if ext in [".html", ".htm"]:
+        return FileResponse(target, media_type="text/html")
+    elif ext in [".png", ".jpg", ".jpeg", ".svg", ".webp"]:
+        return FileResponse(target)
+    
+    return FileResponse(target, media_type="text/plain")
 
 @router.get("/content")
-async def get_file_content(path: str = Query(..., description="Relative path in workspace")):
-    """Read textual content of a file."""
-    target = resolve_safe_path(path)
-    if not target.is_file():
+@router.get("/content/")
+@router.get("/content/{file_path:path}")
+async def get_file_content(file_path: str = None, path: str = Query(None)):
+    target_rel = file_path or path
+    if not target_rel:
+        raise HTTPException(status_code=400, detail="Missing file path")
+    target = safe_resolve(target_rel)
+    if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-    
     try:
         content = target.read_text(encoding="utf-8")
-        return {"path": path, "content": content}
-    except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="Cannot read binary file as text")
-
-@router.post("/content")
-async def save_file_content(payload: FileSaveRequest):
-    """Save updated text content to a file."""
-    target = resolve_safe_path(payload.path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(payload.content, encoding="utf-8")
-    return {"status": "saved", "path": payload.path, "size": target.stat().st_size}
-
-@router.get("/download")
-async def download_file(path: str = Query(..., description="Relative path in workspace")):
-    """Download a file from the workspace."""
-    target = resolve_safe_path(path)
-    if not target.is_file():
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(target, filename=target.name)
-
-@router.delete("/{file_path:path}")
-async def delete_file(file_path: str):
-    """Safely delete a file by moving it to .trash."""
-    target = resolve_safe_path(file_path)
-    if not target.exists():
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    trash_dest = move_to_trash(target)
-    return {"status": "deleted", "moved_to_trash": str(trash_dest.name)}
+        return {"path": target_rel, "content": content}
+    except Exception as e:
+        return {"path": target_rel, "content": f"Binary or unreadable content: {str(e)}"}

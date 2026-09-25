@@ -1,15 +1,23 @@
 ﻿"use client";
-
-import React, { useState, useEffect, useRef } from "react";
-import { 
-  Sparkles, 
-  Send, 
-  CheckCircle2, 
-  AlertCircle, 
-  Wrench, 
+import React, { useState, useRef } from "react";
+import {
+  Send,
+  Wrench,
   BrainCircuit,
   FileText,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Check,
+  User,
+  Terminal,
+  Square,
+  PlusCircle,
+  PanelRightClose,
+  PanelRightOpen,
+  HelpCircle,
+  Coins
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -18,24 +26,31 @@ import { WorkspacePanel } from "@/components/workspace/workspace-panel";
 interface StepEvent {
   id: string;
   step: number;
-  type: "thought" | "tool_call" | "observation" | "error" | "final";
+  type: "thought" | "tool_call" | "observation" | "error" | "final" | "ask_human";
   content: string;
   toolName?: string;
 }
 
 function safeRender(val: any): string {
   if (val === null || val === undefined) return "";
-  if (typeof val === "string") return val;
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (trimmed === "{}" || trimmed === "null" || trimmed === "undefined") return "";
+    return val;
+  }
   if (typeof val === "number" || typeof val === "boolean") return String(val);
   try {
-    return JSON.stringify(val, null, 2);
+    const str = JSON.stringify(val, null, 2);
+    if (str === "{}" || str === "[]") return "";
+    return str;
   } catch {
     return String(val);
   }
 }
 
 export default function ChatPage() {
-  const [prompt, setPrompt] = useState("");
+  const [inputValue, setInputValue] = useState("");
+  const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "running" | "completed" | "failed">("idle");
   const [steps, setSteps] = useState<StepEvent[]>([]);
@@ -43,117 +58,178 @@ export default function ChatPage() {
   const [currentStepNum, setCurrentStepNum] = useState(0);
   const [producedFiles, setProducedFiles] = useState<{ name: string; path: string }[]>([]);
   const [selectedFileForEditor, setSelectedFileForEditor] = useState<string | null>(null);
+  const [expandedSteps, setExpandedSteps] = useState<Record<number, boolean>>({});
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
+
+  const [showRightPanel, setShowRightPanel] = useState(true);
+  const [tokensUsed, setTokensUsed] = useState({ input: 0, output: 0, total: 0 });
+  const [humanQuery, setHumanQuery] = useState<string | null>(null);
+  const [humanAnswer, setHumanAnswer] = useState("");
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const fetchJobFiles = async (jobId: string) => {
-    try {
-      const res = await fetch(`/api/run/jobs/${jobId}/files`);
-      if (res.ok) {
-        const data = await res.json();
-        setProducedFiles(data.files || []);
+  const toggleStep = (stepNum: number) => {
+    setExpandedSteps((prev) => ({
+      ...prev,
+      [stepNum]: !prev[stepNum]
+    }));
+  };
+
+  const copyText = (text: string, identifier: string) => {
+    if (!text) return;
+    const onCopySuccess = () => {
+      setCopiedSection(identifier);
+      setTimeout(() => setCopiedSection(null), 2000);
+    };
+
+    if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      navigator.clipboard.writeText(text).then(onCopySuccess).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+
+    function fallbackCopy(str: string) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = str;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        if (successful) onCopySuccess();
+      } catch (err) {
+        console.error("Fallback copy error:", err);
       }
-    } catch (e) {
-      console.error("Error fetching job files", e);
     }
   };
 
-  const handleStartTask = async () => {
-    if (!prompt.trim() || status === "running") return;
-
-    setStatus("running");
+  const handleNewSession = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+    setInputValue("");
+    setSubmittedPrompt("");
+    setActiveJobId(null);
+    setStatus("idle");
     setSteps([]);
     setFinalResult(null);
-    setCurrentStepNum(1);
+    setCurrentStepNum(0);
     setProducedFiles([]);
+    setExpandedSteps({});
+    setTokensUsed({ input: 0, output: 0, total: 0 });
+    setHumanQuery(null);
+    setHumanAnswer("");
+  };
 
+  const handleStopTask = async () => {
+    if (!activeJobId) return;
+    if (status !== "running") return;
     try {
-      const res = await fetch("/api/run", {
+      await fetch(`/api/run/jobs/${activeJobId}/stop`, { method: "POST" });       setStatus("failed");       if (eventSourceRef.current) {         eventSourceRef.current.close();       }     } catch (e) {       console.error("Failed to stop job", e);     }   };    const handleSendHumanAnswer = async () => {     if (!activeJobId) return;     if (!humanAnswer.trim()) return;     try {       await fetch(`/api/run/jobs/${activeJobId}/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, max_steps: 20 }),
+        body: JSON.stringify({ answer: humanAnswer.trim() }),
       });
+      setHumanQuery(null);
+      setHumanAnswer("");
+    } catch (e) {
+      console.error("Failed to submit human response", e);
+    }
+  };
 
-      if (!res.ok) throw new Error("Failed to start run");
-
-      const data = await res.json();
-      const jobId = data.job_id;
-      setActiveJobId(jobId);
-
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
-
-      const es = new EventSource(`/api/run/jobs/${jobId}/stream`);
+  const fetchJobFiles = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/run/jobs/${jobId}/files`);       if (res.ok) {         const data = await res.json();         setProducedFiles(data.files ? data.files : []);       }     } catch (e) {       console.error("Error fetching job files", e);     }   };    const handleStartTask = async () => {     const textToSend = inputValue.trim();     if (!textToSend) return;     if (status === "running") return;      setInputValue("");     setSubmittedPrompt(textToSend);     setStatus("running");     setSteps([]);     setFinalResult(null);     setCurrentStepNum(1);     setProducedFiles([]);     setExpandedSteps({});     setHumanQuery(null);     setTokensUsed({ input: 0, output: 0, total: 0 });      try {       const res = await fetch("/api/run", {         method: "POST",         headers: { "Content-Type": "application/json" },         body: JSON.stringify({ prompt: textToSend, max_steps: 20 }),       });        if (!res.ok) throw new Error("Failed to start run");       const data = await res.json();       const jobId = data.job_id;       setActiveJobId(jobId);        if (eventSourceRef.current) {         eventSourceRef.current.close();       }        const es = new EventSource(`/api/run/jobs/${jobId}/stream`);
       eventSourceRef.current = es;
 
       const appendStep = (type: StepEvent["type"], content: any, stepNum = 1, toolName?: string) => {
+        const cleanContent = safeRender(content);
+        const cleanTool = toolName ? safeRender(toolName) : undefined;
+
+        if (type === "tool_call") {
+          if (!cleanTool || cleanTool === "{}") return;
+          if (!cleanContent && !cleanTool) return;
+        }
+
         setSteps((prev) => [
           ...prev,
           {
             id: `${Date.now()}-${Math.random()}`,
             step: stepNum,
             type,
-            content: safeRender(content),
-            toolName: toolName ? safeRender(toolName) : undefined,
+            content: cleanContent,
+            toolName: cleanTool,
           }
         ]);
       };
 
-      es.addEventListener("step_start", (e: any) => {
-        try {
-          const payload = JSON.parse(e.data);
-          setCurrentStepNum(payload.step || 1);
-        } catch {}
-      });
+      const handleEventPayload = (eventType: string, payload: any) => {
+        const step = payload.step || 1;
+        setCurrentStepNum(step);
 
-      es.addEventListener("thought", (e: any) => {
-        try {
-          const payload = JSON.parse(e.data);
+        if (eventType === "step_start") {
+          // step counter update
+        } else if (eventType === "thought") {
           const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
-          appendStep("thought", raw, payload.step || 1);
-        } catch {}
-      });
-
-      es.addEventListener("tool_call", (e: any) => {
-        try {
-          const payload = JSON.parse(e.data);
-          const raw = payload.data?.arguments ?? "Running tool...";
-          appendStep("tool_call", raw, payload.step || 1, payload.data?.name);
-        } catch {}
-      });
-
-      es.addEventListener("observation", (e: any) => {
-        try {
-          const payload = JSON.parse(e.data);
-          const raw = payload.data?.output ?? "output ready";
-          appendStep("observation", raw, payload.step || 1);
+          appendStep("thought", raw, step);
+          if (payload.data?.tokens) setTokensUsed(payload.data.tokens);
+        } else if (eventType === "tool_call") {
+          const name = payload.data?.name;
+          const args = payload.data?.arguments ?? "";
+          if (name === "ask_human" || (typeof args === "string" && (args.includes("?") || args.includes("prefer")))) {
+            setHumanQuery(typeof args === "string" ? args : JSON.stringify(args));
+          }
+          appendStep("tool_call", args, step, name);
+        } else if (eventType === "observation") {
+          const raw = payload.data?.output ?? "Execution completed.";
+          appendStep("observation", raw, step);
           fetchJobFiles(jobId);
-        } catch {}
-      });
-
-      es.addEventListener("final", (e: any) => {
-        try {
-          const payload = JSON.parse(e.data);
-          setFinalResult(safeRender(payload.data?.result || "Task finished."));
+        } else if (eventType === "final") {
+          const resText = payload.data?.result ?? "Task completed successfully.";
+          setFinalResult(safeRender(resText));
           setStatus("completed");
           fetchJobFiles(jobId);
           es.close();
-        } catch {}
-      });
-
-      es.addEventListener("error", (e: any) => {
-        try {
-          const payload = JSON.parse(e.data);
-          setFinalResult(safeRender(payload.data?.message || "Execution error."));
+        } else if (eventType === "error") {
+          const errText = payload.data?.message ?? "Execution error encountered.";
+          setFinalResult(safeRender(errText));
           setStatus("failed");
           es.close();
-        } catch {}
+        }
+      };
+
+      es.addEventListener("step_start", (e: any) => {
+        try { handleEventPayload("step_start", JSON.parse(e.data)); } catch {}
       });
+      es.addEventListener("thought", (e: any) => {
+        try { handleEventPayload("thought", JSON.parse(e.data)); } catch {}
+      });
+      es.addEventListener("tool_call", (e: any) => {
+        try { handleEventPayload("tool_call", JSON.parse(e.data)); } catch {}
+      });
+      es.addEventListener("observation", (e: any) => {
+        try { handleEventPayload("observation", JSON.parse(e.data)); } catch {}
+      });
+      es.addEventListener("final", (e: any) => {
+        try { handleEventPayload("final", JSON.parse(e.data)); } catch {}
+      });
+      es.addEventListener("error", (e: any) => {
+        try { handleEventPayload("error", JSON.parse(e.data)); } catch {}
+      });
+
+      es.onmessage = (e: any) => {
+        try {
+          const parsed = JSON.parse(e.data);
+          if (parsed.type) handleEventPayload(parsed.type, parsed);
+        } catch {}
+      };
 
       es.onerror = () => {
         fetchJobFiles(jobId);
       };
-
     } catch (err) {
       console.error(err);
       setStatus("failed");
@@ -161,64 +237,219 @@ export default function ChatPage() {
   };
 
   const groupedSteps = steps.reduce((acc, s) => {
-    acc[s.step] = acc[s.step] || [];
+    if (!acc[s.step]) {
+      acc[s.step] = [];
+    }
     acc[s.step].push(s);
     return acc;
   }, {} as Record<number, StepEvent[]>);
 
   return (
-    <div className="flex h-full w-full bg-[var(--color-canvas)] text-[var(--color-ink)] overflow-hidden">
-      {/* Left Chat & Telemetry View */}
+    <div className="flex h-full w-full bg-[var(--color-canvas)] text-[var(--color-ink)] overflow-hidden font-mono">
+      {/* Left Chat & Telemetry Feed */}
       <div className="flex-1 flex flex-col h-full border-r border-[var(--color-line)] min-w-0">
-        <div className="flex items-center justify-between px-6 py-3.5 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between px-6 py-2.5 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
           <div className="flex items-center gap-3">
-            <h1 className="text-sm font-semibold truncate max-w-md">
-              {prompt || "New Autonomous Session"}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewSession}
+              className="flex items-center gap-1.5 h-7 px-2 text-xs font-mono border-[var(--color-line)] bg-[var(--color-surface-2)]"
+              title="Start a fresh autonomous session"
+            >
+              <PlusCircle size={13} className="text-cyan-400" />
+              <span>New Session</span>
+            </Button>
+            <h1 className="text-xs font-semibold truncate max-w-xs text-[var(--color-ink)]">
+              {submittedPrompt ? submittedPrompt : "Ready"}
             </h1>
             <StatusPill status={status} />
           </div>
-          <span className="text-xs font-mono text-[var(--color-ink-faint)]">
-            Step {currentStepNum} / 20 • Local Engine
-          </span>
+
+          <div className="flex items-center gap-3">
+            {tokensUsed.total > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-ink-muted)]">
+                <Coins size={11} />
+                <span>Tokens: {tokensUsed.total.toLocaleString()}</span>
+              </span>
+            )}
+            <span className="text-xs font-mono text-[var(--color-ink-faint)]">
+              Step {currentStepNum} / 20
+            </span>
+            {status === "running" && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleStopTask}
+                className="flex items-center gap-1 h-7 px-2.5 text-xs font-mono bg-red-600/80 hover:bg-red-600 text-white"
+              >
+                <Square size={11} className="fill-current" />
+                <span>Stop</span>
+              </Button>
+            )}
+            <button
+              onClick={() => setShowRightPanel(!showRightPanel)}
+              className="p-1.5 rounded hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] hover:text-cyan-400"
+              title={showRightPanel ? "Hide Right Workspace Panel" : "Show Right Workspace Panel"}
+            >
+              {showRightPanel ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+            </button>
+          </div>
         </div>
 
+        {/* Telemetry Stream Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {Object.entries(groupedSteps).map(([stepNum, stepEvents]) => (
-            <div key={stepNum} className="border border-[var(--color-line)] rounded-lg bg-[var(--color-surface-1)] p-4 space-y-2">
-              <span className="text-xs font-mono font-semibold text-[var(--color-ink-muted)] block mb-1">
-                Execution Step {stepNum}
-              </span>
-              {stepEvents.map((evt) => (
-                <div key={evt.id} className="text-xs font-mono">
-                  {evt.type === "thought" && (
-                    <div className="flex items-start gap-2 p-2 rounded bg-[var(--color-surface-2)] border border-[var(--color-line-subtle)] text-[var(--color-ink)]">
-                      <BrainCircuit size={14} className="text-purple-400 mt-0.5 flex-shrink-0" />
-                      <div className="whitespace-pre-wrap">{evt.content}</div>
-                    </div>
+          {submittedPrompt && (
+            <div className="p-4 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-line)] text-xs font-mono space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase tracking-wider text-[11px]">
+                  <User size={13} />
+                  User Prompt
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyText(submittedPrompt, "user-prompt")}
+                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)]"
+                  title="Copy Prompt"
+                >
+                  {copiedSection === "user-prompt" ? (
+                    <>
+                      <Check size={12} className="text-emerald-400" />
+                      <span className="text-emerald-400 font-sans">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} />
+                      <span className="font-sans">Copy</span>
+                    </>
                   )}
-                  {evt.type === "tool_call" && (
-                    <div className="flex items-start gap-2 p-2 rounded bg-[var(--color-surface-2)] text-cyan-400 border border-cyan-500/20">
-                      <Wrench size={14} className="mt-0.5 flex-shrink-0" />
-                      <div>
-                        {evt.toolName && <span className="font-bold underline mr-1">{evt.toolName}:</span>}
-                        <span>{evt.content}</span>
-                      </div>
-                    </div>
-                  )}
-                  {evt.type === "observation" && (
-                    <div className="p-2 text-[11px] text-emerald-400 bg-emerald-500/10 rounded border border-emerald-500/20">
-                      ✓ {evt.content}
-                    </div>
-                  )}
-                </div>
-              ))}
+                </button>
+              </div>
+              <div className="text-[var(--color-ink)] whitespace-pre-wrap font-sans text-xs leading-relaxed">
+                {submittedPrompt}
+              </div>
             </div>
-          ))}
+          )}
 
+          {/* Interactive Human Assistance Query Box (ask_human) */}
+          {humanQuery && (
+            <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs font-mono space-y-3 animate-pulse">
+              <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
+                <HelpCircle size={14} />
+                <span>Agent Requires Human Assistance / Feedback:</span>
+              </div>
+              <div className="p-2.5 rounded bg-[var(--color-surface-1)] text-[var(--color-ink)] border border-[var(--color-line)] font-sans">
+                {humanQuery}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={humanAnswer}
+                  onChange={(e) => setHumanAnswer(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendHumanAnswer()}
+                  placeholder="Type your response to the agent..."
+                  className="flex-1 bg-[var(--color-void)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-amber-400"
+                />
+                <Button
+                  onClick={handleSendHumanAnswer}
+                  className="bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs px-3 h-8 cursor-pointer"
+                >
+                  Submit Answer
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Execution Steps */}
+          {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
+            const stepNum = parseInt(stepNumStr, 10);
+            const isExpanded = expandedSteps[stepNum] === true;
+            return (
+              <div key={stepNum} className="border border-[var(--color-line)] rounded-lg bg-[var(--color-surface-1)] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleStep(stepNum)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] transition text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    {isExpanded ? (
+                      <ChevronDown size={14} className="text-cyan-400" />
+                    ) : (
+                      <ChevronRight size={14} className="text-[var(--color-ink-muted)]" />
+                    )}
+                    <span className="text-xs font-mono font-semibold text-[var(--color-ink-muted)]">
+                      Execution Step {stepNum}
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-ink-faint)]">
+                      {stepEvents.length} events
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono text-[var(--color-ink-faint)]">
+                    {isExpanded ? "Click to collapse" : "Click to view details"}
+                  </span>
+                </button>
+
+                {isExpanded && (
+                  <div className="p-4 pt-2 border-t border-[var(--color-line-subtle)] space-y-2.5 bg-[var(--color-canvas)]">
+                    {stepEvents.map((evt) => (
+                      <div key={evt.id} className="text-xs font-mono">
+                        {evt.type === "thought" && (
+                          <div className="flex items-start gap-2 p-2.5 rounded bg-[var(--color-surface-2)] border border-[var(--color-line)]">
+                            <BrainCircuit size={14} className="text-purple-400 mt-0.5 flex-shrink-0" />
+                            <div className="whitespace-pre-wrap leading-relaxed">{evt.content}</div>
+                          </div>
+                        )}
+                        {evt.type === "tool_call" && evt.toolName && (
+                          <div className="flex items-start gap-2 p-2.5 rounded bg-[var(--color-surface-2)] text-cyan-400 border border-[var(--color-line)]">
+                            <Wrench size={14} className="mt-0.5 flex-shrink-0" />
+                            <div>
+                              <span className="font-bold underline mr-1">{evt.toolName}:</span>
+                              <span>{evt.content}</span>
+                            </div>
+                          </div>
+                        )}
+                        {evt.type === "observation" && (
+                          <div className="p-2 text-[11px] text-emerald-400 bg-emerald-500/10 rounded border border-emerald-500/20 flex items-start gap-2">
+                            <Terminal size={13} className="mt-0.5 flex-shrink-0" />
+                            <span className="whitespace-pre-wrap">{evt.content}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Final Result Card */}
           {finalResult && (
             <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs font-mono space-y-3">
-              <span className="text-emerald-400 font-bold uppercase tracking-wider block">FINAL RESULT</span>
-              <div className="text-[var(--color-ink)] whitespace-pre-wrap font-sans text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-emerald-400 font-bold uppercase tracking-wider text-[11px]">
+                  FINAL RESULT
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyText(finalResult, "final-result")}
+                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)]"
+                  title="Copy Final Result"
+                >
+                  {copiedSection === "final-result" ? (
+                    <>
+                      <Check size={12} className="text-emerald-400" />
+                      <span className="font-sans">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} />
+                      <span className="font-sans">Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="text-[var(--color-ink)] whitespace-pre-wrap font-sans text-xs leading-relaxed">
                 {finalResult}
               </div>
 
@@ -231,8 +462,9 @@ export default function ChatPage() {
                     {producedFiles.map((f) => (
                       <button
                         key={f.path}
+                        type="button"
                         onClick={() => setSelectedFileForEditor(f.path)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-1)] border border-emerald-500/40 text-emerald-300 text-xs font-mono transition"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-1)] text-cyan-300 border border-cyan-500/30 text-xs cursor-pointer"
                       >
                         <FileText size={12} />
                         <span>{f.name}</span>
@@ -246,36 +478,44 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Input Bar */}
         <div className="p-4 border-t border-[var(--color-line)] bg-[var(--color-surface-1)]">
-          <div className="relative flex items-center">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleStartTask();
+            }}
+            className="relative flex items-center"
+          >
             <input
               type="text"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleStartTask()}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
               placeholder="Assign an autonomous task to OpenManus..."
-              className="w-full bg-[var(--color-void)] border border-[var(--color-line)] rounded-lg pl-4 pr-12 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-cyan-500 font-mono"
+              className="w-full bg-[var(--color-void)] border border-[var(--color-line)] rounded-lg pl-4 pr-12 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-cyan-500"
             />
             <Button
+              type="submit"
               variant="primary"
               size="sm"
-              onClick={handleStartTask}
-              disabled={status === "running"}
-              className="absolute right-1.5 h-7 w-7 p-0"
+              disabled={status === "running" || !inputValue.trim()}
+              className="absolute right-1.5 h-7 w-7 p-0 flex items-center justify-center cursor-pointer"
             >
               <Send size={12} />
             </Button>
-          </div>
+          </form>
         </div>
       </div>
 
       {/* Right Workspace View */}
-      <div className="flex-1 h-full min-w-0">
-        <WorkspacePanel 
-          activeJobId={activeJobId} 
-          overrideFile={selectedFileForEditor}
-        />
-      </div>
+      {showRightPanel && (
+        <div className="flex-1 h-full min-w-0 transition-all">
+          <WorkspacePanel
+            activeJobId={activeJobId}
+            overrideFile={selectedFileForEditor}
+          />
+        </div>
+      )}
     </div>
   );
 }

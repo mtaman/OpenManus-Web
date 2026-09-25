@@ -1,11 +1,9 @@
 ﻿import json
 import asyncio
 from enum import Enum
-from typing import Dict, Any, Optional, AsyncGenerator
-from pydantic import BaseModel
+from typing import Dict, Any, AsyncGenerator
 
 class SSEEventType(str, Enum):
-    STATUS = "status"
     STEP_START = "step_start"
     THOUGHT = "thought"
     TOOL_CALL = "tool_call"
@@ -13,40 +11,52 @@ class SSEEventType(str, Enum):
     STEP_END = "step_end"
     FINAL = "final"
     ERROR = "error"
-    DONE = "done"
+    PING = "ping"
 
-class SSEEvent(BaseModel):
-    type: SSEEventType
-    step: int = 1
-    data: Dict[str, Any] = {}
+class SSEEvent:
+    def __init__(self, type: SSEEventType, step: int = 1, data: Any = None):
+        self.type = type
+        self.step = step
+        self.data = data or {}
 
     def to_json(self) -> str:
         payload = {
-            "type": self.type.value,
+            "type": self.type.value if hasattr(self.type, "value") else str(self.type),
             "step": self.step,
             "data": self.data
         }
         return json.dumps(payload, ensure_ascii=False)
 
-# Global event stream dispatch registry
-_job_queues: Dict[str, asyncio.Queue] = {}
-_lock = asyncio.Lock()
+    def encode(self) -> str:
+        event_name = self.type.value if hasattr(self.type, "value") else str(self.type)
+        return f"event: {event_name}\ndata: {self.to_json()}\n\n"
 
-async def get_or_create_queue(job_id: str) -> asyncio.Queue:
-    async with _lock:
-        if job_id not in _job_queues:
-            _job_queues[job_id] = asyncio.Queue()
-        return _job_queues[job_id]
+# In-memory job stream queues
+_job_queues: Dict[str, list[asyncio.Queue]] = {}
+
+def get_job_queues(job_id: str) -> list[asyncio.Queue]:
+    if job_id not in _job_queues:
+        _job_queues[job_id] = []
+    return _job_queues[job_id]
 
 async def dispatch_event(job_id: str, event: SSEEvent) -> None:
-    queue = await get_or_create_queue(job_id)
-    await queue.put(event)
+    queues = get_job_queues(job_id)
+    encoded = event.encode()
+    for q in queues:
+        await q.put(encoded)
 
-async def subscribe_events(job_id: str) -> AsyncGenerator[SSEEvent, None]:
-    queue = await get_or_create_queue(job_id)
-    while True:
-        event: SSEEvent = await queue.get()
-        yield event
-        queue.task_done()
-        if event.type in (SSEEventType.FINAL, SSEEventType.ERROR, SSEEventType.DONE):
-            break
+async def subscribe_events(job_id: str) -> AsyncGenerator[str, None]:
+    q: asyncio.Queue = asyncio.Queue()
+    queues = get_job_queues(job_id)
+    queues.append(q)
+    try:
+        # Send initial ping to open stream immediately
+        yield SSEEvent(type=SSEEventType.PING, step=0, data={"status": "connected"}).encode()
+        while True:
+            msg = await q.get()
+            yield msg
+            if "event: final" in msg or "event: error" in msg:
+                break
+    finally:
+        if q in queues:
+            queues.remove(q)
