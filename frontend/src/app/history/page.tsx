@@ -20,7 +20,7 @@ import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/status-pill";
 
 interface JobRecord {
-  job_id: str;
+  job_id: string;
   prompt: string;
   status: "pending" | "running" | "completed" | "failed";
   created_at: number;
