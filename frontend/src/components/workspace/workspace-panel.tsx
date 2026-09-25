@@ -1,60 +1,62 @@
 ﻿"use client";
 
 import React, { useState } from "react";
-import { Globe, FolderTree, Package, Terminal, Code2 } from "lucide-react";
+import { Monitor, FolderTree, Package, TerminalSquare, FileCode2 } from "lucide-react";
 import { PreviewTab } from "./preview-tab";
 import { FilesTab } from "./files-tab";
 import { ArtifactsTab } from "./artifacts-tab";
 import { LogsTab } from "./logs-tab";
 import { EditorTab } from "./editor-tab";
 
-type WorkspaceTab = "preview" | "files" | "artifacts" | "logs" | "editor";
+type TabId = "preview" | "files" | "artifacts" | "logs" | "editor";
 
-export function WorkspacePanel() {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>("preview");
+interface WorkspacePanelProps {
+  activeJobId?: string | null;
+}
+
+export function WorkspacePanel({ activeJobId }: WorkspacePanelProps) {
+  const [activeTab, setActiveTab] = useState<TabId>("preview");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-
-  const tabs = [
-    { id: "preview" as const, label: "Preview", icon: Globe },
-    { id: "files" as const, label: "Files", icon: FolderTree },
-    { id: "artifacts" as const, label: "Artifacts", icon: Package },
-    { id: "logs" as const, label: "Logs", icon: Terminal },
-    { id: "editor" as const, label: "Editor", icon: Code2 },
-  ];
 
   const handleSelectFile = (path: string) => {
     setSelectedFilePath(path);
     setActiveTab("editor");
   };
 
+  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: "preview", label: "Preview", icon: <Monitor size={14} /> },
+    { id: "files", label: "Files", icon: <FolderTree size={14} /> },
+    { id: "artifacts", label: "Artifacts", icon: <Package size={14} /> },
+    { id: "logs", label: "Logs", icon: <TerminalSquare size={14} /> },
+    { id: "editor", label: "Editor", icon: <FileCode2 size={14} /> },
+  ];
+
   return (
-    <div className="flex flex-col h-full bg-[var(--color-surface-1)] border-l border-[var(--color-line)]">
-      {/* Workspace Tabs Header */}
-      <div className="flex items-center px-2 border-b border-[var(--color-line)] bg-[var(--color-surface-2)]">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = activeTab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-mono border-b-2 transition-all cursor-pointer ${
-                isActive
-                  ? "border-[var(--color-accent-500)] text-[var(--color-accent-400)] bg-[var(--color-surface-1)]"
-                  : "border-transparent text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
-              }`}
-            >
-              <Icon size={13} />
-              <span>{t.label}</span>
-            </button>
-          );
-        })}
+    <div className="flex flex-col h-full bg-[var(--color-canvas)] border-l border-[var(--color-line)]">
+      {/* Tab Navigation Header */}
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-colors ${
+              activeTab === tab.id
+                ? "bg-[var(--color-surface-2)] text-cyan-400 border border-[var(--color-line)] shadow-sm"
+                : "text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]/50"
+            }`}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Tab Panels */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === "preview" && <PreviewTab />}
-        {activeTab === "files" && <FilesTab onSelectFile={handleSelectFile} />}
+        {activeTab === "files" && (
+          <FilesTab onSelectFile={handleSelectFile} activeJobId={activeJobId} />
+        )}
         {activeTab === "artifacts" && <ArtifactsTab />}
         {activeTab === "logs" && <LogsTab />}
         {activeTab === "editor" && <EditorTab filePath={selectedFilePath} />}

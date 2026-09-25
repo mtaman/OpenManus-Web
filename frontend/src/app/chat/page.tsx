@@ -77,7 +77,7 @@ export default function ChatPage() {
 
       {/* Panel B: Interactive Workspace (55% on desktop) */}
       <div className="w-[52%] hidden lg:flex flex-col h-full min-w-0">
-        <WorkspacePanel />
+        <WorkspacePanel activeJobId={activeJobId} />
       </div>
     </div>
   );

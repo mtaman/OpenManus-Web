@@ -1,5 +1,7 @@
 ﻿import uuid
 import asyncio
+import time
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -8,6 +10,8 @@ from sse_starlette.sse import EventSourceResponse
 from omweb.sse_events import subscribe_events, dispatch_event, SSEEvent, SSEEventType
 from omweb.agent_bridge import run_agent_job
 from omweb.job_manager import job_manager
+from omweb.config import WORKSPACE_ROOT
+from omweb.fs_utils import TRASH_DIR_NAME
 
 router = APIRouter()
 
@@ -37,6 +41,37 @@ async def get_job_details(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
     return job.model_dump()
 
+@router.get("/jobs/{job_id}/files")
+async def get_job_files(job_id: str):
+    """Retrieve files modified or created during this job session."""
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    ws = WORKSPACE_ROOT.resolve()
+    if not ws.exists():
+        return {"job_id": job_id, "files": []}
+
+    # Filter files modified between job creation and completion
+    job_start = job.created_at - 2.0  # 2 second grace window
+    job_end = (job.updated_at + 5.0) if job.status in ("completed", "failed") else time.time() + 3600
+
+    task_files = []
+    for item in ws.rglob("*"):
+        if item.is_file() and TRASH_DIR_NAME not in item.parts:
+            mtime = item.stat().st_mtime
+            if job_start <= mtime <= job_end:
+                rel_path = str(item.relative_to(ws)).replace("\\", "/")
+                task_files.append({
+                    "name": item.name,
+                    "path": rel_path,
+                    "isDir": False,
+                    "size": item.stat().st_size,
+                    "modified": int(mtime)
+                })
+
+    return {"job_id": job_id, "files": task_files}
+
 @router.post("/jobs/{job_id}/rerun")
 async def rerun_job(job_id: str, background_tasks: BackgroundTasks):
     """Re-run a historical job with the same prompt."""
@@ -55,7 +90,6 @@ async def stream_job_events(job_id: str):
     async def event_generator():
         try:
             async for sse_event in subscribe_events(job_id):
-                # Record to persistent job log
                 job_manager.append_event(job_id, {
                     "type": sse_event.type.value,
                     "step": sse_event.step,

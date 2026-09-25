@@ -18,11 +18,11 @@ export interface FilesTabProps {
   onSelectFile?: (path: string) => void;
   onOpenFile?: (path: string) => void;
   activeJobId?: string | null;
-  taskFiles?: string[];
 }
 
-export function FilesTab({ onSelectFile, onOpenFile, activeJobId, taskFiles = [] }: FilesTabProps) {
-  const [files, setFiles] = useState<FileItem[]>([]);
+export function FilesTab({ onSelectFile, onOpenFile, activeJobId }: FilesTabProps) {
+  const [allFiles, setAllFiles] = useState<FileItem[]>([]);
+  const [taskFiles, setTaskFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterCurrentOnly, setFilterCurrentOnly] = useState(true);
 
@@ -34,10 +34,22 @@ export function FilesTab({ onSelectFile, onOpenFile, activeJobId, taskFiles = []
   const fetchFiles = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/files");
-      if (res.ok) {
-        const data = await res.json();
-        setFiles(data.files || []);
+      // 1. Fetch entire workspace tree
+      const resAll = await fetch("/api/files");
+      if (resAll.ok) {
+        const dataAll = await resAll.json();
+        setAllFiles(dataAll.files || []);
+      }
+
+      // 2. If there is an active job, fetch job-scoped files
+      if (activeJobId) {
+        const resTask = await fetch(`/api/run/jobs/${activeJobId}/files`);
+        if (resTask.ok) {
+          const dataTask = await resTask.json();
+          setTaskFiles(dataTask.files || []);
+        }
+      } else {
+        setTaskFiles([]);
       }
     } catch (err) {
       console.error("Failed to load workspace files", err);
@@ -64,31 +76,14 @@ export function FilesTab({ onSelectFile, onOpenFile, activeJobId, taskFiles = []
     fetchFiles();
   }, [activeJobId]);
 
-  // Filter items if user requested session/task files only
-  const filterTree = (items: FileItem[]): FileItem[] => {
-    if (!filterCurrentOnly || taskFiles.length === 0) return items;
-    return items
-      .map((item) => {
-        if (item.isDir) {
-          const children = item.children ? filterTree(item.children) : [];
-          return children.length > 0 ? { ...item, children } : null;
-        }
-        const matches = taskFiles.some(
-          (tf) => tf.toLowerCase().endsWith(item.name.toLowerCase()) || tf === item.path
-        );
-        return matches ? item : null;
-      })
-      .filter(Boolean) as FileItem[];
-  };
-
-  const displayedFiles = filterTree(files);
+  const displayedFiles = (filterCurrentOnly && activeJobId) ? taskFiles : allFiles;
 
   const renderTree = (items: FileItem[]) => {
     if (items.length === 0) {
       return (
         <div className="p-6 text-center text-xs text-[var(--color-ink-faint)]">
-          {filterCurrentOnly && taskFiles.length === 0
-            ? "No files produced in this session yet."
+          {filterCurrentOnly
+            ? "No files produced in this specific task yet."
             : "No files found in workspace."}
         </div>
       );
@@ -160,10 +155,10 @@ export function FilesTab({ onSelectFile, onOpenFile, activeJobId, taskFiles = []
                 ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" 
                 : "bg-[var(--color-surface-2)] text-[var(--color-ink-faint)]"
             }`}
-            title="Toggle between session-only files and all workspace files"
+            title="Toggle between task files and entire workspace"
           >
             <Filter size={10} />
-            {filterCurrentOnly ? "This Task" : "All"}
+            {filterCurrentOnly ? "This Task" : "All Workspace"}
           </button>
         </div>
         <Button variant="ghost" size="sm" onClick={fetchFiles} disabled={loading} className="h-7 w-7 p-0">
