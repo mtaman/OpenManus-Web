@@ -192,7 +192,7 @@ export default function SetupPage() {
             If you do not have OpenManus installed elsewhere, install an isolated embedded engine inside this project directory (`engine/openmanus`).
           </p>
           <Button 
-            variant="default" 
+            variant="primary" 
             size="sm" 
             onClick={handleInstallEmbedded} 
             disabled={installing || (status?.is_embedded && status?.is_valid)}
