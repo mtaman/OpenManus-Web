@@ -6,8 +6,6 @@ import {
   Send, 
   CheckCircle2, 
   AlertCircle, 
-  ChevronDown, 
-  ChevronRight, 
   Wrench, 
   BrainCircuit,
   FileText,
@@ -23,7 +21,17 @@ interface StepEvent {
   type: "thought" | "tool_call" | "observation" | "error" | "final";
   content: string;
   toolName?: string;
-  arguments?: string;
+}
+
+function safeRender(val: any): string {
+  if (val === null || val === undefined) return "";
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  try {
+    return JSON.stringify(val, null, 2);
+  } catch {
+    return String(val);
+  }
 }
 
 export default function ChatPage() {
@@ -78,54 +86,68 @@ export default function ChatPage() {
       const es = new EventSource(`/api/run/jobs/${jobId}/stream`);
       eventSourceRef.current = es;
 
-      const appendStep = (type: StepEvent["type"], content: string, stepNum = 1, toolName?: string) => {
+      const appendStep = (type: StepEvent["type"], content: any, stepNum = 1, toolName?: string) => {
         setSteps((prev) => [
           ...prev,
           {
             id: `${Date.now()}-${Math.random()}`,
             step: stepNum,
             type,
-            content,
-            toolName,
+            content: safeRender(content),
+            toolName: toolName ? safeRender(toolName) : undefined,
           }
         ]);
       };
 
       es.addEventListener("step_start", (e: any) => {
-        const payload = JSON.parse(e.data);
-        setCurrentStepNum(payload.step || 1);
+        try {
+          const payload = JSON.parse(e.data);
+          setCurrentStepNum(payload.step || 1);
+        } catch {}
       });
 
       es.addEventListener("thought", (e: any) => {
-        const payload = JSON.parse(e.data);
-        const text = payload.data?.thought || payload.data?.content || JSON.stringify(payload.data);
-        appendStep("thought", text, payload.step || 1);
+        try {
+          const payload = JSON.parse(e.data);
+          const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
+          appendStep("thought", raw, payload.step || 1);
+        } catch {}
       });
 
       es.addEventListener("tool_call", (e: any) => {
-        const payload = JSON.parse(e.data);
-        appendStep("tool_call", payload.data?.arguments || "Running tool...", payload.step || 1, payload.data?.name);
+        try {
+          const payload = JSON.parse(e.data);
+          const raw = payload.data?.arguments ?? "Running tool...";
+          appendStep("tool_call", raw, payload.step || 1, payload.data?.name);
+        } catch {}
       });
 
       es.addEventListener("observation", (e: any) => {
-        const payload = JSON.parse(e.data);
-        appendStep("observation", payload.data?.output || "output ready", payload.step || 1);
-        fetchJobFiles(jobId);
+        try {
+          const payload = JSON.parse(e.data);
+          const raw = payload.data?.output ?? "output ready";
+          appendStep("observation", raw, payload.step || 1);
+          fetchJobFiles(jobId);
+        } catch {}
       });
 
       es.addEventListener("final", (e: any) => {
-        const payload = JSON.parse(e.data);
-        setFinalResult(payload.data?.result || "Task finished.");
-        setStatus("completed");
-        fetchJobFiles(jobId);
-        es.close();
+        try {
+          const payload = JSON.parse(e.data);
+          setFinalResult(safeRender(payload.data?.result || "Task finished."));
+          setStatus("completed");
+          fetchJobFiles(jobId);
+          es.close();
+        } catch {}
       });
 
       es.addEventListener("error", (e: any) => {
-        const payload = JSON.parse(e.data);
-        setFinalResult(payload.data?.message || "Execution error.");
-        setStatus("failed");
-        es.close();
+        try {
+          const payload = JSON.parse(e.data);
+          setFinalResult(safeRender(payload.data?.message || "Execution error."));
+          setStatus("failed");
+          es.close();
+        } catch {}
       });
 
       es.onerror = () => {
@@ -138,7 +160,6 @@ export default function ChatPage() {
     }
   };
 
-  // Group steps by step number
   const groupedSteps = steps.reduce((acc, s) => {
     acc[s.step] = acc[s.step] || [];
     acc[s.step].push(s);
@@ -147,9 +168,8 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-full w-full bg-[var(--color-canvas)] text-[var(--color-ink)] overflow-hidden">
-      {/* Left Chat & Telemetry View (50%) */}
+      {/* Left Chat & Telemetry View */}
       <div className="flex-1 flex flex-col h-full border-r border-[var(--color-line)] min-w-0">
-        {/* Top Header */}
         <div className="flex items-center justify-between px-6 py-3.5 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
           <div className="flex items-center gap-3">
             <h1 className="text-sm font-semibold truncate max-w-md">
@@ -162,7 +182,6 @@ export default function ChatPage() {
           </span>
         </div>
 
-        {/* Scrollable Telemetry Feed */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {Object.entries(groupedSteps).map(([stepNum, stepEvents]) => (
             <div key={stepNum} className="border border-[var(--color-line)] rounded-lg bg-[var(--color-surface-1)] p-4 space-y-2">
@@ -181,7 +200,8 @@ export default function ChatPage() {
                     <div className="flex items-start gap-2 p-2 rounded bg-[var(--color-surface-2)] text-cyan-400 border border-cyan-500/20">
                       <Wrench size={14} className="mt-0.5 flex-shrink-0" />
                       <div>
-                        <span className="font-bold underline">{evt.toolName}</span>: {evt.content}
+                        {evt.toolName && <span className="font-bold underline mr-1">{evt.toolName}:</span>}
+                        <span>{evt.content}</span>
                       </div>
                     </div>
                   )}
@@ -195,7 +215,6 @@ export default function ChatPage() {
             </div>
           ))}
 
-          {/* Final Result Card with Instant File Open Links */}
           {finalResult && (
             <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs font-mono space-y-3">
               <span className="text-emerald-400 font-bold uppercase tracking-wider block">FINAL RESULT</span>
@@ -203,7 +222,6 @@ export default function ChatPage() {
                 {finalResult}
               </div>
 
-              {/* Produced Files Quick Open Links */}
               {producedFiles.length > 0 && (
                 <div className="pt-3 border-t border-emerald-500/20">
                   <span className="text-[11px] font-semibold text-emerald-300 block mb-1.5">
@@ -228,7 +246,6 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Input Bar */}
         <div className="p-4 border-t border-[var(--color-line)] bg-[var(--color-surface-1)]">
           <div className="relative flex items-center">
             <input
@@ -252,7 +269,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Right Workspace View (50%) */}
+      {/* Right Workspace View */}
       <div className="flex-1 h-full min-w-0">
         <WorkspacePanel 
           activeJobId={activeJobId} 
