@@ -91,3 +91,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+# Dynamic engine resolution and embedded clones
+backend/engine_config.json
+engine/
+
