@@ -1,7 +1,6 @@
 ﻿import sys
 import asyncio
 
-# Set Proactor event loop policy on Windows to support subprocesses (Playwright/Chrome)
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 

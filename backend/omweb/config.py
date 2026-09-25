@@ -1,16 +1,19 @@
 ﻿from pathlib import Path
-import sys
+from omweb.engine_resolver import resolve_active_engine_path, is_valid_openmanus_dir
 
-OPENMANUS_ROOT = Path(r"D:\AI\OpenManus")
-if str(OPENMANUS_ROOT) not in sys.path:
-    sys.path.insert(0, str(OPENMANUS_ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+BACKEND_DIR = Path(__file__).resolve().parent.parent
 
-try:
-    from app.config import config as om_config
-    WORKSPACE_ROOT = Path(om_config.workspace_root).resolve()
-except Exception:
-    WORKSPACE_ROOT = (Path(r"D:\AI\OpenManus-Web") / "workspace").resolve()
+OPENMANUS_ROOT = resolve_active_engine_path()
+OPENMANUS_CONFIG_PATH = OPENMANUS_ROOT / "config" / "config.toml"
+WORKSPACE_ROOT = OPENMANUS_ROOT / "workspace"
 
-WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
-TRASH_DIR = WORKSPACE_ROOT / ".trash"
-TRASH_DIR.mkdir(parents=True, exist_ok=True)
+def get_engine_status() -> dict:
+    is_valid = is_valid_openmanus_dir(OPENMANUS_ROOT)
+    return {
+        "engine_path": str(OPENMANUS_ROOT),
+        "is_valid": is_valid,
+        "is_embedded": OPENMANUS_ROOT.is_relative_to(PROJECT_ROOT) if is_valid else False,
+        "has_config": OPENMANUS_CONFIG_PATH.is_file(),
+        "workspace_exists": WORKSPACE_ROOT.is_dir()
+    }

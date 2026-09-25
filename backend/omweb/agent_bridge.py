@@ -3,10 +3,12 @@ import re
 import asyncio
 from typing import Dict, Any, Optional
 
-sys.path.insert(0, r"D:\AI\OpenManus")
-
+from omweb.engine_resolver import inject_engine_to_syspath
 from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
 from omweb.config import WORKSPACE_ROOT
+
+# Dynamically inject active engine root into sys.path
+inject_engine_to_syspath()
 
 def sanitize_code(code: str) -> str:
     """Strip markdown code block fences if injected by the LLM."""
@@ -85,7 +87,6 @@ async def run_instrumented(job_id: str, prompt: str, max_steps: int = 20) -> Non
                     ),
                     loop,
                 )
-                # Increment step for subsequent thoughts without emitting speculative start events
                 step_counter += 1
 
         return result

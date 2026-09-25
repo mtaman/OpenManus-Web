@@ -1,80 +1,66 @@
-import os
-import sys
-import json
-import asyncio
-import importlib.util
-from typing import Dict, List
-from fastapi import APIRouter
-from sse_starlette.sse import EventSourceResponse
+﻿from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from pathlib import Path
+import subprocess
+import shutil
+
+from omweb.engine_resolver import (
+    get_persisted_engine_path,
+    detect_potential_engine_paths,
+    is_valid_openmanus_dir,
+    save_engine_path,
+    PROJECT_ROOT
+)
+from omweb.config import get_engine_status
 
 router = APIRouter()
 
-REQUIRED_PACKAGES = [
-    "fastapi", "uvicorn", "pydantic", "sse_starlette",
-    "docker", "structlog", "boto3", "playwright", "httpx",
-    "tiktoken", "openai", "tenacity", "loguru", "html2text",
-    "PIL", "unidiff", "baidusearch"
-]
-
-def check_package(pkg_name: str) -> bool:
-    try:
-        return importlib.util.find_spec(pkg_name) is not None
-    except Exception:
-        return False
-
-def check_core_files() -> bool:
-    core_path = r"D:\AI\OpenManus\app\agent\manus.py"
-    return os.path.exists(core_path)
+class LinkEngineRequest(BaseModel):
+    engine_path: str
 
 @router.get("/status")
-async def get_setup_status():
-    pkg_status: Dict[str, bool] = {pkg: check_package(pkg) for pkg in REQUIRED_PACKAGES}
-    missing = [pkg for pkg, installed in pkg_status.items() if not installed]
-    core_ok = check_core_files()
-    all_ready = (len(missing) == 0) and core_ok
+async def setup_status():
+    return get_engine_status()
 
-    return {
-        "ready": all_ready,
-        "core_installed": core_ok,
-        "packages": {
-            "total": len(REQUIRED_PACKAGES),
-            "installed": len(REQUIRED_PACKAGES) - len(missing),
-            "missing": missing,
-            "details": pkg_status
-        }
-    }
+@router.post("/detect")
+async def detect_engines():
+    return {"candidates": detect_potential_engine_paths()}
 
-@router.get("/stream")
-async def stream_installation():
-    async def event_generator():
-        yield {"event": "status", "data": json.dumps({"step": "init", "message": "Starting dependency synchronization..."})}
-        await asyncio.sleep(0.5)
+@router.post("/link")
+async def link_engine(payload: LinkEngineRequest):
+    target_path = Path(payload.engine_path).resolve()
+    if not is_valid_openmanus_dir(target_path):
+        raise HTTPException(status_code=400, detail="Invalid OpenManus directory: missing app/agent/manus.py or config files")
+    save_engine_path(target_path)
+    return {"status": "linked", "engine_path": str(target_path)}
 
-        python_exe = sys.executable
-        packages_to_install = [
-            "docker", "structlog", "boto3", "botocore", 
-            "playwright", "aiofiles", "unidiff", "pillow", "baidusearch"
-        ]
+@router.post("/install-embedded")
+async def install_embedded():
+    embedded_dir = (PROJECT_ROOT / "engine" / "openmanus").resolve()
+    if is_valid_openmanus_dir(embedded_dir):
+        save_engine_path(embedded_dir)
+        return {"status": "already_installed", "engine_path": str(embedded_dir)}
 
-        proc = await asyncio.create_subprocess_exec(
-            python_exe, "-m", "pip", "install", *packages_to_install,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT
+    embedded_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Clone OpenManus core repo
+        subprocess.run(
+            ["git", "clone", "https://github.com/FoundationAgents/OpenManus.git", str(embedded_dir)],
+            check=True,
+            capture_output=True,
+            text=True
         )
 
-        while True:
-            line = await proc.stdout.readline()
-            if not line:
-                break
-            text = line.decode("utf-8", errors="replace").strip()
-            if text:
-                yield {"event": "log", "data": json.dumps({"output": text})}
+        # Copy example config if needed
+        example_cfg = embedded_dir / "config" / "config.example.toml"
+        target_cfg = embedded_dir / "config" / "config.toml"
+        if example_cfg.exists() and not target_cfg.exists():
+            shutil.copyfile(example_cfg, target_cfg)
 
-        await proc.wait()
-
-        if proc.returncode == 0:
-            yield {"event": "status", "data": json.dumps({"step": "complete", "message": "Dependencies installed successfully!"})}
-        else:
-            yield {"event": "status", "data": json.dumps({"step": "error", "message": f"Installation failed with code {proc.returncode}"})}
-
-    return EventSourceResponse(event_generator())
+        save_engine_path(embedded_dir)
+        return {"status": "installed", "engine_path": str(embedded_dir)}
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"Git clone failed: {e.stderr}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
