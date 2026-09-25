@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Monitor, FolderTree, Package, TerminalSquare, FileCode2 } from "lucide-react";
 import { PreviewTab } from "./preview-tab";
 import { FilesTab } from "./files-tab";
@@ -12,16 +12,24 @@ type TabId = "preview" | "files" | "artifacts" | "logs" | "editor";
 
 interface WorkspacePanelProps {
   activeJobId?: string | null;
+  overrideFile?: string | null;
 }
 
-export function WorkspacePanel({ activeJobId }: WorkspacePanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("preview");
+export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProps) {
+  const [activeTab, setActiveTab] = useState<TabId>("files");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 
   const handleSelectFile = (path: string) => {
     setSelectedFilePath(path);
     setActiveTab("editor");
   };
+
+  useEffect(() => {
+    if (overrideFile) {
+      setSelectedFilePath(overrideFile);
+      setActiveTab("editor");
+    }
+  }, [overrideFile]);
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: "preview", label: "Preview", icon: <Monitor size={14} /> },

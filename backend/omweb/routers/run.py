@@ -1,11 +1,12 @@
 ﻿import uuid
 import asyncio
 import time
+import json
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
-from sse_starlette.sse import EventSourceResponse
 
 from omweb.sse_events import subscribe_events, dispatch_event, SSEEvent, SSEEventType
 from omweb.agent_bridge import run_agent_job
@@ -21,7 +22,6 @@ class RunRequest(BaseModel):
 
 @router.post("")
 async def create_run(payload: RunRequest, background_tasks: BackgroundTasks):
-    """Create a new autonomous execution run."""
     job_id = f"job_{uuid.uuid4().hex[:12]}"
     job_manager.create_job(job_id=job_id, prompt=payload.prompt)
     background_tasks.add_task(run_agent_job, job_id, payload.prompt, payload.max_steps or 20)
@@ -29,13 +29,11 @@ async def create_run(payload: RunRequest, background_tasks: BackgroundTasks):
 
 @router.get("/jobs")
 async def get_all_jobs():
-    """Retrieve full history of jobs."""
     jobs = job_manager.list_jobs()
     return {"jobs": [j.model_dump() for j in jobs]}
 
 @router.get("/jobs/{job_id}")
 async def get_job_details(job_id: str):
-    """Retrieve specific job details for state replay."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -43,7 +41,6 @@ async def get_job_details(job_id: str):
 
 @router.get("/jobs/{job_id}/files")
 async def get_job_files(job_id: str):
-    """Retrieve files modified or created during this job session."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -52,9 +49,8 @@ async def get_job_files(job_id: str):
     if not ws.exists():
         return {"job_id": job_id, "files": []}
 
-    # Filter files modified between job creation and completion
-    job_start = job.created_at - 2.0  # 2 second grace window
-    job_end = (job.updated_at + 5.0) if job.status in ("completed", "failed") else time.time() + 3600
+    job_start = job.created_at - 5.0
+    job_end = (job.updated_at + 10.0) if job.status in ("completed", "failed") else time.time() + 3600
 
     task_files = []
     for item in ws.rglob("*"):
@@ -74,7 +70,6 @@ async def get_job_files(job_id: str):
 
 @router.post("/jobs/{job_id}/rerun")
 async def rerun_job(job_id: str, background_tasks: BackgroundTasks):
-    """Re-run a historical job with the same prompt."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -86,7 +81,6 @@ async def rerun_job(job_id: str, background_tasks: BackgroundTasks):
 
 @router.get("/jobs/{job_id}/stream")
 async def stream_job_events(job_id: str):
-    """Stream live execution events via SSE."""
     async def event_generator():
         try:
             async for sse_event in subscribe_events(job_id):
@@ -101,18 +95,18 @@ async def stream_job_events(job_id: str):
                 elif sse_event.type == SSEEventType.ERROR:
                     job_manager.fail_job(job_id, sse_event.data.get("message", "Error occurred"))
 
-                yield {
-                    "event": sse_event.type.value,
-                    "data": sse_event.to_json()
-                }
+                payload = sse_event.to_json()
+                yield f"event: {sse_event.type.value}\ndata: {payload}\n\n"
         except asyncio.CancelledError:
             pass
 
-    return EventSourceResponse(
+    return StreamingResponse(
         event_generator(),
+        media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
+            "X-Accel-Buffering": "no",
+            "Content-Type": "text/event-stream; charset=utf-8",
         }
     )
