@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import React, { useEffect, useState } from "react";
-import { Folder, FileText, Download, Trash2, RefreshCw, Eye } from "lucide-react";
+import { Folder, FileText, Download, Trash2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface FileItem {
@@ -14,13 +14,19 @@ interface FileItem {
   children?: FileItem[];
 }
 
-interface FilesTabProps {
+export interface FilesTabProps {
+  onSelectFile?: (path: string) => void;
   onOpenFile?: (path: string) => void;
 }
 
-export function FilesTab({ onOpenFile }: FilesTabProps) {
+export function FilesTab({ onSelectFile, onOpenFile }: FilesTabProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const handleItemClick = (path: string) => {
+    if (onSelectFile) onSelectFile(path);
+    if (onOpenFile) onOpenFile(path);
+  };
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -71,7 +77,7 @@ export function FilesTab({ onOpenFile }: FilesTabProps) {
             <div className="flex items-center justify-between p-1.5 rounded hover:bg-[var(--color-surface-2)] group">
               <div 
                 className="flex items-center gap-2 truncate cursor-pointer flex-1"
-                onClick={() => !item.isDir && onOpenFile && onOpenFile(item.path)}
+                onClick={() => !item.isDir && handleItemClick(item.path)}
               >
                 {item.isDir ? (
                   <Folder size={14} className="text-amber-400 flex-shrink-0" />
