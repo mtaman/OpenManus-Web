@@ -1,18 +1,12 @@
+﻿import asyncio
 import json
-import asyncio
+from typing import Dict, Any, AsyncGenerator
 from enum import Enum
-from typing import Any, Dict, Optional, AsyncGenerator
-from pydantic import BaseModel, Field
-
-# Global, persistent event queues across the entire process
-GLOBAL_JOB_QUEUES: Dict[str, asyncio.Queue] = {}
-
-def get_or_create_queue(job_id: str) -> asyncio.Queue:
-    if job_id not in GLOBAL_JOB_QUEUES:
-        GLOBAL_JOB_QUEUES[job_id] = asyncio.Queue()
-    return GLOBAL_JOB_QUEUES[job_id]
+from pydantic import BaseModel
+from starlette.requests import Request
 
 class SSEEventType(str, Enum):
+    STATUS = "status"
     STEP_START = "step_start"
     THOUGHT = "thought"
     TOOL_CALL = "tool_call"
@@ -20,37 +14,46 @@ class SSEEventType(str, Enum):
     STEP_END = "step_end"
     FINAL = "final"
     ERROR = "error"
-    STATUS = "status"
 
 class SSEEvent(BaseModel):
     type: SSEEventType
-    step: int = 1
-    data: Dict[str, Any] = Field(default_factory=dict)
+    step: int
+    data: Dict[str, Any]
 
-    def to_sse_payload(self) -> Dict[str, Any]:
-        return {
-            "event": self.type.value,
-            "data": self.model_dump_json()
-        }
+# Central in-memory event queues per job
+GLOBAL_JOB_QUEUES: Dict[str, asyncio.Queue] = {}
 
-async def job_event_generator(job_id: str) -> AsyncGenerator[Dict[str, Any], None]:
-    """
-    Streams SSE events for a specific job from the central queue safely.
-    """
-    queue = get_or_create_queue(job_id)
+def get_job_queue(job_id: str) -> asyncio.Queue:
+    if job_id not in GLOBAL_JOB_QUEUES:
+        GLOBAL_JOB_QUEUES[job_id] = asyncio.Queue()
+    return GLOBAL_JOB_QUEUES[job_id]
 
-    while True:
-        event = await queue.get()
-        if isinstance(event, SSEEvent):
-            yield event.to_sse_payload()
-        elif isinstance(event, dict):
+async def dispatch_event(job_id: str, event: SSEEvent) -> None:
+    queue = get_job_queue(job_id)
+    await queue.put(event)
+
+async def job_event_generator(job_id: str, request: Request = None) -> AsyncGenerator[Dict[str, Any], None]:
+    queue = get_job_queue(job_id)
+    try:
+        while True:
+            if request and await request.is_disconnected():
+                break
+
+            try:
+                event: SSEEvent = await asyncio.wait_for(queue.get(), timeout=15.0)
+            except asyncio.TimeoutError:
+                # SSE comment heartbeat to keep connection alive
+                yield {"comment": "keep-alive"}
+                continue
+
             yield {
-                "event": event.get("event", "status"),
-                "data": json.dumps(event.get("data", {}))
+                "event": event.type.value,
+                "data": json.dumps({"step": event.step, "data": event.data})
             }
-        queue.task_done()
 
-        # Stop stream on terminal states
-        event_type = getattr(event, "type", None) or (event.get("event") if isinstance(event, dict) else None)
-        if event_type in (SSEEventType.FINAL, SSEEventType.FINAL.value, SSEEventType.ERROR, SSEEventType.ERROR.value):
-            break
+            if event.type in (SSEEventType.FINAL, SSEEventType.ERROR):
+                break
+    finally:
+        # Clean up queue when stream finishes
+        if job_id in GLOBAL_JOB_QUEUES and queue.empty():
+            GLOBAL_JOB_QUEUES.pop(job_id, None)

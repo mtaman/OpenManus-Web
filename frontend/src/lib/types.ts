@@ -1,36 +1,57 @@
-export type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
-
-export type StepType =
+﻿export type ServerEventName =
+  | "status"
   | "step_start"
   | "thought"
   | "tool_call"
   | "observation"
   | "step_end"
-  | "final_answer"
+  | "final"
   | "error";
 
-export interface JobStep {
-  step_id: string;
-  step_type: StepType;
-  timestamp: string;
-  content?: string | null;
-  data?: Record<string, any> | null;
-}
+export type RunStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
-export interface Job {
+export interface ToolPair {
+  kind: "tool";
   id: string;
-  prompt: string;
-  status: JobStatus;
-  created_at: string;
-  updated_at: string;
-  completed_at?: string | null;
-  steps: JobStep[];
-  error_message?: string | null;
-  metadata: Record<string, any>;
+  tool: string;
+  args: Record<string, unknown>;
+  startedAt: number;
+  output: string | null;
+  durationMs: number | null;
 }
 
-export interface RunRequest {
+export interface ThoughtItem {
+  kind: "thought";
+  id: string;
+  text: string;
+  at: number;
+}
+
+export type StepItem = ThoughtItem | ToolPair;
+
+export interface StepGroup {
+  step: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+  durationMs: number | null;
+  items: StepItem[];
+}
+
+export interface RunState {
+  jobId: string;
   prompt: string;
-  model_override?: string;
-  max_steps?: number;
+  status: RunStatus;
+  startedAt: number;
+  steps: StepGroup[];
+  finalAnswer: string | null;
+  error: string | null;
+  lastEventAt: number;
+  droppedEvents: number;
+}
+
+export interface SSEEnvelope {
+  jobId: string;
+  type: ServerEventName;
+  step: number;
+  data: Record<string, any>;
 }

@@ -1,96 +1,65 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useRef } from "react";
-import { useChatStore, AgentStep } from "@/stores/chat-store";
+import { useEffect, useRef, useCallback } from "react";
+import { useStreamStore } from "@/stores/stream-store";
+import { openJobStream } from "@/lib/sse";
+import { reduceEvent, initialRunState } from "@/lib/stream-reducer";
+import { SSEEnvelope } from "@/lib/types";
 
-export function useJobStream(jobId: string | null) {
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const appendStep = useChatStore((state) => state.appendStep);
-  const setIsRunning = useChatStore((state) => state.setIsRunning);
-  const updateMessageStatus = useChatStore((state) => state.updateMessageStatus);
+export function useJobStream(jobId: string | null, prompt: string) {
+  const closeRef = useRef<(() => void) | null>(null);
+  const upsertRun = useStreamStore((s) => s.upsertRun);
+  const clearRun = useStreamStore((s) => s.clearRun);
+
+  const dispatch = useCallback(
+    (event: SSEEnvelope) => {
+      useStreamStore.setState((s) => {
+        const prev = s.runs[event.jobId] ?? initialRunState(event.jobId, prompt);
+        const next = reduceEvent(prev, event);
+        if (
+          next.status === "completed" ||
+          next.status === "failed" ||
+          next.status === "cancelled"
+        ) {
+          closeRef.current?.();
+        }
+        return { runs: { ...s.runs, [event.jobId]: next } };
+      });
+    },
+    [prompt]
+  );
 
   useEffect(() => {
-    if (!jobId) {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      return;
-    }
+    if (!jobId) return;
 
-    setIsRunning(true);
-    const es = new EventSource(`/api/run/jobs/${encodeURIComponent(jobId)}/stream`);
-    eventSourceRef.current = es;
+    upsertRun(jobId, initialRunState(jobId, prompt));
 
-    es.addEventListener("thought", (e: MessageEvent) => {
-      try {
-        const payload = JSON.parse(e.data);
-        const step: AgentStep = {
-          id: `thought-${Date.now()}-${Math.random()}`,
-          step_number: payload.step || 0,
-          type: "thought",
-          content: payload.content || "",
-          timestamp: payload.timestamp || new Date().toISOString(),
-        };
-        appendStep(step);
-      } catch {
-        // Ignore parse error on partial stream
-      }
+    const handle = openJobStream(jobId, {
+      onEvent: dispatch,
+      onError: (err) => {
+        console.warn("SSE stream error", err);
+      },
     });
 
-    es.addEventListener("tool_call", (e: MessageEvent) => {
-      try {
-        const payload = JSON.parse(e.data);
-        const step: AgentStep = {
-          id: `tool-${Date.now()}-${Math.random()}`,
-          step_number: payload.step || 0,
-          type: "tool_call",
-          content: `Invoking tool: ${payload.tool_name || "unknown"}`,
-          tool_name: payload.tool_name,
-          tool_args: payload.arguments || {},
-          timestamp: payload.timestamp || new Date().toISOString(),
-        };
-        appendStep(step);
-      } catch {
-        // Ignore parse error
-      }
-    });
-
-    es.addEventListener("observation", (e: MessageEvent) => {
-      try {
-        const payload = JSON.parse(e.data);
-        const step: AgentStep = {
-          id: `obs-${Date.now()}-${Math.random()}`,
-          step_number: payload.step || 0,
-          type: "observation",
-          content: typeof payload.output === "string" ? payload.output : JSON.stringify(payload.output, null, 2),
-          tool_name: payload.tool_name,
-          timestamp: payload.timestamp || new Date().toISOString(),
-        };
-        appendStep(step);
-      } catch {
-        // Ignore parse error
-      }
-    });
-
-    es.addEventListener("done", () => {
-      setIsRunning(false);
-      updateMessageStatus(jobId, "completed");
-      es.close();
-      eventSourceRef.current = null;
-    });
-
-    es.addEventListener("error", () => {
-      setIsRunning(false);
-      updateMessageStatus(jobId, "failed");
-      es.close();
-      eventSourceRef.current = null;
-    });
+    closeRef.current = handle.close;
 
     return () => {
-      if (es) {
-        es.close();
-      }
+      handle.close();
+      closeRef.current = null;
     };
-  }, [jobId, appendStep, setIsRunning, updateMessageStatus]);
+  }, [jobId, prompt, dispatch, upsertRun]);
+
+  const run = useStreamStore((s) => (jobId ? s.runs[jobId] ?? null : null));
+
+  const cancel = useCallback(async () => {
+    if (!jobId) return;
+    try {
+      await fetch(`/api/run/jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
+    } catch (e) {
+      console.error("Failed to cancel run", e);
+    }
+    clearRun(jobId);
+  }, [jobId, clearRun]);
+
+  return { run, cancel };
 }
