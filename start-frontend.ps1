@@ -1,16 +1,11 @@
-﻿Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host " Starting OpenManus Web - Frontend Server" -ForegroundColor Cyan
-Write-Host "=========================================" -ForegroundColor Cyan
+﻿Write-Host ">>> Starting OpenManus Web Frontend (Next.js 15)..." -ForegroundColor Cyan
+Set-Location -Path "D:\AI\OpenManus-Web\frontend"
 
-$frontendDir = "D:\AI\OpenManus-Web\frontend"
-
-if (-not (Test-Path $frontendDir)) {
-    Write-Host "[ERROR] Frontend directory not found at: $frontendDir" -ForegroundColor Red
-    Exit 1
+# Check if port 3088 is occupied
+$portCheck = Get-NetTCPConnection -LocalPort 3088 -ErrorAction SilentlyContinue
+if ($portCheck) {
+    Write-Host "[WARN] Port 3088 is currently in use. Existing process may be active." -ForegroundColor Yellow
 }
 
-Set-Location $frontendDir
-
-Write-Host "[INFO] Starting Next.js frontend on port 3088..." -ForegroundColor Green
-$env:PORT = "3088"
-npm run dev -- -p 3088
+Write-Host ">>> Launching Next.js on http://localhost:3088..." -ForegroundColor Green
+npm run start -- -p 3088
