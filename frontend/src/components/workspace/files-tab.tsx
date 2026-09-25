@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import React, { useEffect, useState } from "react";
-import { Folder, FileText, Download, Trash2, RefreshCw } from "lucide-react";
+import { Folder, FileText, Download, Trash2, RefreshCw, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface FileItem {
@@ -17,11 +17,14 @@ interface FileItem {
 export interface FilesTabProps {
   onSelectFile?: (path: string) => void;
   onOpenFile?: (path: string) => void;
+  activeJobId?: string | null;
+  taskFiles?: string[];
 }
 
-export function FilesTab({ onSelectFile, onOpenFile }: FilesTabProps) {
+export function FilesTab({ onSelectFile, onOpenFile, activeJobId, taskFiles = [] }: FilesTabProps) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filterCurrentOnly, setFilterCurrentOnly] = useState(true);
 
   const handleItemClick = (path: string) => {
     if (onSelectFile) onSelectFile(path);
@@ -59,13 +62,34 @@ export function FilesTab({ onSelectFile, onOpenFile }: FilesTabProps) {
 
   useEffect(() => {
     fetchFiles();
-  }, []);
+  }, [activeJobId]);
+
+  // Filter items if user requested session/task files only
+  const filterTree = (items: FileItem[]): FileItem[] => {
+    if (!filterCurrentOnly || taskFiles.length === 0) return items;
+    return items
+      .map((item) => {
+        if (item.isDir) {
+          const children = item.children ? filterTree(item.children) : [];
+          return children.length > 0 ? { ...item, children } : null;
+        }
+        const matches = taskFiles.some(
+          (tf) => tf.toLowerCase().endsWith(item.name.toLowerCase()) || tf === item.path
+        );
+        return matches ? item : null;
+      })
+      .filter(Boolean) as FileItem[];
+  };
+
+  const displayedFiles = filterTree(files);
 
   const renderTree = (items: FileItem[]) => {
     if (items.length === 0) {
       return (
-        <div className="p-4 text-center text-xs text-[var(--color-ink-faint)]">
-          No files in workspace yet.
+        <div className="p-6 text-center text-xs text-[var(--color-ink-faint)]">
+          {filterCurrentOnly && taskFiles.length === 0
+            ? "No files produced in this session yet."
+            : "No files found in workspace."}
         </div>
       );
     }
@@ -127,13 +151,27 @@ export function FilesTab({ onSelectFile, onOpenFile }: FilesTabProps) {
   return (
     <div className="flex flex-col h-full bg-[var(--color-canvas)] text-[var(--color-ink)] font-mono text-xs">
       <div className="flex items-center justify-between p-3 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
-        <span className="font-semibold text-xs tracking-wider text-[var(--color-ink-muted)]">WORKSPACE SANDBOX</span>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-xs tracking-wider text-[var(--color-ink-muted)]">WORKSPACE SANDBOX</span>
+          <button
+            onClick={() => setFilterCurrentOnly(!filterCurrentOnly)}
+            className={`px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1 transition ${
+              filterCurrentOnly 
+                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" 
+                : "bg-[var(--color-surface-2)] text-[var(--color-ink-faint)]"
+            }`}
+            title="Toggle between session-only files and all workspace files"
+          >
+            <Filter size={10} />
+            {filterCurrentOnly ? "This Task" : "All"}
+          </button>
+        </div>
         <Button variant="ghost" size="sm" onClick={fetchFiles} disabled={loading} className="h-7 w-7 p-0">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
         </Button>
       </div>
       <div className="flex-1 overflow-y-auto p-3">
-        {renderTree(files)}
+        {renderTree(displayedFiles)}
       </div>
     </div>
   );
