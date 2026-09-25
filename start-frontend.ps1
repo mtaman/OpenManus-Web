@@ -1,11 +1,18 @@
 ﻿Write-Host ">>> Starting OpenManus Web Frontend (Next.js 15)..." -ForegroundColor Cyan
 Set-Location -Path "D:\AI\OpenManus-Web\frontend"
 
-# Check if port 3088 is occupied
-$portCheck = Get-NetTCPConnection -LocalPort 3088 -ErrorAction SilentlyContinue
-if ($portCheck) {
-    Write-Host "[WARN] Port 3088 is currently in use. Existing process may be active." -ForegroundColor Yellow
+# Free port 3088 linearly
+Get-NetTCPConnection -LocalPort 3088 -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique |
+    Where-Object { $_ -gt 0 } |
+    ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+
+# Verify build artifacts
+$manifest = "D:\AI\OpenManus-Web\frontend\.next\prerender-manifest.json"
+if (-not (Test-Path $manifest)) {
+    Write-Host ">>> Missing build artifacts. Running npm run build..." -ForegroundColor Yellow
+    npm run build
 }
 
 Write-Host ">>> Launching Next.js on http://localhost:3088..." -ForegroundColor Green
-npm run start -- -p 3088
+npx next start -p 3088
