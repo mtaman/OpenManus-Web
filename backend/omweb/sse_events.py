@@ -1,9 +1,8 @@
-﻿import asyncio
-import json
-from typing import Dict, Any, AsyncGenerator
+﻿import json
+import asyncio
 from enum import Enum
+from typing import Dict, Any, Optional, AsyncGenerator
 from pydantic import BaseModel
-from starlette.requests import Request
 
 class SSEEventType(str, Enum):
     STATUS = "status"
@@ -14,46 +13,40 @@ class SSEEventType(str, Enum):
     STEP_END = "step_end"
     FINAL = "final"
     ERROR = "error"
+    DONE = "done"
 
 class SSEEvent(BaseModel):
     type: SSEEventType
-    step: int
-    data: Dict[str, Any]
+    step: int = 1
+    data: Dict[str, Any] = {}
 
-# Central in-memory event queues per job
-GLOBAL_JOB_QUEUES: Dict[str, asyncio.Queue] = {}
+    def to_json(self) -> str:
+        payload = {
+            "type": self.type.value,
+            "step": self.step,
+            "data": self.data
+        }
+        return json.dumps(payload, ensure_ascii=False)
 
-def get_job_queue(job_id: str) -> asyncio.Queue:
-    if job_id not in GLOBAL_JOB_QUEUES:
-        GLOBAL_JOB_QUEUES[job_id] = asyncio.Queue()
-    return GLOBAL_JOB_QUEUES[job_id]
+# Global event stream dispatch registry
+_job_queues: Dict[str, asyncio.Queue] = {}
+_lock = asyncio.Lock()
+
+async def get_or_create_queue(job_id: str) -> asyncio.Queue:
+    async with _lock:
+        if job_id not in _job_queues:
+            _job_queues[job_id] = asyncio.Queue()
+        return _job_queues[job_id]
 
 async def dispatch_event(job_id: str, event: SSEEvent) -> None:
-    queue = get_job_queue(job_id)
+    queue = await get_or_create_queue(job_id)
     await queue.put(event)
 
-async def job_event_generator(job_id: str, request: Request = None) -> AsyncGenerator[Dict[str, Any], None]:
-    queue = get_job_queue(job_id)
-    try:
-        while True:
-            if request and await request.is_disconnected():
-                break
-
-            try:
-                event: SSEEvent = await asyncio.wait_for(queue.get(), timeout=15.0)
-            except asyncio.TimeoutError:
-                # SSE comment heartbeat to keep connection alive
-                yield {"comment": "keep-alive"}
-                continue
-
-            yield {
-                "event": event.type.value,
-                "data": json.dumps({"step": event.step, "data": event.data})
-            }
-
-            if event.type in (SSEEventType.FINAL, SSEEventType.ERROR):
-                break
-    finally:
-        # Clean up queue when stream finishes
-        if job_id in GLOBAL_JOB_QUEUES and queue.empty():
-            GLOBAL_JOB_QUEUES.pop(job_id, None)
+async def subscribe_events(job_id: str) -> AsyncGenerator[SSEEvent, None]:
+    queue = await get_or_create_queue(job_id)
+    while True:
+        event: SSEEvent = await queue.get()
+        yield event
+        queue.task_done()
+        if event.type in (SSEEventType.FINAL, SSEEventType.ERROR, SSEEventType.DONE):
+            break
