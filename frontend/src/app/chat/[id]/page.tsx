@@ -11,6 +11,36 @@ import { useJobStream } from "@/hooks/useJobStream";
 import { useChatStore } from "@/stores/chat-store";
 import { Terminal, Clock, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
 
+function formatStepContent(rawContent: any): string {
+  if (!rawContent) return "";
+  if (typeof rawContent === "string") {
+    try {
+      const parsed = JSON.parse(rawContent);
+      if (parsed && typeof parsed === "object") {
+        if (parsed.data?.thought) return parsed.data.thought;
+        if (parsed.data?.output) return parsed.data.output;
+        if (parsed.data?.content) return parsed.data.content;
+        if (parsed.data?.result) return parsed.data.result;
+        if (parsed.data?.message) return parsed.data.message;
+        if (parsed.thought) return parsed.thought;
+        if (parsed.output) return parsed.output;
+        if (parsed.content) return parsed.content;
+        return JSON.stringify(parsed, null, 2);
+      }
+    } catch {
+      return rawContent;
+    }
+    return rawContent;
+  }
+  if (typeof rawContent === "object") {
+    if (rawContent.thought) return rawContent.thought;
+    if (rawContent.output) return rawContent.output;
+    if (rawContent.content) return rawContent.content;
+    return JSON.stringify(rawContent, null, 2);
+  }
+  return String(rawContent);
+}
+
 export default function ChatDetailPage() {
   const params = useParams();
   const rawId = params?.id as string;
@@ -149,7 +179,7 @@ export default function ChatDetailPage() {
                           </button>
                           {isOpen && (
                             <div className="p-3 font-mono bg-background/50 border-t border-border/40 text-foreground whitespace-pre-wrap leading-relaxed text-[11px]">
-                              {step.content}
+                              {formatStepContent(step.content)}
                             </div>
                           )}
                         </div>
@@ -171,9 +201,9 @@ export default function ChatDetailPage() {
           </div>
         </div>
 
-        {/* Right Side: Workspace Panel */}
+        {/* Right Side: Workspace Panel with activeJobId */}
         <div className="w-1/2 h-full flex flex-col">
-          <WorkspacePanel />
+          <WorkspacePanel activeJobId={activeJobId} />
         </div>
       </div>
     </AppShell>

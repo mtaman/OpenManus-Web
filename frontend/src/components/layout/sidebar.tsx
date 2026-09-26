@@ -122,7 +122,6 @@ export function Sidebar() {
 
   return (
     <aside className="w-64 border-e border-slate-800 bg-slate-900 flex flex-col h-screen select-none shrink-0 font-sans">
-      {/* Brand Header */}
       <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
         <Link href="/chat" className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-emerald-600 text-white shadow-md">
@@ -134,7 +133,6 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* Main Nav Items */}
       <nav className="p-4 space-y-1 border-b border-slate-800">
         <Link
           href="/chat"
@@ -182,13 +180,12 @@ export function Sidebar() {
         </Link>
       </nav>
 
-      {/* Scrollable Explorer: Projects & Standalone Sessions */}
       <div className="flex-1 p-4 overflow-y-auto space-y-4">
-        {/* Projects Workspace Header */}
         <div>
           <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider mb-2">
             <span>Workspaces</span>
             <button
+              type="button"
               onClick={() => setIsCreatingProject((v) => !v)}
               className="p-1 hover:text-emerald-400 rounded hover:bg-slate-800 transition"
               title="Create Project"
@@ -238,7 +235,6 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Recent Standalone History */}
         <div>
           <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider mb-2">
             <span>Recent Chats</span>
@@ -252,16 +248,18 @@ export function Sidebar() {
                 const effectiveTarget = chat.job_id || chat.id || `session-${idx}`;
                 const isActive = pathname === `/chat/${effectiveTarget}` || pathname === `/chat/${chat.id}`;
                 return (
-                  <Link
-                    key={chat.id || chat.job_id || `chat-item-${idx}`}
-                    href={`/chat/${effectiveTarget}`}
+                  <div
+                    key={chat.id || chat.job_id || `chat-row-${idx}`}
                     className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition ${
                       isActive
                         ? "bg-slate-800 text-emerald-400 font-medium border border-emerald-500/20"
                         : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
                     }`}
                   >
-                    <div className="flex items-center gap-2 truncate flex-1 mr-1">
+                    <Link
+                      href={`/chat/${effectiveTarget}`}
+                      className="flex items-center gap-2 truncate flex-1 mr-1"
+                    >
                       <span
                         className={`w-2 h-2 rounded-full shrink-0 ${
                           chat.status === "completed"
@@ -272,24 +270,31 @@ export function Sidebar() {
                         }`}
                       />
                       <span className="truncate">{chat.title || chat.prompt || "New Session"}</span>
-                    </div>
+                    </Link>
 
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
+                        type="button"
                         onClick={(e) => handleTogglePin(e, chat.id)}
                         title="Pin chat"
                         className={`p-1 hover:text-emerald-400 ${chat.pinned ? "text-emerald-400" : "text-slate-500"}`}
                       >
                         <Pin size={11} />
                       </button>
-                      <a
-                        href={`/api/run/jobs/${effectiveTarget}/download-zip`}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          window.open(`/api/run/jobs/${effectiveTarget}/download-zip`, "_blank");
+                        }}
                         title="Download ZIP"
                         className="p-1 text-slate-500 hover:text-cyan-400"
                       >
                         <Download size={11} />
-                      </a>
+                      </button>
                       <button
+                        type="button"
                         onClick={(e) => handleDeleteChat(e, chat.id, chat.job_id)}
                         title="Delete chat"
                         className="p-1 text-slate-500 hover:text-rose-400"
@@ -297,7 +302,7 @@ export function Sidebar() {
                         <Trash2 size={11} />
                       </button>
                     </div>
-                  </Link>
+                  </div>
                 );
               })
             )}
@@ -306,7 +311,7 @@ export function Sidebar() {
       </div>
 
       <div className="p-3 border-t border-slate-800 text-[11px] text-slate-500 text-center font-mono">
-        v2.0.0-STORAGE-STABLE
+        v2.0.0-PROD
       </div>
     </aside>
   );
