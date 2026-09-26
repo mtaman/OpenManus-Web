@@ -125,7 +125,19 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
     agent.step = instrumented_step
 
     try:
-        final_out = await agent.run(prompt)
+                # Enforce isolated workspace directory per job/session
+        from omweb.config import get_workspace_root
+        project_dir = get_workspace_root() / "projects" / job_id
+        project_dir.mkdir(parents=True, exist_ok=True)
+        
+        scoped_prompt = (
+            f"[PROJECT CONTEXT]\n"
+            f"You MUST create and save all project files and deliverables strictly inside this directory: "
+            f"{project_dir.resolve()}\n\n"
+            f"[USER PROMPT]\n"
+            f"{prompt}"
+        )
+        final_out = await agent.run(scoped_prompt)
         print(f"[BRIDGE] Execution completed successfully for job: {job_id}")
         result_text = str(final_out) if final_out else "Task completed successfully."
         job_manager.complete_job(job_id, result_text)
@@ -143,3 +155,4 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
         active_tasks.pop(job_id, None)
         if current_active_job_id.get("current") == job_id:
             current_active_job_id.pop("current", None)
+

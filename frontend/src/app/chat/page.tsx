@@ -54,10 +54,10 @@ function safeRender(val: any): string {
   }
 }
 
-export default function ChatPage() {
+export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
   const [inputValue, setInputValue] = useState("");
   const [submittedPrompt, setSubmittedPrompt] = useState("");
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(initialJobId || null);
   const [status, setStatus] = useState<"idle" | "running" | "completed" | "failed">("idle");
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [finalResult, setFinalResult] = useState<string | null>(null);

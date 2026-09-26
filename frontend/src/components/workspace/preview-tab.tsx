@@ -18,7 +18,22 @@ export function PreviewTab({ currentHtmlPath }: PreviewTabProps) {
       const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
       if (res.ok) {
         const data = await res.json();
-        setHtmlContent(data.content || "");
+                  let rawHtml = data.content || "";
+          // Compute directory path of the active HTML file to resolve scoped relative assets
+          const normalizedPath = filePath.replace(/\\/g, "/");
+          const lastSlash = normalizedPath.lastIndexOf("/");
+          const dirPath = lastSlash !== -1 ? normalizedPath.substring(0, lastSlash + 1) : "";
+          const baseHref = `/api/files/raw/${dirPath}`;
+          
+          const baseTag = `<base href="${baseHref}">`;
+          if (rawHtml.includes("<head>")) {
+            rawHtml = rawHtml.replace("<head>", `<head>${baseTag}`);
+          } else if (rawHtml.includes("<html>")) {
+            rawHtml = rawHtml.replace("<html>", `<html><head>${baseTag}</head>`);
+          } else {
+            rawHtml = `<head>${baseTag}</head>` + rawHtml;
+          }
+          setHtmlContent(rawHtml);
       } else {
         setHtmlContent("");
       }
@@ -103,3 +118,4 @@ export function PreviewTab({ currentHtmlPath }: PreviewTabProps) {
     </div>
   );
 }
+

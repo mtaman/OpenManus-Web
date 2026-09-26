@@ -1,102 +1,194 @@
-﻿import uuid
+﻿import os
 import json
 import asyncio
-import time
 from pathlib import Path
+from io import BytesIO
+import zipfile
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Dict, Any, List, Optional
-from omweb.sse_events import subscribe_events, dispatch_event, SSEEvent, SSEEventType
-from omweb.agent_bridge import run_instrumented, human_answers, human_data, active_tasks
+from sse_starlette.sse import EventSourceResponse
+
 from omweb.job_manager import job_manager
-from omweb.config import get_workspace_root, resolve_openmanus_root
-from omweb.fs_utils import TRASH_DIR_NAME
+from omweb.config import get_workspace_root
+from omweb.sse_events import subscribe_events, SSEEventType
+from omweb.agent_bridge import run_instrumented, human_answers, human_data
 
 router = APIRouter()
 
+
 class RunRequest(BaseModel):
     prompt: str
-    max_steps: Optional[int] = 20
 
-class HumanAnswerRequest(BaseModel):
-    answer: str
+
+class FeedbackRequest(BaseModel):
+    response: str
+
 
 @router.post("")
 @router.post("/")
-async def create_run(payload: RunRequest, background_tasks: BackgroundTasks):
-    job_id = f"job_{uuid.uuid4().hex[:12]}"
-    job_manager.create_job(job_id=job_id, prompt=payload.prompt)
-    task = asyncio.create_task(run_instrumented(job_id, payload.prompt))
-    active_tasks[job_id] = task
-    return {"job_id": job_id, "status": "pending"}
+async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
+    """Start an agent run asynchronously and return immediate job ID."""
+    prompt = req.prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    import uuid
+    generated_job_id = f"job_{uuid.uuid4().hex[:12]}"
+    try:
+        job = job_manager.create_job(generated_job_id, prompt=prompt)
+    except TypeError:
+        job = job_manager.create_job(generated_job_id)
+        if hasattr(job, "prompt"):
+            job.prompt = prompt
+
+    actual_job_id = getattr(job, "id", generated_job_id)
+    background_tasks.add_task(run_instrumented, actual_job_id, prompt)
+    return {"job_id": actual_job_id, "status": getattr(job, "status", "running")}
+
 
 @router.get("/jobs")
-async def get_all_jobs():
-    jobs = job_manager.list_jobs()
-    return {"jobs": [j.model_dump() for j in jobs]}
+@router.get("/jobs/")
+async def list_jobs():
+    """List all registered jobs."""
+    return {"jobs": job_manager.list_jobs()}
+
 
 @router.get("/jobs/{job_id}")
-async def get_job_details(job_id: str):
+async def get_job_detail(job_id: str):
+    """Retrieve full status, steps, and thoughts for a single job."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return job.model_dump()
+    return job.to_dict()
 
-@router.post("/jobs/{job_id}/stop")
-async def stop_job(job_id: str):
-    if job_id in active_tasks:
-        active_tasks[job_id].cancel()
-        del active_tasks[job_id]
-    await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": "Job stopped by user"}))
-    job_manager.fail_job(job_id, "Aborted by user.")
-    return {"job_id": job_id, "status": "aborted"}
-
-@router.post("/jobs/{job_id}/respond")
-async def respond_to_human(job_id: str, payload: HumanAnswerRequest):
-    human_data[job_id] = payload.answer
-    if job_id in human_answers:
-        human_answers[job_id].set()
-        return {"job_id": job_id, "status": "answered"}
-    return {"job_id": job_id, "status": "pending_or_expired"}
 
 @router.get("/jobs/{job_id}/files")
 async def get_job_files(job_id: str):
-    """Retrieve output files produced in the active engine workspace strictly for this job."""
+    """Retrieve output files produced strictly for this job/project."""
     ws = get_workspace_root().resolve()
-    if not ws.exists():
+    project_dir = ws / "projects" / job_id
+    search_root = project_dir if project_dir.exists() else ws
+
+    if not search_root.exists():
         return {"job_id": job_id, "files": []}
-    
+
+    job_files = []
+    for root, dirs, files in os.walk(search_root):
+        if search_root == ws and "projects" in root:
+            continue
+        for f in files:
+            # Exclude session meta file from UI build deliverables
+            if f == "session_meta.json":
+                continue
+            p = Path(root) / f
+            rel = p.relative_to(search_root)
+            job_files.append({
+                "name": f,
+                "path": str(rel).replace("\\", "/"),
+                "size": p.stat().st_size
+            })
+
+    return {"job_id": job_id, "files": job_files}
+
+
+@router.get("/jobs/{job_id}/download-zip")
+async def download_job_zip(job_id: str):
+    """Compress and stream all artifacts of this job as a ZIP archive."""
     job = job_manager.get_job(job_id)
-    ref_time = job.created_at if job else (time.time() - 3600.0)
-    # Generous tolerance to prevent dropping files on Windows NTFS timestamps
-    min_time = ref_time - 120.0
-    
-    task_files = []
-    for item in ws.rglob("*"):
-        if item.is_file() and TRASH_DIR_NAME not in item.parts:
-            mtime = item.stat().st_mtime
-            if mtime >= min_time:
-                rel_path = str(item.relative_to(ws)).replace("\\", "/")
-                task_files.append({
-                    "name": item.name,
-                    "path": rel_path,
-                    "size": item.stat().st_size,
-                    "modified": int(mtime)
-                })
-                
-    task_files.sort(key=lambda x: x["modified"], reverse=True)
-    return {"job_id": job_id, "files": task_files}
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    files_res = await get_job_files(job_id)
+    file_items = files_res.get("files", [])
+    if not file_items:
+        raise HTTPException(status_code=400, detail="No generated files found for this job")
+
+    ws = get_workspace_root().resolve()
+    project_dir = ws / "projects" / job_id
+    search_root = project_dir if project_dir.exists() else ws
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for f in file_items:
+            disk_path = search_root / f["path"]
+            if disk_path.is_file():
+                zip_file.write(disk_path, arcname=f["name"])
+
+    zip_buffer.seek(0)
+    filename = f"openmanus_{job_id}.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.post("/jobs/{job_id}/feedback")
+async def provide_feedback(job_id: str, req: FeedbackRequest):
+    """Supply user response to AskHuman interruption."""
+    if job_id in human_answers:
+        human_data[job_id] = req.response
+        human_answers[job_id].set()
+        return {"status": "ok", "message": "Feedback sent to agent"}
+    raise HTTPException(status_code=400, detail="Job is not waiting for user feedback")
+
 
 @router.get("/jobs/{job_id}/stream")
 async def stream_job_events(job_id: str):
-    return StreamingResponse(
-        subscribe_events(job_id),
-        media_type="text/event-stream",
+    """Stream real-time SSE events for this job with zero-buffering headers."""
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    async def event_generator():
+        # Replay past events safely
+        for ev in job.events:
+            ev_type = getattr(ev, "type", "message")
+            if hasattr(ev_type, "value"):
+                ev_type = ev_type.value
+            ev_data = ev.to_json() if hasattr(ev, "to_json") else (ev if isinstance(ev, str) else str(ev))
+            yield {"event": str(ev_type), "data": ev_data}
+
+        # Stream live events safely with zero latency
+        async for event in subscribe_events(job_id):
+            if hasattr(event, "type"):
+                ev_type = event.type.value if hasattr(event.type, "value") else str(event.type)
+                ev_data = event.to_json() if hasattr(event, "to_json") else str(event.data)
+                yield {"event": str(ev_type), "data": ev_data}
+                if str(ev_type).lower() in ["final", "error", "done"]:
+                    break
+            elif isinstance(event, str):
+                lines = event.strip().split("\n")
+                evt_name = "message"
+                data_payload = ""
+                for line in lines:
+                    if line.startswith("event:"):
+                        evt_name = line.replace("event:", "").strip()
+                    elif line.startswith("data:"):
+                        data_payload = line.replace("data:", "").strip()
+                if not data_payload:
+                    data_payload = event
+                yield {"event": evt_name, "data": data_payload}
+                if evt_name.lower() in ["final", "error", "done"]:
+                    break
+
+        # Save session metadata into the job project directory
+        try:
+            ws = get_workspace_root().resolve()
+            project_dir = ws / "projects" / job_id
+            if project_dir.exists():
+                session_path = project_dir / "session_meta.json"
+                with open(session_path, "w", encoding="utf-8") as sf:
+                    json.dump(job.to_dict(), sf, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    return EventSourceResponse(
+        event_generator(),
         headers={
             "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-            "Content-Type": "text/event-stream; charset=utf-8",
+            "Connection": "keep-alive"
         }
     )
