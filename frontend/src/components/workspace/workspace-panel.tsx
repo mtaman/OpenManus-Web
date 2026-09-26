@@ -16,18 +16,26 @@ interface WorkspacePanelProps {
 }
 
 export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("files");
+  const [activeTab, setActiveTab] = useState<TabId>("preview");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 
   const handleSelectFile = (path: string) => {
     setSelectedFilePath(path);
-    setActiveTab("editor");
+    if (path.toLowerCase().endsWith(".html") || path.toLowerCase().endsWith(".htm")) {
+      setActiveTab("preview");
+    } else {
+      setActiveTab("editor");
+    }
   };
 
   useEffect(() => {
     if (overrideFile) {
       setSelectedFilePath(overrideFile);
-      setActiveTab("editor");
+      if (overrideFile.toLowerCase().endsWith(".html") || overrideFile.toLowerCase().endsWith(".htm")) {
+        setActiveTab("preview");
+      } else {
+        setActiveTab("editor");
+      }
     }
   }, [overrideFile]);
 
@@ -36,13 +44,13 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
     { id: "files", label: "Files", icon: <FolderTree size={14} /> },
     { id: "artifacts", label: "Artifacts", icon: <Package size={14} /> },
     { id: "logs", label: "Logs", icon: <TerminalSquare size={14} /> },
-    { id: "editor", label: "Editor", icon: <FileCode2 size={14} /> },
+    ...(selectedFilePath ? [{ id: "editor" as TabId, label: "Editor", icon: <FileCode2 size={14} /> }] : []),
   ];
 
   return (
-    <div className="flex flex-col h-full bg-[var(--color-canvas)] border-l border-[var(--color-line)]">
-      {/* Tab Navigation Header */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
+    <div className="flex flex-col h-full bg-[var(--color-surface-1)] border-l border-[var(--color-line)] font-mono">
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--color-line)] bg-[var(--color-surface-1)] overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -59,9 +67,11 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
         ))}
       </div>
 
-      {/* Tab Panels */}
+      {/* Tab Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {activeTab === "preview" && <PreviewTab />}
+        {activeTab === "preview" && (
+          <PreviewTab currentHtmlPath={selectedFilePath} />
+        )}
         {activeTab === "files" && (
           <FilesTab onSelectFile={handleSelectFile} activeJobId={activeJobId} />
         )}

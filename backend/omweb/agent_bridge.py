@@ -91,6 +91,37 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
                     break
         return result
 
+        # Real-time tool interception hook
+    original_execute_tool = agent.execute_tool
+    async def instrumented_execute_tool(command):
+        tool_name = getattr(command.function, "name", "unknown") if hasattr(command, "function") else "unknown"
+        raw_args = getattr(command.function, "arguments", "{}") if hasattr(command, "function") else "{}"
+        curr_step = getattr(agent, "current_step", 1)
+        
+        # Dispatch tool_call event live before execution
+        await dispatch_event(
+            job_id,
+            SSEEvent(
+                type=SSEEventType.TOOL_CALL,
+                step=curr_step,
+                data={"name": tool_name, "arguments": raw_args}
+            )
+        )
+        
+        obs_output = await original_execute_tool(command)
+        
+        # Dispatch observation event live immediately after execution
+        await dispatch_event(
+            job_id,
+            SSEEvent(
+                type=SSEEventType.OBSERVATION,
+                step=curr_step,
+                data={"output": obs_output}
+            )
+        )
+        return obs_output
+
+    agent.execute_tool = instrumented_execute_tool
     agent.step = instrumented_step
 
     try:

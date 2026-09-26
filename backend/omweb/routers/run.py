@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 from omweb.sse_events import subscribe_events, dispatch_event, SSEEvent, SSEEventType
 from omweb.agent_bridge import run_instrumented, human_answers, human_data, active_tasks
 from omweb.job_manager import job_manager
-from omweb.config import WORKSPACE_ROOT
+from omweb.config import get_workspace_root, resolve_openmanus_root
 from omweb.fs_utils import TRASH_DIR_NAME
 
 router = APIRouter()
@@ -62,27 +62,30 @@ async def respond_to_human(job_id: str, payload: HumanAnswerRequest):
 
 @router.get("/jobs/{job_id}/files")
 async def get_job_files(job_id: str):
-    job = job_manager.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    ws = WORKSPACE_ROOT.resolve()
+    """Retrieve output files produced in the active engine workspace strictly for this job."""
+    ws = get_workspace_root().resolve()
     if not ws.exists():
         return {"job_id": job_id, "files": []}
-    job_start = job.created_at - 5.0
-    job_end = (job.updated_at + 10.0) if job.status in ("completed", "failed") else time.time() + 3600
+    
+    job = job_manager.get_job(job_id)
+    ref_time = job.created_at if job else (time.time() - 3600.0)
+    # Generous tolerance to prevent dropping files on Windows NTFS timestamps
+    min_time = ref_time - 120.0
+    
     task_files = []
     for item in ws.rglob("*"):
         if item.is_file() and TRASH_DIR_NAME not in item.parts:
             mtime = item.stat().st_mtime
-            if job_start <= mtime <= job_end:
+            if mtime >= min_time:
                 rel_path = str(item.relative_to(ws)).replace("\\", "/")
                 task_files.append({
                     "name": item.name,
                     "path": rel_path,
-                    "isDir": False,
                     "size": item.stat().st_size,
                     "modified": int(mtime)
                 })
+                
+    task_files.sort(key=lambda x: x["modified"], reverse=True)
     return {"job_id": job_id, "files": task_files}
 
 @router.get("/jobs/{job_id}/stream")

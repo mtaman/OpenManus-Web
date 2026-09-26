@@ -1,5 +1,6 @@
 ﻿"use client";
-import React, { useState, useRef } from "react";
+
+import React, { useState, useRef, useEffect } from "react";
 import {
   Send,
   Wrench,
@@ -17,7 +18,12 @@ import {
   PanelRightClose,
   PanelRightOpen,
   HelpCircle,
-  Coins
+  Coins,
+  Loader2,
+  Sparkles,
+  Layout,
+  Gauge,
+  Gamepad2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -65,7 +71,22 @@ export default function ChatPage() {
   const [tokensUsed, setTokensUsed] = useState({ input: 0, output: 0, total: 0 });
   const [humanQuery, setHumanQuery] = useState<string | null>(null);
   const [humanAnswer, setHumanAnswer] = useState("");
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  // Live Timer for running task
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (status === "running") {
+      timer = setInterval(() => {
+        setElapsedSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      setElapsedSeconds(0);
+    }
+    return () => clearInterval(timer);
+  }, [status]);
 
   const toggleStep = (stepNum: number) => {
     setExpandedSteps((prev) => ({
@@ -118,6 +139,7 @@ export default function ChatPage() {
     setFinalResult(null);
     setCurrentStepNum(0);
     setProducedFiles([]);
+    setSelectedFileForEditor(null);
     setExpandedSteps({});
     setTokensUsed({ input: 0, output: 0, total: 0 });
     setHumanQuery(null);
@@ -128,7 +150,21 @@ export default function ChatPage() {
     if (!activeJobId) return;
     if (status !== "running") return;
     try {
-      await fetch(`/api/run/jobs/${activeJobId}/stop`, { method: "POST" });       setStatus("failed");       if (eventSourceRef.current) {         eventSourceRef.current.close();       }     } catch (e) {       console.error("Failed to stop job", e);     }   };    const handleSendHumanAnswer = async () => {     if (!activeJobId) return;     if (!humanAnswer.trim()) return;     try {       await fetch(`/api/run/jobs/${activeJobId}/respond`, {
+      await fetch(`/api/run/jobs/${activeJobId}/stop`, { method: "POST" });
+      setStatus("failed");
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    } catch (e) {
+      console.error("Failed to stop job", e);
+    }
+  };
+
+  const handleSendHumanAnswer = async () => {
+    if (!activeJobId) return;
+    if (!humanAnswer.trim()) return;
+    try {
+      await fetch(`/api/run/jobs/${activeJobId}/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answer: humanAnswer.trim() }),
@@ -142,7 +178,62 @@ export default function ChatPage() {
 
   const fetchJobFiles = async (jobId: string) => {
     try {
-      const res = await fetch(`/api/run/jobs/${jobId}/files`);       if (res.ok) {         const data = await res.json();         setProducedFiles(data.files ? data.files : []);       }     } catch (e) {       console.error("Error fetching job files", e);     }   };    const handleStartTask = async () => {     const textToSend = inputValue.trim();     if (!textToSend) return;     if (status === "running") return;      setInputValue("");     setSubmittedPrompt(textToSend);     setStatus("running");     setSteps([]);     setFinalResult(null);     setCurrentStepNum(1);     setProducedFiles([]);     setExpandedSteps({});     setHumanQuery(null);     setTokensUsed({ input: 0, output: 0, total: 0 });      try {       const res = await fetch("/api/run", {         method: "POST",         headers: { "Content-Type": "application/json" },         body: JSON.stringify({ prompt: textToSend, max_steps: 20 }),       });        if (!res.ok) throw new Error("Failed to start run");       const data = await res.json();       const jobId = data.job_id;       setActiveJobId(jobId);        if (eventSourceRef.current) {         eventSourceRef.current.close();       }        const es = new EventSource(`/api/run/jobs/${jobId}/stream`);
+      const res = await fetch(`/api/run/jobs/${jobId}/files`);
+      if (res.ok) {
+        const data = await res.json();
+        const filesList: { name: string; path: string }[] = data.files ? data.files : [];
+        setProducedFiles(filesList);
+
+        // Auto-select HTML file for preview
+        const htmlFile = filesList.find((f) => {
+          const lower = f.name.toLowerCase();
+          return lower.endsWith(".html") || lower.endsWith(".htm");
+        });
+        if (htmlFile) {
+          setSelectedFileForEditor(htmlFile.name);
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching job files", e);
+    }
+  };
+
+  // Original, Rock-Solid Task Runner
+  const handleStartTask = async (customPrompt?: string) => {
+    const textToSend = (customPrompt !== undefined ? customPrompt : inputValue).trim();
+    if (!textToSend) return;
+    if (status === "running") return;
+
+    setInputValue("");
+    setSubmittedPrompt(textToSend);
+    setStatus("running");
+    setSteps([]);
+    setFinalResult(null);
+    setCurrentStepNum(1);
+    setProducedFiles([]);
+    setSelectedFileForEditor(null);
+    // Keep steps collapsed by default as requested
+    setExpandedSteps({});
+    setHumanQuery(null);
+    setTokensUsed({ input: 0, output: 0, total: 0 });
+
+    try {
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: textToSend, max_steps: 20 }),
+      });
+
+      if (!res.ok) throw new Error("Failed to start run");
+      const data = await res.json();
+      const jobId = data.job_id;
+      setActiveJobId(jobId);
+
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+
+      const es = new EventSource(`/api/run/jobs/${jobId}/stream`);
       eventSourceRef.current = es;
 
       const appendStep = (type: StepEvent["type"], content: any, stepNum = 1, toolName?: string) => {
@@ -171,7 +262,7 @@ export default function ChatPage() {
         setCurrentStepNum(step);
 
         if (eventType === "step_start") {
-          // step counter update
+          // Keep accordion collapsed; user opens on demand
         } else if (eventType === "thought") {
           const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
           appendStep("thought", raw, step);
@@ -186,6 +277,13 @@ export default function ChatPage() {
         } else if (eventType === "observation") {
           const raw = payload.data?.output ?? "Execution completed.";
           appendStep("observation", raw, step);
+
+          const match = typeof raw === "string" ? raw.match(/(?:File created successfully at|The file)\s*:?\s*([^\r\n]+?)(?:\s+has been edited|\. Cannot|\r|\n|$)/i) : null;
+          if (match && match[1]) {
+            const fullPath = match[1].trim();
+            const fileName = fullPath.split(/[\/\\]/).pop() || fullPath;
+            setSelectedFileForEditor(fileName);
+          }
           fetchJobFiles(jobId);
         } else if (eventType === "final") {
           const resText = payload.data?.result ?? "Task completed successfully.";
@@ -197,6 +295,7 @@ export default function ChatPage() {
           const errText = payload.data?.message ?? "Execution error encountered.";
           setFinalResult(safeRender(errText));
           setStatus("failed");
+          fetchJobFiles(jobId);
           es.close();
         }
       };
@@ -231,7 +330,7 @@ export default function ChatPage() {
         fetchJobFiles(jobId);
       };
     } catch (err) {
-      console.error(err);
+      console.error("Execution error:", err);
       setStatus("failed");
     }
   };
@@ -244,6 +343,12 @@ export default function ChatPage() {
     return acc;
   }, {} as Record<number, StepEvent[]>);
 
+  const quickPrompts = [
+    { label: "Dashboard Widget", icon: <Layout size={12} />, prompt: "In the workspace, create a file named 'analytics_widget.html' featuring a dark mode system health card with an animated SVG radial progress ring and real-time refresh button, then terminate." },
+    { label: "Interactive Counter", icon: <Gauge size={12} />, prompt: "In the workspace, create a file named 'counter_app.html' with a modern dark theme card component using CSS, including a glowing button that changes color on hover and increments a click counter in JavaScript, then terminate." },
+    { label: "Mini Pong Game", icon: <Gamepad2 size={12} />, prompt: "In the workspace, create a file named 'mini_pong.html' with a playable HTML5 canvas retro pong game with keyboard controls and score counter, then terminate." }
+  ];
+
   return (
     <div className="flex h-full w-full bg-[var(--color-canvas)] text-[var(--color-ink)] overflow-hidden font-mono">
       {/* Left Chat & Telemetry Feed */}
@@ -252,10 +357,10 @@ export default function ChatPage() {
         <div className="flex items-center justify-between px-6 py-2.5 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
           <div className="flex items-center gap-3">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={handleNewSession}
-              className="flex items-center gap-1.5 h-7 px-2 text-xs font-mono border-[var(--color-line)] bg-[var(--color-surface-2)]"
+              className="flex items-center gap-1.5 h-7 px-2 text-xs font-mono border-[var(--color-line)] bg-[var(--color-surface-2)] cursor-pointer"
               title="Start a fresh autonomous session"
             >
               <PlusCircle size={13} className="text-cyan-400" />
@@ -279,10 +384,10 @@ export default function ChatPage() {
             </span>
             {status === "running" && (
               <Button
-                variant="destructive"
+                variant="danger"
                 size="sm"
                 onClick={handleStopTask}
-                className="flex items-center gap-1 h-7 px-2.5 text-xs font-mono bg-red-600/80 hover:bg-red-600 text-white"
+                className="flex items-center gap-1 h-7 px-2.5 text-xs font-mono bg-red-600/80 hover:bg-red-600 text-white cursor-pointer"
               >
                 <Square size={11} className="fill-current" />
                 <span>Stop</span>
@@ -290,7 +395,7 @@ export default function ChatPage() {
             )}
             <button
               onClick={() => setShowRightPanel(!showRightPanel)}
-              className="p-1.5 rounded hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] hover:text-cyan-400"
+              className="p-1.5 rounded hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] hover:text-cyan-400 cursor-pointer"
               title={showRightPanel ? "Hide Right Workspace Panel" : "Show Right Workspace Panel"}
             >
               {showRightPanel ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
@@ -310,7 +415,7 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={() => copyText(submittedPrompt, "user-prompt")}
-                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)]"
+                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] cursor-pointer"
                   title="Copy Prompt"
                 >
                   {copiedSection === "user-prompt" ? (
@@ -352,6 +457,7 @@ export default function ChatPage() {
                   className="flex-1 bg-[var(--color-void)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-amber-400"
                 />
                 <Button
+                  variant="primary"
                   onClick={handleSendHumanAnswer}
                   className="bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs px-3 h-8 cursor-pointer"
                 >
@@ -361,12 +467,25 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Execution Steps */}
+          {/* Real-time Loader & Timer Indicator */}
+          {status === "running" && (
+            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-cyan-500/20 bg-cyan-500/5 text-cyan-400">
+              <div className="flex items-center gap-2.5">
+                <Loader2 size={14} className="animate-spin text-cyan-400" />
+                <span className="text-[11px] font-mono">Agent reasoning & executing autonomously...</span>
+              </div>
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300">
+                {elapsedSeconds}s
+              </span>
+            </div>
+          )}
+
+          {/* Execution Steps Accordion (Collapsed by Default) */}
           {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
             const stepNum = parseInt(stepNumStr, 10);
             const isExpanded = expandedSteps[stepNum] === true;
             return (
-              <div key={stepNum} className="border border-[var(--color-line)] rounded-lg bg-[var(--color-surface-1)] overflow-hidden">
+              <div key={stepNum} className="border border-[var(--color-line)] rounded-lg bg-[var(--color-surface-1)] overflow-hidden transition-all">
                 <button
                   type="button"
                   onClick={() => toggleStep(stepNum)}
@@ -386,7 +505,7 @@ export default function ChatPage() {
                     </span>
                   </div>
                   <span className="text-[10px] font-mono text-[var(--color-ink-faint)]">
-                    {isExpanded ? "Click to collapse" : "Click to view details"}
+                    {isExpanded ? "Click to collapse" : "Click to view reasoning"}
                   </span>
                 </button>
 
@@ -433,7 +552,7 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={() => copyText(finalResult, "final-result")}
-                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)]"
+                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-[var(--color-surface-1)] hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] cursor-pointer"
                   title="Copy Final Result"
                 >
                   {copiedSection === "final-result" ? (
@@ -456,14 +575,14 @@ export default function ChatPage() {
               {producedFiles.length > 0 && (
                 <div className="pt-3 border-t border-emerald-500/20">
                   <span className="text-[11px] font-semibold text-emerald-300 block mb-1.5">
-                    Generated Task Files (Click to inspect in Editor):
+                    Generated Task Files (Live Preview Active in Panel):
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {producedFiles.map((f) => (
                       <button
                         key={f.path}
                         type="button"
-                        onClick={() => setSelectedFileForEditor(f.path)}
+                        onClick={() => setSelectedFileForEditor(f.name)}
                         className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-1)] text-cyan-300 border border-cyan-500/30 text-xs cursor-pointer"
                       >
                         <FileText size={12} />
@@ -478,8 +597,28 @@ export default function ChatPage() {
           )}
         </div>
 
-        {/* Input Bar */}
-        <div className="p-4 border-t border-[var(--color-line)] bg-[var(--color-surface-1)]">
+        {/* Input Bar & Quick Prompt Pills */}
+        <div className="p-4 border-t border-[var(--color-line)] bg-[var(--color-surface-1)] space-y-2.5">
+          {status !== "running" && steps.length === 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] text-[var(--color-ink-muted)]">
+              <span className="flex items-center gap-1 text-[10px] text-cyan-400 uppercase tracking-wider font-bold mr-1">
+                <Sparkles size={11} />
+                Quick Tasks:
+              </span>
+              {quickPrompts.map((qp, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleStartTask(qp.prompt)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[var(--color-line)] bg-[var(--color-surface-2)] hover:border-cyan-500/50 hover:text-cyan-300 transition cursor-pointer whitespace-nowrap"
+                >
+                  {qp.icon}
+                  <span>{qp.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
