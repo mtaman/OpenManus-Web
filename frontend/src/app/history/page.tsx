@@ -1,70 +1,33 @@
 ﻿"use client";
 
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { 
-  History, 
-  RotateCcw, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
-  Loader2, 
-  Search, 
-  RefreshCw,
-  Eye,
-  ExternalLink,
-  ChevronRight
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { StatusPill } from "@/components/ui/status-pill";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { Sidebar } from "@/components/layout/sidebar";
+import { History, Trash2, Download, ExternalLink, Calendar, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
-interface JobRecord {
-  job_id: string;
+interface JobItem {
+  id: string;
   prompt: string;
-  status: "pending" | "running" | "completed" | "failed";
-  created_at: number;
-  updated_at: number;
-  steps_count: number;
-  final_result?: string;
-  error?: string;
+  status: string;
+  created_at?: string;
+  pinned?: boolean;
 }
 
 export default function HistoryPage() {
-  const router = useRouter();
-  const [jobs, setJobs] = useState<JobRecord[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState("");
-  const [selectedJob, setSelectedJob] = useState<JobRecord | null>(null);
-  const [rerunningId, setRerunningId] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<JobItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchJobs = async () => {
-    setLoading(true);
     try {
       const res = await fetch("/api/run/jobs");
       if (res.ok) {
         const data = await res.json();
         setJobs(data.jobs || []);
       }
-    } catch (err) {
-      console.error("Failed to load jobs history", err);
+    } catch (e) {
+      console.error("Failed to load history sessions", e);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRerun = async (jobId: string) => {
-    setRerunningId(jobId);
-    try {
-      const res = await fetch(`/api/run/jobs/${jobId}/rerun`, { method: "POST" });
-      if (res.ok) {
-        const data = await res.json();
-        router.push(`/chat?job_id=${data.job_id}`);
-      }
-    } catch (err) {
-      console.error("Failed to rerun task", err);
-    } finally {
-      setRerunningId(null);
     }
   };
 
@@ -72,134 +35,99 @@ export default function HistoryPage() {
     fetchJobs();
   }, []);
 
-  const filteredJobs = jobs.filter((j) => 
-    j.prompt.toLowerCase().includes(search.toLowerCase()) ||
-    j.job_id.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleDelete = async (jobId: string) => {
+    if (!confirm("Are you sure you want to delete this session?")) return;
+    try {
+      await fetch(`/api/run/jobs/${jobId}`, { method: "DELETE" });
+      setJobs((prev) => prev.filter((j) => j.id !== jobId));
+    } catch (err) {
+      console.error("Failed to delete job", err);
+    }
+  };
 
   return (
-    <div className="flex flex-col h-full bg-[var(--color-canvas)] text-[var(--color-ink)] font-mono text-xs overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
-        <div className="flex items-center gap-3">
-          <History size={18} className="text-cyan-400" />
-          <h1 className="text-sm font-semibold tracking-wide">Autonomous Task Execution History</h1>
-        </div>
-        <Button variant="secondary" size="sm" onClick={fetchJobs} disabled={loading}>
-          <RefreshCw size={12} className={`mr-1.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-      </div>
-
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Column: Job List */}
-        <div className="w-1/2 flex flex-col border-r border-[var(--color-line)] p-4 space-y-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded bg-[var(--color-void)] border border-[var(--color-line)]">
-            <Search size={14} className="text-[var(--color-ink-muted)]" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tasks by prompt or ID..."
-              className="bg-transparent border-none text-xs text-[var(--color-ink)] focus:outline-none w-full font-mono"
-            />
+    <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-mono">
+      <Sidebar />
+      <div className="flex flex-col flex-1 h-full overflow-hidden">
+        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-900/50">
+          <div className="flex items-center gap-2">
+            <History className="h-5 w-5 text-emerald-400" />
+            <h1 className="font-bold text-base text-slate-100">Session History & Archives</h1>
           </div>
-
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {filteredJobs.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[var(--color-ink-faint)]">
-                No execution records found.
-              </div>
-            ) : (
-              filteredJobs.map((job) => (
-                <div
-                  key={job.job_id}
-                  onClick={() => setSelectedJob(job)}
-                  className={`p-3 rounded border transition cursor-pointer ${
-                    selectedJob?.job_id === job.job_id
-                      ? "border-[var(--color-thought)] bg-[var(--color-surface-2)]"
-                      : "border-[var(--color-line)] bg-[var(--color-surface-1)] hover:border-[var(--color-line-subtle)]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-mono text-[10px] text-[var(--color-ink-muted)]">{job.job_id}</span>
-                    <StatusPill status={job.status} />
-                  </div>
-                  <p className="text-xs text-[var(--color-ink)] line-clamp-2 mb-2 font-sans font-medium">
-                    {job.prompt}
-                  </p>
-                  <div className="flex items-center justify-between text-[10px] text-[var(--color-ink-faint)]">
-                    <div className="flex items-center gap-1">
-                      <Clock size={11} />
-                      <span>{new Date(job.created_at * 1000).toLocaleTimeString()}</span>
-                    </div>
-                    <span>{job.steps_count} steps</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          <span className="text-xs text-slate-400">Total Sessions: {jobs.length}</span>
         </div>
 
-        {/* Right Column: Job Inspection & Replay */}
-        <div className="w-1/2 flex flex-col p-6 overflow-y-auto bg-[var(--color-void)]">
-          {selectedJob ? (
-            <div className="space-y-4 max-w-xl">
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--color-line)]">
-                <div>
-                  <h2 className="text-sm font-semibold text-[var(--color-ink)]">{selectedJob.job_id}</h2>
-                  <span className="text-[10px] text-[var(--color-ink-faint)]">
-                    Created: {new Date(selectedJob.created_at * 1000).toLocaleString()}
-                  </span>
-                </div>
-                <Button 
-                  variant="primary" 
-                  size="sm" 
-                  onClick={() => handleRerun(selectedJob.job_id)}
-                  disabled={rerunningId === selectedJob.job_id}
-                >
-                  <RotateCcw size={12} className={`mr-1.5 ${rerunningId === selectedJob.job_id ? "animate-spin" : ""}`} />
-                  Re-run Task
-                </Button>
-              </div>
-
-              <div>
-                <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider block mb-1">Original Prompt</span>
-                <div className="p-3 rounded bg-[var(--color-surface-1)] border border-[var(--color-line)] text-xs text-[var(--color-ink)] font-sans">
-                  {selectedJob.prompt}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wider block mb-1">Execution Status</span>
-                <div className="flex items-center gap-3 p-3 rounded bg-[var(--color-surface-1)] border border-[var(--color-line)] text-xs">
-                  <StatusPill status={selectedJob.status} />
-                  <span>Steps executed: {selectedJob.steps_count}</span>
-                </div>
-              </div>
-
-              {selectedJob.final_result && (
-                <div>
-                  <span className="text-[10px] text-emerald-400 uppercase tracking-wider block mb-1">Final Result</span>
-                  <div className="p-3 rounded bg-[var(--color-surface-1)] border border-emerald-500/30 text-xs text-[var(--color-ink)] whitespace-pre-wrap font-sans">
-                    {selectedJob.final_result}
-                  </div>
-                </div>
-              )}
-
-              {selectedJob.error && (
-                <div>
-                  <span className="text-[10px] text-red-400 uppercase tracking-wider block mb-1">Execution Error</span>
-                  <div className="p-3 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-400 whitespace-pre-wrap">
-                    {selectedJob.error}
-                  </div>
-                </div>
-              )}
+        <div className="flex-1 p-6 overflow-y-auto bg-slate-950">
+          {loading ? (
+            <div className="flex items-center justify-center h-48 text-slate-400 text-xs animate-pulse">
+              Loading session history...
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center text-slate-500 space-y-2">
+              <History size={32} className="text-slate-600" />
+              <p className="text-sm">No recorded chat sessions found.</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-xs text-[var(--color-ink-faint)] text-center">
-              <Eye size={28} className="mb-2 opacity-40" />
-              <p>Select any execution task from the left to view details or re-run.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="flex flex-col justify-between p-4 rounded-xl border border-slate-800 bg-slate-900/70 hover:border-slate-700 transition group shadow-md"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold flex items-center gap-1">
+                        <Calendar size={11} /> {job.id}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 ${
+                          job.status === "completed"
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : job.status === "running"
+                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse"
+                            : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                        }`}
+                      >
+                        {job.status === "completed" && <CheckCircle2 size={10} />}
+                        {job.status === "running" && <Clock size={10} />}
+                        {job.status === "failed" && <AlertCircle size={10} />}
+                        {job.status}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-200 line-clamp-3 mb-4 leading-relaxed font-sans">
+                      {job.prompt || "No prompt recorded"}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 mt-auto">
+                    <Link
+                      href={`/chat/${job.id}`}
+                      className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium transition"
+                    >
+                      <ExternalLink size={13} />
+                      <span>Open Session</span>
+                    </Link>
+
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={`/api/run/jobs/${job.id}/download-zip`}
+                        title="Download ZIP"
+                        className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 transition"
+                      >
+                        <Download size={13} />
+                      </a>
+                      <button
+                        onClick={() => handleDelete(job.id)}
+                        title="Delete session"
+                        className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-rose-400 transition"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

@@ -1,9 +1,16 @@
-﻿"use client";
+﻿import ChatPage from "../page";
 
-import { use } from "react";
-import ChatPage from "../page";
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
 
-export default function DynamicChatSessionPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
-  return <ChatPage initialJobId={resolvedParams.id} />;
+export default async function DynamicChatPage({ params }: PageProps) {
+  const resolvedParams = await params;
+  const jobId = resolvedParams?.id;
+  
+  if (!jobId) {
+    return <ChatPage />;
+  }
+
+  return <ChatPage initialJobId={jobId} />;
 }
