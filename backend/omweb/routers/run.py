@@ -13,6 +13,7 @@ from omweb.job_manager import job_manager
 from omweb.config import get_workspace_root
 from omweb.sse_events import subscribe_events, SSEEventType
 from omweb.agent_bridge import run_instrumented, human_answers, human_data
+from omweb.project_manager import project_manager
 
 router = APIRouter()
 
@@ -44,7 +45,24 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
 
     actual_job_id = getattr(job, "id", generated_job_id)
     background_tasks.add_task(run_instrumented, actual_job_id, prompt)
-    return {"job_id": actual_job_id, "status": getattr(job, "status", "running")}
+    
+    # Initialize persistent chat session record
+    try:
+        chat_id = f"chat_{uuid.uuid4().hex[:10]}"
+        project_manager.save_chat_session(
+            chat_id=chat_id,
+            project_id="default_project",
+            title=prompt[:30],
+            job_id=actual_job_id,
+            prompt=prompt,
+            events=[],
+            result="",
+            status="running"
+        )
+    except Exception:
+        pass
+
+    return {"job_id": actual_job_id, "status": getattr(job, "status", "running"), "chat_id": chat_id if 'chat_id' in locals() else ""}
 
 
 @router.get("/jobs")
@@ -87,7 +105,6 @@ async def get_job_files(job_id: str):
         if search_root == ws and "projects" in root:
             continue
         for f in files:
-            # Exclude session meta file from UI build deliverables
             if f == "session_meta.json":
                 continue
             p = Path(root) / f
@@ -145,14 +162,39 @@ async def provide_feedback(job_id: str, req: FeedbackRequest):
 
 @router.get("/jobs/{job_id}/stream")
 async def stream_job_events(job_id: str):
-    """Stream real-time SSE events for this job with zero-buffering headers."""
+    """Stream real-time SSE events for this job and persistently update event logs."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     async def event_generator():
-        # Replay past events safely with robust JSON serialization
-        for ev in job.events:
+        collected_events = []
+        
+        # Helper to record event
+        def persist_current_state(status_str="running"):
+            try:
+                # Find matching chat by job_id or create/update
+                chats = project_manager.list_chats()
+                target_chat = next((c for c in chats if c.get("job_id") == job_id), None)
+                chat_id = target_chat.get("id") if target_chat else f"chat_{job_id}"
+                proj_id = target_chat.get("project_id") if target_chat else "default_project"
+                prompt_val = getattr(job, "prompt", target_chat.get("prompt", "") if target_chat else "")
+                
+                project_manager.save_chat_session(
+                    chat_id=chat_id,
+                    project_id=proj_id,
+                    title=prompt_val[:30] if prompt_val else job_id,
+                    job_id=job_id,
+                    prompt=prompt_val,
+                    events=collected_events,
+                    result="",
+                    status=status_str
+                )
+            except Exception:
+                pass
+
+        # Replay past events safely
+        for ev in getattr(job, "events", []):
             ev_type = getattr(ev, "type", "message")
             if hasattr(ev_type, "value"):
                 ev_type = ev_type.value
@@ -162,15 +204,28 @@ async def stream_job_events(job_id: str):
                 ev_data = json.dumps(ev, ensure_ascii=False)
             else:
                 ev_data = json.dumps({"content": str(ev)}, ensure_ascii=False)
+            
+            collected_events.append({"type": str(ev_type), "data": json.loads(ev_data) if ev_data.startswith("{") else ev_data})
             yield {"event": str(ev_type), "data": ev_data}
 
-        # Stream live events safely with zero latency
+        # Stream live events safely with zero latency and continuous persistence
         async for event in subscribe_events(job_id):
             if hasattr(event, "type"):
                 ev_type = event.type.value if hasattr(event.type, "value") else str(event.type)
                 ev_data = event.to_json() if hasattr(event, "to_json") else str(event.data)
+                
+                try:
+                    parsed_data = json.loads(ev_data)
+                except Exception:
+                    parsed_data = {"content": ev_data}
+                
+                collected_events.append({"type": str(ev_type), "data": parsed_data})
+                
+                is_terminal = str(ev_type).lower() in ["final", "error", "done"]
+                persist_current_state(status_str="completed" if is_terminal else "running")
+                
                 yield {"event": str(ev_type), "data": ev_data}
-                if str(ev_type).lower() in ["final", "error", "done"]:
+                if is_terminal:
                     break
             elif isinstance(event, str):
                 lines = event.strip().split("\n")
@@ -183,20 +238,16 @@ async def stream_job_events(job_id: str):
                         data_payload = line.replace("data:", "").strip()
                 if not data_payload:
                     data_payload = event
+                
+                collected_events.append({"type": evt_name, "data": data_payload})
+                is_terminal = evt_name.lower() in ["final", "error", "done"]
+                persist_current_state(status_str="completed" if is_terminal else "running")
+                
                 yield {"event": evt_name, "data": data_payload}
-                if evt_name.lower() in ["final", "error", "done"]:
+                if is_terminal:
                     break
 
-        # Save session metadata into the job project directory
-        try:
-            ws = get_workspace_root().resolve()
-            project_dir = ws / "projects" / job_id
-            if project_dir.exists():
-                session_path = project_dir / "session_meta.json"
-                with open(session_path, "w", encoding="utf-8") as sf:
-                    json.dump(job.to_dict(), sf, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        persist_current_state(status_str="completed")
 
     return EventSourceResponse(
         event_generator(),
