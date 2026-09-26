@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Send,
   Wrench,
@@ -23,7 +24,8 @@ import {
   Sparkles,
   Layout,
   Gauge,
-  Gamepad2
+  Gamepad2,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -35,6 +37,7 @@ interface StepEvent {
   type: "thought" | "tool_call" | "observation" | "error" | "final" | "ask_human";
   content: string;
   toolName?: string;
+  timestamp?: string;
 }
 
 function safeRender(val: any): string {
@@ -55,6 +58,7 @@ function safeRender(val: any): string {
 }
 
 export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
+  const router = useRouter();
   const [inputValue, setInputValue] = useState("");
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(initialJobId || null);
@@ -72,8 +76,160 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
   const [humanQuery, setHumanQuery] = useState<string | null>(null);
   const [humanAnswer, setHumanAnswer] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
 
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  // Restore session data and connect stream if initialJobId is provided (Direct URL / History Access)
+  useEffect(() => {
+    if (initialJobId) {
+      setActiveJobId(initialJobId);
+      fetchJobDetails(initialJobId);
+      connectStream(initialJobId);
+    }
+  }, [initialJobId]);
+
+  const fetchJobDetails = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/run/jobs/${jobId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.prompt) setSubmittedPrompt(data.prompt);
+        if (data.status) setStatus(data.status);
+        if (data.result) setFinalResult(safeRender(data.result));
+        if (data.created_at || data.timestamp) {
+          setSessionTimestamp(data.created_at || data.timestamp);
+        } else {
+          setSessionTimestamp(new Date().toLocaleString());
+        }
+        
+        // Replay historical steps/events safely
+        if (data.events && Array.isArray(data.events)) {
+          const replayed: StepEvent[] = [];
+          data.events.forEach((ev: any, idx: number) => {
+            const evType = ev.type || "thought";
+            const evContent = ev.data?.thought || ev.data?.output || ev.data?.content || ev.data || JSON.stringify(ev);
+            replayed.push({
+              id: `replay-${idx}-${Math.random()}`,
+              step: ev.step || 1,
+              type: evType,
+              content: safeRender(evContent),
+              toolName: ev.data?.name,
+              timestamp: ev.timestamp || new Date().toLocaleTimeString()
+            });
+          });
+          setSteps(replayed);
+        }
+        fetchJobFiles(jobId);
+      }
+    } catch (e) {
+      console.error("Failed to fetch job details for restoration", e);
+    }
+  };
+
+  const connectStream = (jobId: string) => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    const es = new EventSource(`/api/run/jobs/${jobId}/stream`);
+    eventSourceRef.current = es;
+
+    const appendStep = (type: StepEvent["type"], content: any, stepNum = 1, toolName?: string) => {
+      const cleanContent = safeRender(content);
+      const cleanTool = toolName ? safeRender(toolName) : undefined;
+
+      if (type === "tool_call") {
+        if (!cleanTool || cleanTool === "{}") return;
+        if (!cleanContent && !cleanTool) return;
+      }
+
+      setSteps((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          step: stepNum,
+          type,
+          content: cleanContent,
+          toolName: cleanTool,
+          timestamp: new Date().toLocaleTimeString()
+        }
+      ]);
+    };
+
+    const handleEventPayload = (eventType: string, payload: any) => {
+      const step = payload.step || 1;
+      setCurrentStepNum(step);
+
+      if (eventType === "step_start") {
+        // Keep accordion collapsed
+      } else if (eventType === "thought") {
+        const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
+        appendStep("thought", raw, step);
+        if (payload.data?.tokens) setTokensUsed(payload.data.tokens);
+      } else if (eventType === "tool_call") {
+        const name = payload.data?.name;
+        const args = payload.data?.arguments ?? "";
+        if (name === "ask_human" || (typeof args === "string" && (args.includes("?") || args.includes("prefer")))) {
+          setHumanQuery(typeof args === "string" ? args : JSON.stringify(args));
+        }
+        appendStep("tool_call", args, step, name);
+      } else if (eventType === "observation") {
+        const raw = payload.data?.output ?? "Execution completed.";
+        appendStep("observation", raw, step);
+
+        const match = typeof raw === "string" ? raw.match(/(?:File created successfully at|The file)\s*:?\s*([^\r\n]+?)(?:\s+has been edited|\. Cannot|\r|\n|$)/i) : null;
+        if (match && match[1]) {
+          const fullPath = match[1].trim();
+          const fileName = fullPath.split(/[\/\\]/).pop() || fullPath;
+          setSelectedFileForEditor(fileName);
+        }
+        fetchJobFiles(jobId);
+      } else if (eventType === "final") {
+        const resText = payload.data?.result ?? "Task completed successfully.";
+        setFinalResult(safeRender(resText));
+        setStatus("completed");
+        fetchJobFiles(jobId);
+        es.close();
+      } else if (eventType === "error") {
+        const errText = payload.data?.message ?? "Execution error encountered.";
+        setFinalResult(safeRender(errText));
+        setStatus("failed");
+        fetchJobFiles(jobId);
+        es.close();
+      }
+    };
+
+    es.addEventListener("step_start", (e: any) => {
+      try { handleEventPayload("step_start", JSON.parse(e.data)); } catch {}
+    });
+    es.addEventListener("thought", (e: any) => {
+      try { handleEventPayload("thought", JSON.parse(e.data)); } catch {}
+    });
+    es.addEventListener("tool_call", (e: any) => {
+      try { handleEventPayload("tool_call", JSON.parse(e.data)); } catch {}
+    });
+    es.addEventListener("observation", (e: any) => {
+      try { handleEventPayload("observation", JSON.parse(e.data)); } catch {}
+    });
+    es.addEventListener("final", (e: any) => {
+      try { handleEventPayload("final", JSON.parse(e.data)); } catch {}
+    });
+    es.addEventListener("error", (e: any) => {
+      try { handleEventPayload("error", JSON.parse(e.data)); } catch {}
+    });
+
+    es.onmessage = (e: any) => {
+      try {
+        const parsed = JSON.parse(e.data);
+        if (parsed.type) handleEventPayload(parsed.type, parsed);
+      } catch {}
+    };
+
+    es.onerror = () => {
+      fetchJobFiles(jobId);
+    };
+  };
 
   // Live Timer for running task
   useEffect(() => {
@@ -144,6 +300,8 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
     setTokensUsed({ input: 0, output: 0, total: 0 });
     setHumanQuery(null);
     setHumanAnswer("");
+    setSessionTimestamp("");
+    router.replace("/chat");
   };
 
   const handleStopTask = async () => {
@@ -184,7 +342,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
         const filesList: { name: string; path: string }[] = data.files ? data.files : [];
         setProducedFiles(filesList);
 
-        // Auto-select HTML file for preview
         const htmlFile = filesList.find((f) => {
           const lower = f.name.toLowerCase();
           return lower.endsWith(".html") || lower.endsWith(".htm");
@@ -198,7 +355,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
     }
   };
 
-  // Original, Rock-Solid Task Runner
+  // Task Runner with Clean URL & Stream Synchronization
   const handleStartTask = async (customPrompt?: string) => {
     const textToSend = (customPrompt !== undefined ? customPrompt : inputValue).trim();
     if (!textToSend) return;
@@ -212,10 +369,10 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
     setCurrentStepNum(1);
     setProducedFiles([]);
     setSelectedFileForEditor(null);
-    // Keep steps collapsed by default as requested
     setExpandedSteps({});
     setHumanQuery(null);
     setTokensUsed({ input: 0, output: 0, total: 0 });
+    setSessionTimestamp(new Date().toLocaleString());
 
     try {
       const res = await fetch("/api/run", {
@@ -229,106 +386,14 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
       const jobId = data.job_id;
       setActiveJobId(jobId);
 
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      // Clean URL Synchronization
+      if (typeof window !== "undefined" && jobId) {
+        window.history.replaceState({}, "", `/chat/${jobId}`);
+        router.replace(`/chat/${jobId}`);
       }
 
-      const es = new EventSource(`/api/run/jobs/${jobId}/stream`);
-      eventSourceRef.current = es;
-
-      const appendStep = (type: StepEvent["type"], content: any, stepNum = 1, toolName?: string) => {
-        const cleanContent = safeRender(content);
-        const cleanTool = toolName ? safeRender(toolName) : undefined;
-
-        if (type === "tool_call") {
-          if (!cleanTool || cleanTool === "{}") return;
-          if (!cleanContent && !cleanTool) return;
-        }
-
-        setSteps((prev) => [
-          ...prev,
-          {
-            id: `${Date.now()}-${Math.random()}`,
-            step: stepNum,
-            type,
-            content: cleanContent,
-            toolName: cleanTool,
-          }
-        ]);
-      };
-
-      const handleEventPayload = (eventType: string, payload: any) => {
-        const step = payload.step || 1;
-        setCurrentStepNum(step);
-
-        if (eventType === "step_start") {
-          // Keep accordion collapsed; user opens on demand
-        } else if (eventType === "thought") {
-          const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
-          appendStep("thought", raw, step);
-          if (payload.data?.tokens) setTokensUsed(payload.data.tokens);
-        } else if (eventType === "tool_call") {
-          const name = payload.data?.name;
-          const args = payload.data?.arguments ?? "";
-          if (name === "ask_human" || (typeof args === "string" && (args.includes("?") || args.includes("prefer")))) {
-            setHumanQuery(typeof args === "string" ? args : JSON.stringify(args));
-          }
-          appendStep("tool_call", args, step, name);
-        } else if (eventType === "observation") {
-          const raw = payload.data?.output ?? "Execution completed.";
-          appendStep("observation", raw, step);
-
-          const match = typeof raw === "string" ? raw.match(/(?:File created successfully at|The file)\s*:?\s*([^\r\n]+?)(?:\s+has been edited|\. Cannot|\r|\n|$)/i) : null;
-          if (match && match[1]) {
-            const fullPath = match[1].trim();
-            const fileName = fullPath.split(/[\/\\]/).pop() || fullPath;
-            setSelectedFileForEditor(fileName);
-          }
-          fetchJobFiles(jobId);
-        } else if (eventType === "final") {
-          const resText = payload.data?.result ?? "Task completed successfully.";
-          setFinalResult(safeRender(resText));
-          setStatus("completed");
-          fetchJobFiles(jobId);
-          es.close();
-        } else if (eventType === "error") {
-          const errText = payload.data?.message ?? "Execution error encountered.";
-          setFinalResult(safeRender(errText));
-          setStatus("failed");
-          fetchJobFiles(jobId);
-          es.close();
-        }
-      };
-
-      es.addEventListener("step_start", (e: any) => {
-        try { handleEventPayload("step_start", JSON.parse(e.data)); } catch {}
-      });
-      es.addEventListener("thought", (e: any) => {
-        try { handleEventPayload("thought", JSON.parse(e.data)); } catch {}
-      });
-      es.addEventListener("tool_call", (e: any) => {
-        try { handleEventPayload("tool_call", JSON.parse(e.data)); } catch {}
-      });
-      es.addEventListener("observation", (e: any) => {
-        try { handleEventPayload("observation", JSON.parse(e.data)); } catch {}
-      });
-      es.addEventListener("final", (e: any) => {
-        try { handleEventPayload("final", JSON.parse(e.data)); } catch {}
-      });
-      es.addEventListener("error", (e: any) => {
-        try { handleEventPayload("error", JSON.parse(e.data)); } catch {}
-      });
-
-      es.onmessage = (e: any) => {
-        try {
-          const parsed = JSON.parse(e.data);
-          if (parsed.type) handleEventPayload(parsed.type, parsed);
-        } catch {}
-      };
-
-      es.onerror = () => {
-        fetchJobFiles(jobId);
-      };
+      // Connect SSE Stream
+      connectStream(jobId);
     } catch (err) {
       console.error("Execution error:", err);
       setStatus("failed");
@@ -373,6 +438,12 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
           </div>
 
           <div className="flex items-center gap-3">
+            {sessionTimestamp && (
+              <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-ink-muted)]">
+                <Clock size={11} />
+                <span>{sessionTimestamp}</span>
+              </span>
+            )}
             {tokensUsed.total > 0 && (
               <span className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-ink-muted)]">
                 <Coins size={11} />
@@ -411,6 +482,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
                 <span className="flex items-center gap-1.5 text-cyan-400 font-bold uppercase tracking-wider text-[11px]">
                   <User size={13} />
                   User Prompt
+                  {sessionTimestamp && <span className="text-[10px] text-slate-500 font-normal ml-2">({sessionTimestamp})</span>}
                 </span>
                 <button
                   type="button"
@@ -480,7 +552,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
             </div>
           )}
 
-          {/* Execution Steps Accordion (Collapsed by Default) */}
+          {/* Execution Steps Accordion */}
           {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
             const stepNum = parseInt(stepNumStr, 10);
             const isExpanded = expandedSteps[stepNum] === true;
@@ -512,7 +584,12 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
                 {isExpanded && (
                   <div className="p-4 pt-2 border-t border-[var(--color-line-subtle)] space-y-2.5 bg-[var(--color-canvas)]">
                     {stepEvents.map((evt) => (
-                      <div key={evt.id} className="text-xs font-mono">
+                      <div key={evt.id} className="text-xs font-mono space-y-1">
+                        {evt.timestamp && (
+                          <div className="text-[9px] text-slate-500 flex items-center gap-1">
+                            <Clock size={10} /> {evt.timestamp}
+                          </div>
+                        )}
                         {evt.type === "thought" && (
                           <div className="flex items-start gap-2 p-2.5 rounded bg-[var(--color-surface-2)] border border-[var(--color-line)]">
                             <BrainCircuit size={14} className="text-purple-400 mt-0.5 flex-shrink-0" />
