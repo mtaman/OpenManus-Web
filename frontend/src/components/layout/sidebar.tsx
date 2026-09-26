@@ -43,7 +43,7 @@ export function Sidebar() {
     try {
       await fetch(`/api/run/jobs/${jobId}`, { method: "DELETE" });
       setJobs((prev) => prev.filter((j) => j.id !== jobId));
-      if (pathname.includes(jobId)) {
+      if (pathname && pathname.includes(jobId)) {
         router.push("/chat");
       }
     } catch (err) {
@@ -115,6 +115,7 @@ export function Sidebar() {
             <div className="text-xs text-slate-500 px-2 py-4 text-center">No past sessions found.</div>
           ) : (
             sortedJobs.map((job) => {
+              if (!job || !job.id) return null;
               const active = pathname === `/chat/${job.id}`;
               return (
                 <Link
@@ -131,7 +132,7 @@ export function Sidebar() {
                     <span className="truncate">{job.prompt || job.id}</span>
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-150 transition-opacity">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => handleTogglePin(e, job.id)}
                       title="Pin session"

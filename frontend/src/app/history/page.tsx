@@ -19,7 +19,7 @@ export default function HistoryPage() {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch("/api/run/jobs");
+      const res = await fetch("/api/run/jobs", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setJobs(data.jobs || []);
@@ -33,9 +33,13 @@ export default function HistoryPage() {
 
   useEffect(() => {
     fetchJobs();
+    const interval = setInterval(fetchJobs, 3000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleDelete = async (jobId: string) => {
+  const handleDelete = async (e: React.MouseEvent, jobId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!confirm("Are you sure you want to delete this session?")) return;
     try {
       await fetch(`/api/run/jobs/${jobId}`, { method: "DELETE" });
@@ -69,65 +73,68 @@ export default function HistoryPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {jobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="flex flex-col justify-between p-4 rounded-xl border border-slate-800 bg-slate-900/70 hover:border-slate-700 transition group shadow-md"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold flex items-center gap-1">
-                        <Calendar size={11} /> {job.id}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 ${
-                          job.status === "completed"
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : job.status === "running"
-                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse"
-                            : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                        }`}
-                      >
-                        {job.status === "completed" && <CheckCircle2 size={10} />}
-                        {job.status === "running" && <Clock size={10} />}
-                        {job.status === "failed" && <AlertCircle size={10} />}
-                        {job.status}
-                      </span>
+              {jobs.map((job) => {
+                if (!job || !job.id) return null;
+                return (
+                  <div
+                    key={job.id}
+                    className="flex flex-col justify-between p-4 rounded-xl border border-slate-800 bg-slate-900/70 hover:border-slate-700 transition group shadow-md"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold flex items-center gap-1">
+                          <Calendar size={11} /> {job.id}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 ${
+                            job.status === "completed"
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              : job.status === "running"
+                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse"
+                              : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                          }`}
+                        >
+                          {job.status === "completed" && <CheckCircle2 size={10} />}
+                          {job.status === "running" && <Clock size={10} />}
+                          {job.status === "failed" && <AlertCircle size={10} />}
+                          {job.status}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-200 line-clamp-3 mb-4 leading-relaxed font-sans">
+                        {job.prompt || "No prompt recorded"}
+                      </p>
                     </div>
 
-                    <p className="text-xs text-slate-200 line-clamp-3 mb-4 leading-relaxed font-sans">
-                      {job.prompt || "No prompt recorded"}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 mt-auto">
-                    <Link
-                      href={`/chat/${job.id}`}
-                      className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium transition"
-                    >
-                      <ExternalLink size={13} />
-                      <span>Open Session</span>
-                    </Link>
-
-                    <div className="flex items-center gap-1.5">
-                      <a
-                        href={`/api/run/jobs/${job.id}/download-zip`}
-                        title="Download ZIP"
-                        className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 transition"
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 mt-auto">
+                      <Link
+                        href={`/chat/${job.id}`}
+                        className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium transition"
                       >
-                        <Download size={13} />
-                      </a>
-                      <button
-                        onClick={() => handleDelete(job.id)}
-                        title="Delete session"
-                        className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-rose-400 transition"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                        <ExternalLink size={13} />
+                        <span>Open Session</span>
+                      </Link>
+
+                      <div className="flex items-center gap-1.5">
+                        <a
+                          href={`/api/run/jobs/${job.id}/download-zip`}
+                          title="Download ZIP"
+                          className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 transition"
+                        >
+                          <Download size={13} />
+                        </a>
+                        <button
+                          onClick={(e) => handleDelete(e, job.id)}
+                          title="Delete session"
+                          className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-rose-400 transition"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

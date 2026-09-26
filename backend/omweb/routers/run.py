@@ -56,11 +56,20 @@ async def list_jobs():
 
 @router.get("/jobs/{job_id}")
 async def get_job_detail(job_id: str):
-    """Retrieve full status, steps, and thoughts for a single job."""
+    """Retrieve full status, steps, and thoughts for a single job safely."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return job.to_dict()
+    if hasattr(job, "to_dict"):
+        return job.to_dict()
+    elif isinstance(job, dict):
+        return job
+    return {
+        "id": getattr(job, "id", job_id),
+        "status": getattr(job, "status", "unknown"),
+        "prompt": getattr(job, "prompt", ""),
+        "events": getattr(job, "events", [])
+    }
 
 
 @router.get("/jobs/{job_id}/files")
@@ -142,12 +151,17 @@ async def stream_job_events(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
 
     async def event_generator():
-        # Replay past events safely
+        # Replay past events safely with robust JSON serialization
         for ev in job.events:
             ev_type = getattr(ev, "type", "message")
             if hasattr(ev_type, "value"):
                 ev_type = ev_type.value
-            ev_data = ev.to_json() if hasattr(ev, "to_json") else (ev if isinstance(ev, str) else str(ev))
+            if hasattr(ev, "to_json"):
+                ev_data = ev.to_json()
+            elif isinstance(ev, dict):
+                ev_data = json.dumps(ev, ensure_ascii=False)
+            else:
+                ev_data = json.dumps({"content": str(ev)}, ensure_ascii=False)
             yield {"event": str(ev_type), "data": ev_data}
 
         # Stream live events safely with zero latency

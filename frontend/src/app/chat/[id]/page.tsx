@@ -7,8 +7,8 @@ interface PageProps {
 export default async function DynamicChatPage({ params }: PageProps) {
   const resolvedParams = await params;
   const jobId = resolvedParams?.id;
-  
-  if (!jobId) {
+
+  if (!jobId || jobId === "undefined") {
     return <ChatPage />;
   }
 
