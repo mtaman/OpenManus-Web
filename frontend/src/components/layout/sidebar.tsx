@@ -1,169 +1,155 @@
 ﻿"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { MessageSquare, History, FolderOpen, Settings, Bot, Trash2, Pin, Download } from "lucide-react";
-
-interface JobItem {
-  id: string;
-  prompt: string;
-  status: string;
-  created_at?: string;
-  pinned?: boolean;
-}
+import { useRouter, usePathname } from "next/navigation";
+import {
+  MessageSquare,
+  FolderKanban,
+  History,
+  FolderOpen,
+  Settings,
+  Activity,
+  Plus,
+  Trash2,
+  ChevronRight
+} from "lucide-react";
+import { fetchProjects, fetchChats, deleteAllChats, Project, ChatSession } from "@/lib/chatsApi";
 
 export function Sidebar() {
-  const pathname = usePathname();
   const router = useRouter();
-  const [jobs, setJobs] = useState<JobItem[]>([]);
-
-  const fetchJobsList = async () => {
-    try {
-      const res = await fetch("/api/run/jobs");
-      if (res.ok) {
-        const data = await res.json();
-        setJobs(data.jobs || []);
-      }
-    } catch (e) {
-      console.error("Failed to fetch jobs list", e);
-    }
-  };
+  const pathname = usePathname();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [chats, setChats] = useState<ChatSession[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    fetchJobsList();
-    const interval = setInterval(fetchJobsList, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    loadData();
+  }, [pathname]);
 
-  const handleDeleteJob = async (e: React.MouseEvent, jobId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this session?")) return;
-    try {
-      await fetch(`/api/run/jobs/${jobId}`, { method: "DELETE" });
-      setJobs((prev) => prev.filter((j) => j.id !== jobId));
-      if (pathname && pathname.includes(jobId)) {
-        router.push("/chat");
-      }
-    } catch (err) {
-      console.error("Failed to delete job", err);
+  const loadData = async () => {
+    const projs = await fetchProjects();
+    setProjects(projs);
+    const allChats = await fetchChats();
+    setChats(allChats);
+  };
+
+  const handleDeleteAllChats = async () => {
+    if (!confirm("Are you sure you want to delete all chats? This action cannot be undone.")) return;
+    setIsDeleting(true);
+    const success = await deleteAllChats();
+    if (success) {
+      setChats([]);
+      router.replace("/chat");
     }
+    setIsDeleting(false);
   };
-
-  const handleTogglePin = (e: React.MouseEvent, jobId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setJobs((prev) =>
-      prev.map((j) => (j.id === jobId ? { ...j, pinned: !j.pinned } : j))
-    );
-  };
-
-  const navItems = [
-    { href: "/chat", label: "Chat", icon: MessageSquare },
-    { href: "/files", label: "Files", icon: FolderOpen },
-    { href: "/settings", label: "Settings", icon: Settings },
-  ];
-
-  const sortedJobs = [...jobs].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1;
-    if (!a.pinned && b.pinned) return 1;
-    return 0;
-  });
 
   return (
-    <aside className="w-64 border-e border-slate-800 bg-slate-900 flex flex-col h-screen select-none shrink-0">
-      <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800">
-        <div className="p-2 rounded-lg bg-emerald-600 text-white">
-          <Bot className="h-5 w-5" />
+    <aside className="w-64 bg-[var(--color-surface-1)] border-r border-[var(--color-line)] flex flex-col h-full font-mono text-xs select-none">
+      {/* Brand Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-line)] bg-[var(--color-surface-2)]">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="font-bold tracking-wider text-[var(--color-ink)]">OpenManus Web</span>
         </div>
-        <span className="font-bold text-base tracking-tight text-slate-100">
-          OpenManus
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-1)] text-cyan-400 border border-[var(--color-line)]">
+          v2.0
         </span>
       </div>
 
-      <nav className="p-4 space-y-1 border-b border-slate-800">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* New Session Action */}
+      <div className="p-3 border-b border-[var(--color-line)]">
+        <Link
+          href="/chat"
+          className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 transition cursor-pointer font-semibold"
+        >
+          <Plus size={14} />
+          <span>New Autonomous Session</span>
+        </Link>
+      </div>
 
-      {/* History Sessions List */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-2">
-        <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider">
-          <span>Recent History</span>
-          <History size={13} />
+      {/* Navigation Links */}
+      <div className="px-3 py-2 space-y-1 border-b border-[var(--color-line)] text-[var(--color-ink-muted)]">
+        <Link
+          href="/chat"
+          className={`flex items-center gap-2.5 px-3 py-2 rounded transition ${pathname === "/chat" ? "bg-[var(--color-surface-2)] text-cyan-400 font-semibold" : "hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)]"}`}
+        >
+          <MessageSquare size={14} />
+          <span>Active Workspace</span>
+        </Link>
+        <Link
+          href="/history"
+          className={`flex items-center gap-2.5 px-3 py-2 rounded transition ${pathname === "/history" ? "bg-[var(--color-surface-2)] text-cyan-400 font-semibold" : "hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)]"}`}
+        >
+          <History size={14} />
+          <span>Execution Archive</span>
+        </Link>
+        <Link
+          href="/files"
+          className={`flex items-center gap-2.5 px-3 py-2 rounded transition ${pathname === "/files" ? "bg-[var(--color-surface-2)] text-cyan-400 font-semibold" : "hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)]"}`}
+        >
+          <FolderOpen size={14} />
+          <span>Project Artifacts</span>
+        </Link>
+        <Link
+          href="/settings"
+          className={`flex items-center gap-2.5 px-3 py-2 rounded transition ${pathname === "/settings" ? "bg-[var(--color-surface-2)] text-cyan-400 font-semibold" : "hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)]"}`}
+        >
+          <Settings size={14} />
+          <span>Engine Settings</span>
+        </Link>
+      </div>
+
+      {/* Chats & Projects List Archive */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-[var(--color-ink-faint)] px-1">
+          <span>Recent Chats</span>
+          {chats.length > 0 && (
+            <button
+              onClick={handleDeleteAllChats}
+              disabled={isDeleting}
+              className="text-red-400 hover:text-red-300 flex items-center gap-1 cursor-pointer transition"
+              title="Delete All Chats"
+            >
+              <Trash2 size={11} />
+              <span>Clear All</span>
+            </button>
+          )}
         </div>
 
-        <div className="space-y-1 mt-2">
-          {sortedJobs.length === 0 ? (
-            <div className="text-xs text-slate-500 px-2 py-4 text-center">No past sessions found.</div>
+        <div className="space-y-1">
+          {chats.length === 0 ? (
+            <div className="text-[11px] text-[var(--color-ink-faint)] px-2 py-3 text-center italic">
+              No chat sessions recorded.
+            </div>
           ) : (
-            sortedJobs.map((job) => {
-              if (!job || !job.id) return null;
-              const active = pathname === `/chat/${job.id}`;
-              return (
-                <Link
-                  key={job.id}
-                  href={`/chat/${job.id}`}
-                  className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs transition ${
-                    active
-                      ? "bg-slate-800 text-emerald-400 font-semibold border border-emerald-500/30"
-                      : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 truncate flex-1 mr-1">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${job.status === "completed" ? "bg-emerald-500" : job.status === "running" ? "bg-amber-500 animate-pulse" : "bg-slate-600"}`} />
-                    <span className="truncate">{job.prompt || job.id}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => handleTogglePin(e, job.id)}
-                      title="Pin session"
-                      className={`p-1 hover:text-emerald-400 ${job.pinned ? "text-emerald-400 opacity-100" : "text-slate-400"}`}
-                    >
-                      <Pin size={11} />
-                    </button>
-                    <a
-                      href={`/api/run/jobs/${job.id}/download-zip`}
-                      title="Download ZIP"
-                      className="p-1 text-slate-400 hover:text-cyan-400"
-                    >
-                      <Download size={11} />
-                    </a>
-                    <button
-                      onClick={(e) => handleDeleteJob(e, job.id)}
-                      title="Delete session"
-                      className="p-1 text-slate-400 hover:text-rose-400"
-                    >
-                      <Trash2 size={11} />
-                    </button>
-                  </div>
-                </Link>
-              );
-            })
+            chats.map((chat) => (
+              <Link
+                key={chat.id}
+                href={`/chat/${chat.job_id}`}
+                className={`group flex flex-col px-3 py-2 rounded transition border border-transparent ${pathname.includes(chat.job_id) ? "bg-[var(--color-surface-2)] border-cyan-500/30 text-cyan-300" : "hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="truncate font-sans text-xs">{chat.title || chat.prompt}</span>
+                  <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition" />
+                </div>
+                <span className="text-[9px] text-[var(--color-ink-faint)] mt-0.5">
+                  {chat.updated_at}
+                </span>
+              </Link>
+            ))
           )}
         </div>
       </div>
 
-      <div className="p-4 border-t border-slate-800 text-xs text-slate-500 text-center font-mono">
-        v2.0.0-PROD
+      {/* Footer Status */}
+      <div className="p-3 border-t border-[var(--color-line)] bg-[var(--color-surface-2)] flex items-center justify-between text-[10px] text-[var(--color-ink-muted)]">
+        <span className="flex items-center gap-1.5">
+          <Activity size={12} className="text-emerald-400" />
+          <span>Connected</span>
+        </span>
+        <span className="text-[var(--color-ink-faint)]">Mansoura Team</span>
       </div>
     </aside>
   );

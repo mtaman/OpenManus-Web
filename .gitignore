@@ -34,3 +34,5 @@ workspace/*
 backend/workspace/
 backend/workspace/*
 backend/trending_repos.md
+
+.tmp.driveupload/

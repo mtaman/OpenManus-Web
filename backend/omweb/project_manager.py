@@ -2,7 +2,6 @@
 import json
 from datetime import datetime
 from pathlib import Path
-import time
 import uuid
 
 class ProjectManager:
@@ -14,7 +13,7 @@ class ProjectManager:
 
     def _init_index(self):
         if not self.index_file.exists():
-            data = {"projects": {}, "chats": {}}
+            data = {"projects": {}, "chats": {}, "messages": {}}
             self._write_json(self.index_file, data)
 
     def _read_json(self, path: Path) -> dict:
@@ -24,7 +23,7 @@ class ProjectManager:
                     return json.load(f)
         except Exception:
             pass
-        return {"projects": {}, "chats": {}}
+        return {"projects": {}, "chats": {}, "messages": {}}
 
     def _write_json(self, path: Path, data: dict):
         tmp_path = path.with_suffix(".tmp")
@@ -38,26 +37,16 @@ class ProjectManager:
 
     def create_project(self, name: str, description: str = "") -> dict:
         data = self._read_json(self.index_file)
-        project_id = f"proj_{uuid.uuid4().hex[:10]}"
-        project = {
-            "id": project_id,
+        proj_id = f"proj_{uuid.uuid4().hex[:10]}"
+        proj = {
+            "id": proj_id,
             "name": name,
             "description": description,
             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
-        data["projects"][project_id] = project
+        data["projects"][proj_id] = proj
         self._write_json(self.index_file, data)
-        return project
-
-    def delete_project(self, project_id: str):
-        data = self._read_json(self.index_file)
-        if project_id in data["projects"]:
-            del data["projects"][project_id]
-            chats = data.get("chats", {})
-            to_del = [cid for cid, chat in chats.items() if chat.get("project_id") == project_id]
-            for cid in to_del:
-                del chats[cid]
-            self._write_json(self.index_file, data)
+        return proj
 
     def list_chats(self, project_id: str = None) -> list:
         data = self._read_json(self.index_file)
@@ -66,23 +55,33 @@ class ProjectManager:
             chats = [c for c in chats if c.get("project_id") == project_id]
         return sorted(chats, key=lambda x: x.get("updated_at", ""), reverse=True)
 
-    def create_chat(self, project_id: str, title: str, job_id: str, prompt: str) -> dict:
+    def save_chat_session(self, chat_id: str, project_id: str, title: str, job_id: str, prompt: str, events: list, result: str, status: str) -> dict:
         data = self._read_json(self.index_file)
-        chat_id = f"chat_{uuid.uuid4().hex[:12]}"
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        chat = {
+        
+        chat = data.get("chats", {}).get(chat_id, {
             "id": chat_id,
-            "project_id": project_id,
-            "title": title,
+            "project_id": project_id or "default_project",
+            "created_at": now
+        })
+        
+        chat.update({
+            "title": title or prompt[:30],
             "job_id": job_id,
             "prompt": prompt,
-            "created_at": now,
-            "updated_at": now,
-            "status": "running"
-        }
+            "events": events,
+            "result": result,
+            "status": status,
+            "updated_at": now
+        })
+        
         data["chats"][chat_id] = chat
         self._write_json(self.index_file, data)
         return chat
+
+    def get_chat(self, chat_id: str) -> dict:
+        data = self._read_json(self.index_file)
+        return data.get("chats", {}).get(chat_id, {})
 
     def delete_chat(self, chat_id: str):
         data = self._read_json(self.index_file)
