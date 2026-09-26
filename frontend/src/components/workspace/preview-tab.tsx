@@ -1,121 +1,161 @@
 ﻿"use client";
-import React, { useState, useEffect, useCallback } from "react";
-import { Globe, RefreshCw, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
-interface PreviewTabProps {
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { Monitor, RefreshCw, ExternalLink, Code2, Sparkles } from "lucide-react";
+
+export interface PreviewTabProps {
+  jobId?: string | null;
+  activeJobId?: string | null;
   currentHtmlPath?: string | null;
+  filePath?: string | null;
+  overrideFile?: string | null;
 }
 
-export function PreviewTab({ currentHtmlPath }: PreviewTabProps) {
-  const [htmlContent, setHtmlContent] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  const activeFile = currentHtmlPath || null;
+export function PreviewTab({
+  jobId,
+  activeJobId,
+  currentHtmlPath,
+  filePath,
+  overrideFile
+}: PreviewTabProps) {
+  const effectiveJobId = jobId || activeJobId || null;
+  const [autoFile, setAutoFile] = useState<string | null>(null);
 
-  const loadHtml = useCallback(async (filePath: string) => {
+  const explicitFile = overrideFile || currentHtmlPath || filePath || null;
+  const effectiveFile = explicitFile || autoFile;
+
+  const [rawHtml, setRawHtml] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
+
+  // Auto-discover HTML deliverable if none is explicitly passed
+  useEffect(() => {
+    if (effectiveJobId && !explicitFile) {
+      fetch(`/api/run/jobs/${effectiveJobId}/files`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.files && Array.isArray(data.files)) {
+            const html = data.files.find((f: { name: string }) => {
+              const lower = f.name.toLowerCase();
+              return lower.endsWith(".html") || lower.endsWith(".htm");
+            });
+            if (html) {
+              setAutoFile(html.name);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [effectiveJobId, explicitFile]);
+
+  const fetchHtml = useCallback(async () => {
+    if (!effectiveJobId || !effectiveFile) {
+      setRawHtml("");
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
+      const res = await fetch(`/api/run/jobs/${effectiveJobId}/content?path=${encodeURIComponent(effectiveFile)}`);
       if (res.ok) {
         const data = await res.json();
-                  let rawHtml = data.content || "";
-          // Compute directory path of the active HTML file to resolve scoped relative assets
-          const normalizedPath = filePath.replace(/\\/g, "/");
-          const lastSlash = normalizedPath.lastIndexOf("/");
-          const dirPath = lastSlash !== -1 ? normalizedPath.substring(0, lastSlash + 1) : "";
-          const baseHref = `/api/files/raw/${dirPath}`;
-          
-          const baseTag = `<base href="${baseHref}">`;
-          if (rawHtml.includes("<head>")) {
-            rawHtml = rawHtml.replace("<head>", `<head>${baseTag}`);
-          } else if (rawHtml.includes("<html>")) {
-            rawHtml = rawHtml.replace("<html>", `<html><head>${baseTag}</head>`);
-          } else {
-            rawHtml = `<head>${baseTag}</head>` + rawHtml;
-          }
-          setHtmlContent(rawHtml);
+        setRawHtml(data.content || "");
       } else {
-        setHtmlContent("");
+        setRawHtml("");
       }
-    } catch {
-      setHtmlContent("");
+    } catch (e) {
+      console.error("Failed to load preview content", e);
+      setRawHtml("");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [effectiveJobId, effectiveFile, refreshKey]);
 
   useEffect(() => {
-    if (activeFile) {
-      loadHtml(activeFile);
-    } else {
-      setHtmlContent("");
-    }
-  }, [activeFile, loadHtml]);
+    fetchHtml();
+  }, [fetchHtml]);
 
-  if (!activeFile || !htmlContent) {
+  // Inject scoped base tag so relative assets resolve directly to this job's storage
+  const sandboxedHtml = useMemo(() => {
+    if (!rawHtml || !effectiveJobId) return "";
+    const baseHref = `/api/run/jobs/${effectiveJobId}/raw/`;
+    const baseTag = `<base href="${baseHref}">`;
+
+    if (rawHtml.includes("<head>")) {
+      return rawHtml.replace("<head>", `<head>${baseTag}`);
+    }
+    return `${baseTag}${rawHtml}`;
+  }, [rawHtml, effectiveJobId]);
+
+  if (!effectiveJobId || !effectiveFile || !rawHtml) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center text-xs font-mono text-[var(--color-ink-faint)] bg-[var(--color-canvas)] space-y-3">
-        <div className="h-12 w-12 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center text-emerald-400">
-          <Globe size={24} />
-        </div>
-        <div>
-          <span className="font-bold text-[var(--color-ink)] block text-sm mb-1">
-            Sandbox Standby
-          </span>
-          <p className="max-w-xs text-[11px] leading-relaxed text-[var(--color-ink-muted)]">
-            No active HTML deliverable selected for this session. Generate an HTML file to preview it live.
-          </p>
+      <div className="flex flex-col items-center justify-center h-full w-full bg-slate-950 text-slate-400 p-8 select-none">
+        <div className="flex flex-col items-center max-w-sm text-center space-y-4">
+          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative">
+            <Code2 className="w-10 h-10 text-emerald-400" />
+            <Sparkles className="w-4 h-4 text-cyan-400 absolute top-2 right-2 animate-pulse" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200">Sandbox Standby</h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Live web applications and HTML deliverables generated for this session will appear here in real time.
+            </p>
+          </div>
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-emerald-400">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              <span>Loading deliverables...</span>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
+  const rawUrl = `/api/run/jobs/${effectiveJobId}/raw/${effectiveFile}`;
+
   return (
-    <div className="flex flex-col h-full w-full bg-[var(--color-surface-1)] font-mono overflow-hidden">
-      {/* Top action toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-line)] bg-[var(--color-surface-2)] text-xs">
-        <div className="flex items-center gap-2 truncate">
-          <Globe size={14} className="text-emerald-400 flex-shrink-0" />
-          <span className="text-[var(--color-ink)] font-semibold truncate max-w-[200px]">
-            {activeFile}
-          </span>
-          <span className="text-[10px] text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-            Live Sandbox
+    <div className="flex flex-col h-full w-full bg-slate-950 overflow-hidden">
+      <div className="h-10 border-b border-slate-800 bg-slate-900/80 px-4 flex items-center justify-between shrink-0 text-xs">
+        <div className="flex items-center gap-2 text-slate-300">
+          <Monitor className="w-4 h-4 text-emerald-400" />
+          <span className="font-mono text-slate-200 truncate max-w-[200px]">{effectiveFile}</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+            Isolated
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => loadHtml(activeFile)}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setRefreshKey((k) => k + 1)}
             disabled={loading}
-            className="h-6 px-2 text-[10px] text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] cursor-pointer"
+            title="Refresh Sandbox"
+            className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
           >
-            <RefreshCw size={11} className={`mr-1 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          </button>
           <a
-            href={`/api/files/download?path=${encodeURIComponent(activeFile)}`}
+            href={rawUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="h-6 px-2 text-[10px] flex items-center gap-1 rounded bg-[var(--color-surface-1)] border border-[var(--color-line)] text-[var(--color-ink-muted)] hover:text-cyan-400 transition"
+            title="Open in new window"
+            className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition flex items-center gap-1 text-[11px]"
           >
-            <ExternalLink size={11} />
-            <span>Open</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
       </div>
 
-      {/* Render canvas */}
       <div className="flex-1 w-full h-full bg-white relative overflow-hidden">
         <iframe
-          title="Live Sandbox Preview"
-          srcDoc={htmlContent}
-          sandbox="allow-scripts allow-modals allow-forms"
-          className="w-full h-full border-none"
+          key={`${effectiveJobId}-${effectiveFile}-${refreshKey}`}
+          title="Sandbox Preview"
+          srcDoc={sandboxedHtml}
+          sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
+          className="w-full h-full border-0"
         />
       </div>
     </div>
   );
 }
 
+export default PreviewTab;

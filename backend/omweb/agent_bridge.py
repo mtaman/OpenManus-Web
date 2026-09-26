@@ -4,6 +4,7 @@ import traceback
 from typing import Any, Dict
 from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
 from omweb.job_manager import job_manager
+from omweb.project_manager import project_manager
 
 human_answers: Dict[str, asyncio.Event] = {}
 human_data: Dict[str, str] = {}
@@ -23,7 +24,6 @@ def apply_global_ask_human_patch():
                 print(f"[BRIDGE] Intercepted ask_human for job {job_id}: {question}")
                 
                 if job_id:
-                    # Dispatch dedicated ask_human tool_call event to frontend
                     await dispatch_event(
                         job_id,
                         SSEEvent(
@@ -36,7 +36,6 @@ def apply_global_ask_human_patch():
                     wait_event = asyncio.Event()
                     human_answers[job_id] = wait_event
                     
-                    # PROPER ASYNCIO EVENT WAIT
                     try:
                         await asyncio.wait_for(wait_event.wait(), timeout=600.0)
                         user_reply = human_data.pop(job_id, "Approved.")
@@ -73,15 +72,12 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
 
     agent = Manus()
 
-    # Hook agent.step to capture every thought and progress event
     original_step = agent.step
-
     async def instrumented_step():
         curr_step = getattr(agent, "current_step", 1)
         await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=curr_step, data={"step": curr_step}))
         result = await original_step()
         
-        # Stream thoughts
         if hasattr(agent, "memory") and hasattr(agent.memory, "messages"):
             for m in reversed(agent.memory.messages[-3:]):
                 role = getattr(m, "role", "")
@@ -91,14 +87,12 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
                     break
         return result
 
-        # Real-time tool interception hook
     original_execute_tool = agent.execute_tool
     async def instrumented_execute_tool(command):
         tool_name = getattr(command.function, "name", "unknown") if hasattr(command, "function") else "unknown"
         raw_args = getattr(command.function, "arguments", "{}") if hasattr(command, "function") else "{}"
         curr_step = getattr(agent, "current_step", 1)
         
-        # Dispatch tool_call event live before execution
         await dispatch_event(
             job_id,
             SSEEvent(
@@ -110,7 +104,6 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
         
         obs_output = await original_execute_tool(command)
         
-        # Dispatch observation event live immediately after execution
         await dispatch_event(
             job_id,
             SSEEvent(
@@ -125,10 +118,11 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
     agent.step = instrumented_step
 
     try:
-                # Enforce isolated workspace directory per job/session
-        from omweb.config import get_workspace_root
-        project_dir = get_workspace_root() / "projects" / job_id
-        project_dir.mkdir(parents=True, exist_ok=True)
+        # Enforce isolated chat deliverables directory inside storage repository
+        chat = project_manager.get_chat(job_id) or {}
+        chat_id = chat.get("id", f"chat_{job_id}")
+        project_id = chat.get("project_id", "default_project")
+        project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
         
         scoped_prompt = (
             f"[PROJECT CONTEXT]\n"
@@ -155,4 +149,3 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
         active_tasks.pop(job_id, None)
         if current_active_job_id.get("current") == job_id:
             current_active_job_id.pop("current", None)
-
