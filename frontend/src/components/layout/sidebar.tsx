@@ -1,5 +1,4 @@
 ﻿"use client";
-
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,14 +14,12 @@ import {
   Plus,
   ChevronRight
 } from "lucide-react";
-
 interface ProjectItem {
   id: string;
   name: string;
   description?: string;
   created_at?: string;
 }
-
 interface ChatItem {
   id: string;
   job_id: string;
@@ -33,16 +30,13 @@ interface ChatItem {
   created_at?: string;
   pinned?: boolean;
 }
-
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
-
   const fetchData = async () => {
     try {
       const [pRes, cRes] = await Promise.all([
@@ -61,13 +55,11 @@ export function Sidebar() {
       console.error("Failed to load sidebar data", e);
     }
   };
-
   useEffect(() => {
     fetchData();
-    const timer = setInterval(fetchData, 6000);
+    const timer = setInterval(fetchData, 4000);
     return () => clearInterval(timer);
   }, []);
-
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -86,7 +78,6 @@ export function Sidebar() {
       console.error("Failed to create project", err);
     }
   };
-
   const handleDeleteChat = async (e: React.MouseEvent, chatId: string, jobId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -101,7 +92,6 @@ export function Sidebar() {
       console.error("Failed to delete chat", err);
     }
   };
-
   const handleTogglePin = (e: React.MouseEvent, chatId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -109,17 +99,15 @@ export function Sidebar() {
       prev.map((c) => (c.id === chatId ? { ...c, pinned: !c.pinned } : c))
     );
   };
-
+  // Only standalone chats belong in RECENT CHATS
   const standaloneChats = chats.filter(
     (c) => !c.project_id || c.project_id === "default_project"
   );
-
   const sortedChats = [...standaloneChats].sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
     return 0;
   });
-
   return (
     <aside className="w-64 border-e border-slate-800 bg-slate-900 flex flex-col h-screen select-none shrink-0 font-sans">
       <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
@@ -132,7 +120,6 @@ export function Sidebar() {
           </span>
         </Link>
       </div>
-
       <nav className="p-4 space-y-1 border-b border-slate-800">
         <Link
           href="/chat"
@@ -179,21 +166,20 @@ export function Sidebar() {
           <span>Settings</span>
         </Link>
       </nav>
-
       <div className="flex-1 p-4 overflow-y-auto space-y-4">
+        {/* Workspaces Section */}
         <div>
           <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider mb-2">
             <span>Workspaces</span>
             <button
               type="button"
               onClick={() => setIsCreatingProject((v) => !v)}
-              className="p-1 hover:text-emerald-400 rounded hover:bg-slate-800 transition"
+              className="p-1 hover:text-emerald-400 rounded hover:bg-slate-800 transition cursor-pointer"
               title="Create Project"
             >
               <Plus size={14} />
             </button>
           </div>
-
           {isCreatingProject && (
             <form onSubmit={handleCreateProject} className="mb-2 px-1">
               <input
@@ -206,13 +192,13 @@ export function Sidebar() {
               />
             </form>
           )}
-
           <div className="space-y-1">
             {projects.length === 0 ? (
               <div className="text-[11px] text-slate-500 px-2 py-1">No projects yet.</div>
             ) : (
               projects.map((proj) => {
                 const isActiveProj = pathname === `/projects/${proj.id}`;
+                const projChatsCount = chats.filter((c) => c.project_id === proj.id).length;
                 return (
                   <Link
                     key={proj.id}
@@ -227,22 +213,25 @@ export function Sidebar() {
                       <Folder size={13} className="text-cyan-400 shrink-0" />
                       <span className="truncate">{proj.name}</span>
                     </div>
-                    <ChevronRight size={12} className="text-slate-500" />
+                    {projChatsCount > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-cyan-400 font-mono">
+                        {projChatsCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })
             )}
           </div>
         </div>
-
+        {/* Recent Standalone Chats Section */}
         <div>
           <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider mb-2">
             <span>Recent Chats</span>
           </div>
-
           <div className="space-y-1">
             {sortedChats.length === 0 ? (
-              <div className="text-[11px] text-slate-500 px-2 py-2">No recent sessions.</div>
+              <div className="text-[11px] text-slate-500 px-2 py-2">No standalone chats.</div>
             ) : (
               sortedChats.map((chat, idx) => {
                 const effectiveTarget = chat.job_id || chat.id || `session-${idx}`;
@@ -271,13 +260,12 @@ export function Sidebar() {
                       />
                       <span className="truncate">{chat.title || chat.prompt || "New Session"}</span>
                     </Link>
-
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={(e) => handleTogglePin(e, chat.id)}
                         title="Pin chat"
-                        className={`p-1 hover:text-emerald-400 ${chat.pinned ? "text-emerald-400" : "text-slate-500"}`}
+                        className={`p-1 hover:text-emerald-400 cursor-pointer ${chat.pinned ? "text-emerald-400" : "text-slate-500"}`}
                       >
                         <Pin size={11} />
                       </button>
@@ -289,7 +277,7 @@ export function Sidebar() {
                           window.open(`/api/run/jobs/${effectiveTarget}/download-zip`, "_blank");
                         }}
                         title="Download ZIP"
-                        className="p-1 text-slate-500 hover:text-cyan-400"
+                        className="p-1 text-slate-500 hover:text-cyan-400 cursor-pointer"
                       >
                         <Download size={11} />
                       </button>
@@ -297,7 +285,7 @@ export function Sidebar() {
                         type="button"
                         onClick={(e) => handleDeleteChat(e, chat.id, chat.job_id)}
                         title="Delete chat"
-                        className="p-1 text-slate-500 hover:text-rose-400"
+                        className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
                       >
                         <Trash2 size={11} />
                       </button>
@@ -309,12 +297,10 @@ export function Sidebar() {
           </div>
         </div>
       </div>
-
       <div className="p-3 border-t border-slate-800 text-[11px] text-slate-500 text-center font-mono">
         v2.0.0-PROD
       </div>
     </aside>
   );
 }
-
 export default Sidebar;
