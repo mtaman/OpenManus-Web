@@ -1,225 +1,238 @@
-﻿import os
-import json
-import shutil
-from datetime import datetime
+﻿import json
+import time
 from pathlib import Path
-import uuid
 from typing import Dict, Any, List, Optional
+from omweb.config import get_settings
 
-from omweb.config import STORAGE_ROOT, CHATS_DIR, PROJECTS_DIR
+settings = get_settings()
 
 class ProjectManager:
-    """
-    Manages atomic storage for independent chats and multi-chat projects.
-    Hierarchy:
-      storage/
-        index.json
-        chats/<chat_id>/ (session.json, events.json, files/)
-        projects/<project_id>/ (project.json, shared_files/, chats/<chat_id>/)
-    """
     def __init__(self):
-        self.storage_root = STORAGE_ROOT
-        self.chats_dir = CHATS_DIR
-        self.projects_dir = PROJECTS_DIR
-        self.index_file = self.storage_root / "index.json"
-        self._init_index()
+        self.storage_dir = Path(settings.storage_dir).resolve()
+        self.chats_dir = self.storage_dir / "chats"
+        self.projects_dir = self.storage_dir / "projects"
+        self.index_file = self.storage_dir / "index.json"
+        self._ensure_storage_structure()
 
-    def _init_index(self):
+    def _ensure_storage_structure(self):
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
+        self.chats_dir.mkdir(parents=True, exist_ok=True)
+        self.projects_dir.mkdir(parents=True, exist_ok=True)
+        (self.projects_dir / "default_project").mkdir(parents=True, exist_ok=True)
         if not self.index_file.exists():
-            data = {"projects": {}, "chats": {}}
-            self._write_json(self.index_file, data)
+            initial_index = {
+                "version": "2.0.0",
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "projects": [
+                    {
+                        "id": "default_project",
+                        "name": "Default Project",
+                        "description": "General standalone tasks",
+                        "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                ],
+                "chats": []
+            }
+            self.index_file.write_text(json.dumps(initial_index, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    def _read_json(self, path: Path) -> dict:
+    def _read_index(self) -> Dict[str, Any]:
         try:
-            if path.exists():
-                with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+            return json.loads(self.index_file.read_text(encoding="utf-8"))
         except Exception:
-            pass
-        return {}
+            return {"projects": [], "chats": []}
 
-    def _write_json(self, path: Path, data: Any):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_suffix(".tmp")
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        tmp_path.replace(path)
+    def _write_index(self, data: Dict[str, Any]):
+        data["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.index_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    # -------------------------------------------------------------
-    # Path Resolvers
-    # -------------------------------------------------------------
-    def get_chat_dir(self, chat_id: str, project_id: Optional[str] = None) -> Path:
+    def get_chat_dir(self, chat_id: str, project_id: str = "default_project") -> Path:
         if project_id and project_id != "default_project":
             return self.projects_dir / project_id / "chats" / chat_id
         return self.chats_dir / chat_id
 
-    def get_chat_files_dir(self, chat_id: str, project_id: Optional[str] = None) -> Path:
-        files_dir = self.get_chat_dir(chat_id, project_id) / "files"
-        files_dir.mkdir(parents=True, exist_ok=True)
-        return files_dir
-
-    def get_project_dir(self, project_id: str) -> Path:
-        return self.projects_dir / project_id
-
-    # -------------------------------------------------------------
-    # Project Operations
-    # -------------------------------------------------------------
-    def list_projects(self) -> List[dict]:
-        index = self._read_json(self.index_file)
-        return sorted(list(index.get("projects", {}).values()), key=lambda x: x.get("created_at", ""), reverse=True)
-
-    def create_project(self, name: str, description: str = "") -> dict:
-        proj_id = f"proj_{uuid.uuid4().hex[:10]}"
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        proj_dir = self.get_project_dir(proj_id)
-        proj_dir.mkdir(parents=True, exist_ok=True)
-        (proj_dir / "chats").mkdir(parents=True, exist_ok=True)
-        (proj_dir / "shared_files").mkdir(parents=True, exist_ok=True)
-
-        proj_meta = {
-            "id": proj_id,
-            "name": name,
-            "description": description,
-            "created_at": now,
-            "updated_at": now
-        }
-        self._write_json(proj_dir / "project.json", proj_meta)
-
-        # Update central manifest
-        index = self._read_json(self.index_file)
-        if "projects" not in index:
-            index["projects"] = {}
-        index["projects"][proj_id] = proj_meta
-        self._write_json(self.index_file, index)
-        return proj_meta
-
-    def get_project(self, project_id: str) -> Optional[dict]:
-        proj_file = self.get_project_dir(project_id) / "project.json"
-        if proj_file.exists():
-            return self._read_json(proj_file)
-        index = self._read_json(self.index_file)
-        return index.get("projects", {}).get(project_id)
-
-    def delete_project(self, project_id: str):
-        index = self._read_json(self.index_file)
-        index.get("projects", {}).pop(project_id, None)
-
-        # Remove associated chats from central registry
-        chats = index.get("chats", {})
-        to_del = [c_id for c_id, c in chats.items() if c.get("project_id") == project_id]
-        for c_id in to_del:
-            chats.pop(c_id, None)
-
-        self._write_json(self.index_file, index)
-
-        proj_dir = self.get_project_dir(project_id)
-        if proj_dir.exists():
-            shutil.rmtree(proj_dir, ignore_errors=True)
-
-    # -------------------------------------------------------------
-    # Chat Operations
-    # -------------------------------------------------------------
-    def list_chats(self, project_id: Optional[str] = None) -> List[dict]:
-        index = self._read_json(self.index_file)
-        chats = list(index.get("chats", {}).values())
-        if project_id:
-            chats = [c for c in chats if c.get("project_id") == project_id]
-        return sorted(chats, key=lambda x: x.get("updated_at", x.get("created_at", "")), reverse=True)
+    def get_chat_files_dir(self, chat_id: str, project_id: str = "default_project") -> Path:
+        cdir = self.get_chat_dir(chat_id, project_id)
+        fdir = cdir / "files"
+        fdir.mkdir(parents=True, exist_ok=True)
+        return fdir
 
     def save_chat_session(
         self,
         chat_id: str,
-        project_id: Optional[str],
+        project_id: str,
         title: str,
         job_id: str,
         prompt: str,
-        events: list,
-        result: str,
-        status: str
-    ) -> dict:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        is_project_chat = bool(project_id and project_id != "default_project")
-        actual_project_id = project_id if is_project_chat else "default_project"
-
-        chat_dir = self.get_chat_dir(chat_id, actual_project_id)
+        events: List[Any],
+        result: str = "",
+        status: str = "running"
+    ) -> Dict[str, Any]:
+        chat_dir = self.get_chat_dir(chat_id, project_id)
         chat_dir.mkdir(parents=True, exist_ok=True)
-        files_dir = chat_dir / "files"
-        files_dir.mkdir(parents=True, exist_ok=True)
 
         session_file = chat_dir / "session.json"
         events_file = chat_dir / "events.json"
 
-        existing_session = self._read_json(session_file)
-        created_at = existing_session.get("created_at", now)
+        # Preserve existing events if incoming list is empty
+        final_events = events
+        if not final_events and events_file.exists():
+            try:
+                final_events = json.loads(events_file.read_text(encoding="utf-8"))
+            except Exception:
+                final_events = []
+
+        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+        created_at = now_str
+        if session_file.exists():
+            try:
+                old = json.loads(session_file.read_text(encoding="utf-8"))
+                created_at = old.get("created_at", now_str)
+                if not result and old.get("result"):
+                    result = old.get("result")
+                # Do not revert a completed task to running
+                if old.get("status") in ["completed", "failed"] and status == "running":
+                    status = old.get("status")
+            except Exception:
+                pass
 
         session_data = {
             "id": chat_id,
-            "project_id": actual_project_id,
+            "project_id": project_id or "default_project",
             "job_id": job_id,
             "title": title or prompt[:40] or "New Session",
             "prompt": prompt,
-            "result": result,
             "status": status,
+            "result": result,
             "created_at": created_at,
-            "updated_at": now,
-            "files_path": str(files_dir.resolve())
+            "updated_at": now_str
         }
 
-        self._write_json(session_file, session_data)
-        if events:
-            self._write_json(events_file, events)
+        session_file.write_text(json.dumps(session_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        events_file.write_text(json.dumps(final_events, indent=2, ensure_ascii=False), encoding="utf-8")
 
-        # Update fast registry
-        index = self._read_json(self.index_file)
-        if "chats" not in index:
-            index["chats"] = {}
-        index["chats"][chat_id] = session_data
-        self._write_json(self.index_file, index)
+        # Update central index
+        index = self._read_index()
+        chats = index.get("chats", [])
+        chats = [c for c in chats if c.get("id") != chat_id and c.get("job_id") != job_id]
+        chats.insert(0, {
+            "id": chat_id,
+            "job_id": job_id,
+            "project_id": project_id or "default_project",
+            "title": session_data["title"],
+            "prompt": prompt,
+            "status": status,
+            "created_at": created_at,
+            "updated_at": now_str
+        })
+        index["chats"] = chats
+        self._write_index(index)
 
         return session_data
 
-    def get_chat(self, chat_id: str) -> Optional[dict]:
-        index = self._read_json(self.index_file)
-        chat_summary = index.get("chats", {}).get(chat_id)
-        project_id = chat_summary.get("project_id") if chat_summary else None
+    def get_chat(self, identifier: str) -> Optional[Dict[str, Any]]:
+        """Find chat by either chat_id or job_id"""
+        index = self._read_index()
+        target_meta = None
+        for c in index.get("chats", []):
+            if c.get("id") == identifier or c.get("job_id") == identifier:
+                target_meta = c
+                break
 
-        chat_dir = self.get_chat_dir(chat_id, project_id)
-        session_file = chat_dir / "session.json"
-        events_file = chat_dir / "events.json"
+        chat_id = target_meta.get("id", identifier) if target_meta else identifier
+        project_id = target_meta.get("project_id", "default_project") if target_meta else "default_project"
 
-        if not session_file.exists():
-            for c_id, meta in index.get("chats", {}).items():
-                if meta.get("job_id") == chat_id:
-                    return self.get_chat(c_id)
-            return None
+        # Search in default chats and project chats
+        candidate_dirs = [
+            self.chats_dir / chat_id,
+            self.chats_dir / identifier,
+        ]
+        if target_meta and target_meta.get("project_id"):
+            candidate_dirs.insert(0, self.projects_dir / target_meta["project_id"] / "chats" / chat_id)
 
-        session_data = self._read_json(session_file)
-        session_data["events"] = self._read_json(events_file) if events_file.exists() else []
-        return session_data
+        for cdir in candidate_dirs:
+            sfile = cdir / "session.json"
+            if sfile.exists():
+                try:
+                    sdata = json.loads(sfile.read_text(encoding="utf-8"))
+                    efile = cdir / "events.json"
+                    sdata["events"] = json.loads(efile.read_text(encoding="utf-8")) if efile.exists() else []
+                    
+                    # Auto-heal: If marked running but has final result or events indicate finished
+                    if sdata.get("status") == "running" and sdata.get("result"):
+                        sdata["status"] = "completed"
+                    return sdata
+                except Exception:
+                    pass
 
-    def delete_chat(self, chat_id: str):
-        index = self._read_json(self.index_file)
-        chat_summary = index.get("chats", {}).pop(chat_id, None)
-        self._write_json(self.index_file, index)
+        return target_meta
 
-        project_id = chat_summary.get("project_id") if chat_summary else None
-        chat_dir = self.get_chat_dir(chat_id, project_id)
-        if chat_dir.exists():
-            shutil.rmtree(chat_dir, ignore_errors=True)
+    def list_chats(self, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        index = self._read_index()
+        chats = index.get("chats", [])
+        if project_id:
+            chats = [c for c in chats if c.get("project_id") == project_id]
+        return chats
 
-    def delete_all_chats(self):
-        index = self._read_json(self.index_file)
-        index["chats"] = {}
-        self._write_json(self.index_file, index)
+    def delete_chat(self, chat_id: str) -> bool:
+        index = self._read_index()
+        target = next((c for c in index.get("chats", []) if c.get("id") == chat_id or c.get("job_id") == chat_id), None)
+        if not target:
+            return False
 
-        if self.chats_dir.exists():
-            shutil.rmtree(self.chats_dir, ignore_errors=True)
-            self.chats_dir.mkdir(parents=True, exist_ok=True)
+        actual_id = target.get("id", chat_id)
+        proj_id = target.get("project_id", "default_project")
 
-        for proj_dir in self.projects_dir.glob("proj_*"):
-            p_chats = proj_dir / "chats"
-            if p_chats.exists():
-                shutil.rmtree(p_chats, ignore_errors=True)
-                p_chats.mkdir(parents=True, exist_ok=True)
+        import shutil
+        cdir = self.get_chat_dir(actual_id, proj_id)
+        if cdir.exists():
+            shutil.rmtree(cdir, ignore_errors=True)
+
+        index["chats"] = [c for c in index.get("chats", []) if c.get("id") != actual_id and c.get("job_id") != actual_id]
+        self._write_index(index)
+        return True
+
+    def list_projects(self) -> List[Dict[str, Any]]:
+        return self._read_index().get("projects", [])
+
+    def create_project(self, name: str, description: str = "") -> Dict[str, Any]:
+        import uuid
+        project_id = f"proj_{uuid.uuid4().hex[:8]}"
+        pdir = self.projects_dir / project_id
+        pdir.mkdir(parents=True, exist_ok=True)
+        (pdir / "chats").mkdir(parents=True, exist_ok=True)
+        (pdir / "assets").mkdir(parents=True, exist_ok=True)
+
+        meta = {
+            "id": project_id,
+            "name": name,
+            "description": description,
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        (pdir / "project.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        index = self._read_index()
+        index.setdefault("projects", []).append(meta)
+        self._write_index(index)
+        return meta
+
+    def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
+        for p in self.list_projects():
+            if p.get("id") == project_id:
+                return p
+        return None
+
+    def delete_project(self, project_id: str) -> bool:
+        if project_id == "default_project":
+            return False
+        import shutil
+        pdir = self.projects_dir / project_id
+        if pdir.exists():
+            shutil.rmtree(pdir, ignore_errors=True)
+
+        index = self._read_index()
+        index["projects"] = [p for p in index.get("projects", []) if p.get("id") != project_id]
+        index["chats"] = [c for c in index.get("chats", []) if c.get("project_id") != project_id]
+        self._write_index(index)
+        return True
 
 project_manager = ProjectManager()

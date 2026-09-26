@@ -13,7 +13,7 @@ from typing import Optional
 
 from omweb.job_manager import job_manager
 from omweb.sse_events import subscribe_events, SSEEventType
-from omweb.agent_bridge import run_instrumented, human_answers, human_data
+from omweb.agent_bridge import run_instrumented
 from omweb.project_manager import project_manager
 
 router = APIRouter()
@@ -22,9 +22,6 @@ class RunRequest(BaseModel):
     prompt: str
     project_id: Optional[str] = "default_project"
     max_steps: Optional[int] = 30
-
-class FeedbackRequest(BaseModel):
-    response: str
 
 @router.post("")
 @router.post("/")
@@ -67,19 +64,34 @@ async def list_jobs():
 @router.get("/jobs/{job_id}")
 async def get_job_detail(job_id: str):
     job = job_manager.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if hasattr(job, "to_dict"):
-        return job.to_dict()
-    elif hasattr(job, "model_dump"):
-        return job.model_dump()
-    elif isinstance(job, dict):
-        return job
+    chat = project_manager.get_chat(job_id) or {}
+
+    stored_events = chat.get("events", [])
+    memory_events = getattr(job, "events", []) if job else []
+    effective_events = memory_events if memory_events else stored_events
+
+    effective_prompt = (getattr(job, "prompt", "") if job else "") or chat.get("prompt", "")
+    effective_status = (getattr(job, "status", "") if job else "") or chat.get("status", "completed")
+    effective_result = (getattr(job, "result", None) if job else None) or chat.get("result", "")
+
+    # Auto-extract final result if empty
+    if not effective_result and effective_events:
+        for ev in reversed(effective_events):
+            ev_type = ev.get("type", "") if isinstance(ev, dict) else getattr(ev, "type", "")
+            if str(ev_type).lower() == "final":
+                data_part = ev.get("data", {}) if isinstance(ev, dict) else getattr(ev, "data", {})
+                if isinstance(data_part, dict):
+                    effective_result = data_part.get("result", "")
+                elif isinstance(data_part, str):
+                    effective_result = data_part
+                break
+
     return {
-        "id": getattr(job, "id", job_id),
-        "status": getattr(job, "status", "unknown"),
-        "prompt": getattr(job, "prompt", ""),
-        "events": getattr(job, "events", [])
+        "id": job_id,
+        "status": effective_status,
+        "prompt": effective_prompt,
+        "result": effective_result,
+        "events": effective_events
     }
 
 @router.get("/jobs/{job_id}/files")
@@ -173,76 +185,49 @@ async def download_job_zip(job_id: str):
 
 @router.get("/jobs/{job_id}/stream")
 async def stream_job_events(job_id: str):
-    job = job_manager.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+    chat = project_manager.get_chat(job_id) or {}
+    existing_status = chat.get("status", "running")
+    existing_events = chat.get("events", [])
 
     async def event_generator():
-        collected_events = []
-        def persist_state(status_str="running"):
-            try:
-                chat = project_manager.get_chat(job_id) or {}
-                c_id = chat.get("id", f"chat_{job_id}")
-                p_id = chat.get("project_id", "default_project")
-                prompt_val = getattr(job, "prompt", chat.get("prompt", ""))
-                
-                project_manager.save_chat_session(
-                    chat_id=c_id,
-                    project_id=p_id,
-                    title=prompt_val[:40] if prompt_val else job_id,
-                    job_id=job_id,
-                    prompt=prompt_val,
-                    events=collected_events,
-                    result="",
-                    status=status_str
-                )
-            except Exception:
-                pass
+        # If job is already completed, replay events and finish immediately without touching disk state
+        if existing_status in ["completed", "failed"] and existing_events:
+            for ev in existing_events:
+                ev_type = ev.get("type", "thought") if isinstance(ev, dict) else "thought"
+                ev_data = json.dumps(ev, ensure_ascii=False) if isinstance(ev, dict) else str(ev)
+                yield {"event": str(ev_type), "data": ev_data}
+            yield {"event": "done", "data": json.dumps({"status": existing_status})}
+            return
 
-        # 1. Replay historical events
-        for ev in getattr(job, "events", []):
-            if hasattr(ev, "type") and hasattr(ev, "to_json"):
-                ev_type = ev.type.value if hasattr(ev.type, "value") else str(ev.type)
-                ev_data = ev.to_json()
-            elif isinstance(ev, dict):
-                ev_type = ev.get("type", "thought")
-                ev_data = json.dumps(ev, ensure_ascii=False)
-            else:
-                ev_type = "thought"
-                ev_data = json.dumps({"content": str(ev)}, ensure_ascii=False)
-            yield {"event": str(ev_type), "data": ev_data}
-
-        # 2. Stream live events with exact event names
+        collected_events = list(existing_events)
         async for event in subscribe_events(job_id):
             if hasattr(event, "type"):
                 ev_type = event.type.value if hasattr(event.type, "value") else str(event.type)
                 ev_data = event.to_json() if hasattr(event, "to_json") else json.dumps(getattr(event, "data", {}), ensure_ascii=False)
                 try: parsed = json.loads(ev_data)
                 except: parsed = {"content": ev_data}
-                collected_events.append({"type": str(ev_type), "data": parsed})
+                
+                if str(ev_type).lower() not in ["ping"]:
+                    collected_events.append({"type": str(ev_type), "step": getattr(event, "step", 1), "data": parsed.get("data", parsed)})
+                
                 is_term = str(ev_type).lower() in ["final", "error", "done"]
-                persist_state("completed" if is_term else "running")
+                if is_term:
+                    c_id = chat.get("id", f"chat_{job_id}")
+                    p_id = chat.get("project_id", "default_project")
+                    prompt_val = chat.get("prompt", "")
+                    project_manager.save_chat_session(
+                        chat_id=c_id,
+                        project_id=p_id,
+                        title=prompt_val[:40] if prompt_val else job_id,
+                        job_id=job_id,
+                        prompt=prompt_val,
+                        events=collected_events,
+                        result=parsed.get("data", {}).get("result", "") if isinstance(parsed.get("data"), dict) else "",
+                        status="completed" if str(ev_type).lower() in ["final", "done"] else "failed"
+                    )
                 yield {"event": str(ev_type), "data": ev_data}
                 if is_term:
                     break
-            elif isinstance(event, dict):
-                ev_type = event.get("event") or event.get("type") or "thought"
-                ev_data = json.dumps(event.get("data", event), ensure_ascii=False)
-                yield {"event": str(ev_type), "data": ev_data}
-            elif isinstance(event, str):
-                lines = event.strip().split("\n")
-                evt_name = "message"
-                data_payload = ""
-                for line in lines:
-                    if line.startswith("event:"):
-                        evt_name = line.replace("event:", "").strip()
-                    elif line.startswith("data:"):
-                        data_payload = line.replace("data:", "").strip()
-                if not data_payload:
-                    data_payload = event
-                yield {"event": evt_name, "data": data_payload}
-
-        persist_state("completed")
 
     return EventSourceResponse(
         event_generator(),

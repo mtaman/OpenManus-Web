@@ -15,7 +15,6 @@ import {
   Check,
   User,
   Terminal,
-  Square,
   PlusCircle,
   PanelRightClose,
   PanelRightOpen,
@@ -25,8 +24,7 @@ import {
   Clock,
   Download,
   AlertCircle,
-  CheckCircle2,
-  Sparkles
+  CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -87,8 +85,7 @@ export default function ChatDetailPage() {
   useEffect(() => {
     if (rawId) {
       setActiveJobId(rawId);
-      fetchJobDetails(rawId);
-      connectStream(rawId);
+      loadSessionData(rawId);
     }
     return () => {
       if (eventSourceRef.current) {
@@ -97,50 +94,82 @@ export default function ChatDetailPage() {
     };
   }, [rawId]);
 
-  const fetchJobDetails = async (jobId: string) => {
+  const parseEvents = (rawEvents: any[]): StepEvent[] => {
+    const parsed: StepEvent[] = [];
+    rawEvents.forEach((ev: any, idx: number) => {
+      let evType = (ev.type || "thought").toLowerCase();
+      if (evType === "ping" || evType === "step_start" || evType === "step_end") return;
+
+      let rawData = ev.data;
+      if (typeof rawData === "string") {
+        try { rawData = JSON.parse(rawData); } catch {}
+      }
+
+      let evContent = "";
+      let toolName = undefined;
+
+      if (rawData && typeof rawData === "object") {
+        evContent = rawData.thought || rawData.output || rawData.content || rawData.result || rawData.message || "";
+        toolName = rawData.name || rawData.tool;
+        if (!evContent && rawData.arguments) {
+          evContent = typeof rawData.arguments === "string" ? rawData.arguments : JSON.stringify(rawData.arguments);
+        }
+      }
+
+      if (!evContent) {
+        evContent = typeof rawData === "string" ? rawData : JSON.stringify(rawData || ev);
+      }
+
+      let stepType: StepEvent["type"] = "thought";
+      if (evType.includes("tool")) stepType = "tool_call";
+      else if (evType.includes("observ")) stepType = "observation";
+      else if (evType.includes("final")) stepType = "final";
+      else if (evType.includes("error")) stepType = "error";
+
+      parsed.push({
+        id: `step-${idx}-${Math.random()}`,
+        step: ev.step || 1,
+        type: stepType,
+        content: safeRender(evContent),
+        toolName: toolName || (stepType === "tool_call" ? "action" : undefined),
+        timestamp: ev.timestamp || new Date().toLocaleTimeString()
+      });
+    });
+    return parsed;
+  };
+
+  const loadSessionData = async (jobId: string) => {
     try {
       const res = await fetch(`/api/run/jobs/${jobId}`);
-      if (res.ok) {
-        const data = await res.json();
+      const data = res.ok ? await res.json() : null;
+
+      if (data) {
         if (data.prompt) setSubmittedPrompt(data.prompt);
-        if (data.status) setStatus(data.status);
+        const resolvedStatus = data.status || "completed";
+        setStatus(resolvedStatus);
         if (data.result) setFinalResult(safeRender(data.result));
-        if (data.created_at || data.timestamp) {
-          setSessionTimestamp(data.created_at || data.timestamp);
-        } else {
-          setSessionTimestamp(new Date().toLocaleTimeString());
-        }
+        if (data.created_at) setSessionTimestamp(data.created_at);
 
-        // Clean event reconstruction: filter protocol noise & format steps
-        if (data.events && Array.isArray(data.events)) {
-          const replayed: StepEvent[] = [];
-          data.events.forEach((ev: any, idx: number) => {
-            const evType = ev.type || "thought";
-            // Ignore internal ping, step_start, and step_end protocol events
-            if (evType === "ping" || evType === "step_start" || evType === "step_end") return;
-
-            let evContent = ev.data?.thought || ev.data?.output || ev.data?.content || ev.data?.result || ev.data?.message;
-            if (!evContent && typeof ev.data === "string") evContent = ev.data;
-            if (!evContent) evContent = JSON.stringify(ev.data || ev);
-
-            replayed.push({
-              id: `replay-${idx}-${Math.random()}`,
-              step: ev.step || 1,
-              type: evType,
-              content: safeRender(evContent),
-              toolName: ev.data?.name || (evType === "tool_call" ? "action" : undefined),
-              timestamp: ev.timestamp || new Date().toLocaleTimeString()
-            });
-          });
-          setSteps(replayed);
-          if (replayed.length > 0) {
-            setCurrentStepNum(replayed[replayed.length - 1].step);
+        if (data.events && Array.isArray(data.events) && data.events.length > 0) {
+          const reconstructed = parseEvents(data.events);
+          setSteps(reconstructed);
+          if (reconstructed.length > 0) {
+            setCurrentStepNum(reconstructed[reconstructed.length - 1].step);
+          }
+          if (!data.result) {
+            const finalEv = reconstructed.find((s) => s.type === "final");
+            if (finalEv) setFinalResult(finalEv.content);
           }
         }
         fetchJobFiles(jobId);
+
+        // ONLY connect live SSE if task is actively running!
+        if (resolvedStatus === "running") {
+          connectStream(jobId);
+        }
       }
     } catch (e) {
-      console.error("Failed to restore session details", e);
+      console.error("Failed to load session data", e);
     }
   };
 
@@ -152,14 +181,10 @@ export default function ChatDetailPage() {
     const es = new EventSource(`/api/run/jobs/${jobId}/stream`);
     eventSourceRef.current = es;
 
-    const appendStep = (type: StepEvent["type"], content: any, stepNum = 1, toolName?: string) => {
+    const appendLiveStep = (type: StepEvent["type"], content: any, stepNum = 1, toolName?: string) => {
       const cleanContent = safeRender(content);
       const cleanTool = toolName ? safeRender(toolName) : undefined;
-
-      if (type === "tool_call") {
-        if (!cleanTool || cleanTool === "{}") return;
-        if (!cleanContent && !cleanTool) return;
-      }
+      if (type === "tool_call" && !cleanTool && !cleanContent) return;
 
       setSteps((prev) => [
         ...prev,
@@ -174,15 +199,15 @@ export default function ChatDetailPage() {
       ]);
     };
 
-    const handleEventPayload = (eventType: string, payload: any) => {
+    const handlePayload = (eventType: string, payload: any) => {
       const step = payload.step || 1;
       setCurrentStepNum(step);
 
       if (eventType === "ping" || eventType === "step_start" || eventType === "step_end") {
-        return; // Filter out protocol noise
+        return;
       } else if (eventType === "thought") {
         const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
-        appendStep("thought", raw, step);
+        appendLiveStep("thought", raw, step);
         if (payload.data?.tokens) setTokensUsed(payload.data.tokens);
       } else if (eventType === "tool_call") {
         const name = payload.data?.name;
@@ -190,10 +215,10 @@ export default function ChatDetailPage() {
         if (name === "ask_human" || (typeof args === "string" && (args.includes("?") || args.includes("prefer")))) {
           setHumanQuery(typeof args === "string" ? args : JSON.stringify(args));
         }
-        appendStep("tool_call", args, step, name);
+        appendLiveStep("tool_call", args, step, name);
       } else if (eventType === "observation") {
         const raw = payload.data?.output ?? "Execution completed.";
-        appendStep("observation", raw, step);
+        appendLiveStep("observation", raw, step);
         fetchJobFiles(jobId);
       } else if (eventType === "final") {
         const resText = payload.data?.result ?? "Task completed successfully.";
@@ -210,30 +235,11 @@ export default function ChatDetailPage() {
       }
     };
 
-    const bindEvt = (name: string) => {
-      es.addEventListener(name, (e: any) => {
-        try {
-          const parsed = JSON.parse(e.data);
-          handleEventPayload(name, parsed);
-        } catch {
-          handleEventPayload(name, { data: e.data });
-        }
-      });
-    };
-
-    bindEvt("thought");
-    bindEvt("tool_call");
-    bindEvt("observation");
-    bindEvt("final");
-    bindEvt("error");
-
-    es.onmessage = (e: any) => {
-      try {
-        const parsed = JSON.parse(e.data);
-        const evType = parsed.type || "thought";
-        handleEventPayload(evType, parsed);
-      } catch {}
-    };
+    es.addEventListener("thought", (e: any) => { try { handlePayload("thought", JSON.parse(e.data)); } catch {} });
+    es.addEventListener("tool_call", (e: any) => { try { handlePayload("tool_call", JSON.parse(e.data)); } catch {} });
+    es.addEventListener("observation", (e: any) => { try { handlePayload("observation", JSON.parse(e.data)); } catch {} });
+    es.addEventListener("final", (e: any) => { try { handlePayload("final", JSON.parse(e.data)); } catch {} });
+    es.addEventListener("error", (e: any) => { try { handlePayload("error", JSON.parse(e.data)); } catch {} });
 
     es.onerror = () => {
       es.close();
@@ -258,7 +264,7 @@ export default function ChatDetailPage() {
         }
       }
     } catch (e) {
-      console.error("Error fetching job files", e);
+      console.error("Error fetching files", e);
     }
   };
 
@@ -311,9 +317,8 @@ export default function ChatDetailPage() {
 
   return (
     <div className="flex h-full w-full bg-[var(--color-canvas)] text-[var(--color-ink)] overflow-hidden font-mono">
-      {/* Left Chat & Stream View — No Duplicate Layout */}
       <div className="flex-1 flex flex-col h-full border-r border-[var(--color-line)] min-w-0">
-        {/* Sleek Sub-Header Bar */}
+        {/* Sleek Header */}
         <div className="flex items-center justify-between px-6 py-2.5 border-b border-[var(--color-line)] bg-[var(--color-surface-1)] shrink-0">
           <div className="flex items-center gap-3">
             <Link
@@ -394,44 +399,6 @@ export default function ChatDetailPage() {
               </div>
               <div className="text-[var(--color-ink)] whitespace-pre-wrap font-sans text-xs leading-relaxed">
                 {submittedPrompt}
-              </div>
-            </div>
-          )}
-
-          {/* Interactive Human Assistance */}
-          {humanQuery && (
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-mono space-y-3 animate-pulse">
-              <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
-                <HelpCircle size={14} />
-                <span>Agent Requires Human Assistance / Feedback:</span>
-              </div>
-              <div className="p-2.5 rounded bg-[var(--color-surface-1)] text-[var(--color-ink)] border border-[var(--color-line)] font-sans">
-                {humanQuery}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={humanAnswer}
-                  onChange={(e) => setHumanAnswer(e.target.value)}
-                  placeholder="Type your response to the agent..."
-                  className="flex-1 bg-[var(--color-void)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-amber-400"
-                />
-                <Button
-                  variant="primary"
-                  onClick={async () => {
-                    if (!humanAnswer.trim()) return;
-                    await fetch(`/api/run/jobs/${activeJobId}/respond`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ answer: humanAnswer.trim() }),
-                    });
-                    setHumanQuery(null);
-                    setHumanAnswer("");
-                  }}
-                  className="bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs px-3 h-8 cursor-pointer"
-                >
-                  Submit Answer
-                </Button>
               </div>
             </div>
           )}
