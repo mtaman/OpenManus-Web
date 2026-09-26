@@ -16,8 +16,12 @@ export default function ChatDetailPage() {
   const rawId = params?.id as string;
   const { messages, activeSteps, loadSessionDetail, addMessage } = useChatStore();
   const [activeJobId, setActiveJobId] = useState<string>(rawId);
-  const { steps, isStreaming, error, stopStream } = useJobStream(activeJobId);
+  const { steps = [], isStreaming, error, stopStream } = useJobStream(activeJobId);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const safeLiveSteps = steps || [];
+  const safeHistorySteps = activeSteps || [];
+  const safeMessages = messages || [];
 
   useEffect(() => {
     if (rawId) {
@@ -68,9 +72,9 @@ export default function ChatDetailPage() {
           <RunHeader jobId={activeJobId} isStreaming={isStreaming} onStop={stopStream} />
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length > 0 && (
+            {safeMessages.length > 0 && (
               <div className="space-y-3">
-                {messages.map((msg) => (
+                {safeMessages.map((msg) => (
                   <div key={msg.id} className="bg-card border border-border rounded-xl p-4 shadow-sm text-xs">
                     <div className="flex items-center justify-between text-muted-foreground text-[10px] uppercase font-semibold mb-1">
                       <span className="text-primary flex items-center space-x-1">
@@ -88,25 +92,25 @@ export default function ChatDetailPage() {
               </div>
             )}
 
-            {isStreaming || steps.length > 0 ? (
+            {isStreaming || safeLiveSteps.length > 0 ? (
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Live Agent Execution
                 </h4>
-                <LiveSteps steps={steps} isStreaming={isStreaming} error={error} />
+                <LiveSteps steps={safeLiveSteps} isStreaming={isStreaming} error={error} />
               </div>
             ) : (
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Archived Timeline ({activeSteps.length} Steps)
+                  Archived Timeline ({safeHistorySteps.length} Steps)
                 </h4>
-                {activeSteps.length === 0 ? (
+                {safeHistorySteps.length === 0 ? (
                   <div className="text-center py-10 border border-dashed border-border rounded-xl text-muted-foreground text-xs">
                     No steps recorded for this session.
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {activeSteps.map((step) => {
+                    {safeHistorySteps.map((step) => {
                       const isOpen = expanded[step.id] ?? true;
                       return (
                         <div key={step.id} className="bg-card/60 border border-border rounded-lg overflow-hidden text-xs">
