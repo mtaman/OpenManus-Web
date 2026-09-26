@@ -1,129 +1,315 @@
-﻿import React, { useEffect } from "react";
+﻿"use client";
+
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useChatStore } from "@/stores/chat-store";
-import { MessageSquare, Plus, Trash2, Folder, History, Settings, Cpu, Terminal } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  MessageSquare,
+  FolderOpen,
+  Settings,
+  Bot,
+  Trash2,
+  Pin,
+  Download,
+  Folder,
+  Plus,
+  ChevronRight
+} from "lucide-react";
+
+interface ProjectItem {
+  id: string;
+  name: string;
+  description?: string;
+  created_at?: string;
+}
+
+interface ChatItem {
+  id: string;
+  job_id: string;
+  project_id?: string;
+  title: string;
+  prompt: string;
+  status: string;
+  created_at?: string;
+  pinned?: boolean;
+}
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { sessions, loadSessions, clearAllSessions, loadSessionDetail } = useChatStore();
+  const router = useRouter();
+
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [chats, setChats] = useState<ChatItem[]>([]);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+
+  const fetchData = async () => {
+    try {
+      const [pRes, cRes] = await Promise.all([
+        fetch("/api/chats/projects"),
+        fetch("/api/chats")
+      ]);
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setProjects(pData.projects || []);
+      }
+      if (cRes.ok) {
+        const cData = await cRes.json();
+        setChats(cData.chats || []);
+      }
+    } catch (e) {
+      console.error("Failed to load sidebar data", e);
+    }
+  };
 
   useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+    fetchData();
+    const timer = setInterval(fetchData, 6000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+    try {
+      const res = await fetch("/api/chats/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newProjectName.trim() })
+      });
+      if (res.ok) {
+        setNewProjectName("");
+        setIsCreatingProject(false);
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to create project", err);
+    }
+  };
+
+  const handleDeleteChat = async (e: React.MouseEvent, chatId: string, jobId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this session?")) return;
+    try {
+      await fetch(`/api/chats/${chatId}`, { method: "DELETE" });
+      setChats((prev) => prev.filter((c) => c.id !== chatId && c.job_id !== jobId));
+      if (pathname.includes(jobId) || pathname.includes(chatId)) {
+        router.push("/chat");
+      }
+    } catch (err) {
+      console.error("Failed to delete chat", err);
+    }
+  };
+
+  const handleTogglePin = (e: React.MouseEvent, chatId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setChats((prev) =>
+      prev.map((c) => (c.id === chatId ? { ...c, pinned: !c.pinned } : c))
+    );
+  };
+
+  const standaloneChats = chats.filter(
+    (c) => !c.project_id || c.project_id === "default_project"
+  );
+
+  const sortedChats = [...standaloneChats].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return 0;
+  });
 
   return (
-    <aside className="w-64 border-r border-border bg-card/50 flex flex-col h-screen select-none">
-      {/* Top Header / New Session */}
-      <div className="p-4 border-b border-border flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold">
-            OM
+    <aside className="w-64 border-e border-slate-800 bg-slate-900 flex flex-col h-screen select-none shrink-0 font-sans">
+      {/* Brand Header */}
+      <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
+        <Link href="/chat" className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-emerald-600 text-white shadow-md">
+            <Bot className="h-5 w-5" />
           </div>
-          <span className="font-semibold text-sm tracking-wide">OpenManus</span>
-        </div>
-      </div>
-
-      <div className="p-3">
-        <Link
-          href="/"
-          className="w-full flex items-center justify-center space-x-2 bg-primary text-primary-foreground hover:bg-primary/90 py-2 px-4 rounded-lg text-sm font-medium transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Session</span>
+          <span className="font-bold text-base tracking-tight text-slate-100">
+            OpenManus
+          </span>
         </Link>
       </div>
 
-      {/* Navigation Links */}
-      <div className="px-3 py-2 space-y-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        Navigation
-      </div>
-      <nav className="px-3 space-y-1">
+      {/* Main Nav Items */}
+      <nav className="p-4 space-y-1 border-b border-slate-800">
         <Link
-          href="/"
-          className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-            pathname === "/" ? "bg-accent text-accent-foreground" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
+          href="/chat"
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+            pathname === "/chat" || pathname.startsWith("/chat/")
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
           }`}
         >
-          <Terminal className="w-4 h-4" />
-          <span>Dashboard</span>
+          <MessageSquare className="h-4 w-4 shrink-0" />
+          <span>Chat</span>
         </Link>
         <Link
           href="/projects"
-          className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-            pathname?.startsWith("/projects") ? "bg-accent text-accent-foreground" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+            pathname.startsWith("/projects")
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
           }`}
         >
-          <Folder className="w-4 h-4" />
+          <Folder className="h-4 w-4 shrink-0" />
           <span>Projects</span>
         </Link>
         <Link
-          href="/history"
-          className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-            pathname === "/history" ? "bg-accent text-accent-foreground" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
+          href="/files"
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+            pathname === "/files"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
           }`}
         >
-          <History className="w-4 h-4" />
-          <span>History Archive</span>
+          <FolderOpen className="h-4 w-4 shrink-0" />
+          <span>Files</span>
         </Link>
         <Link
           href="/settings"
-          className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-            pathname === "/settings" ? "bg-accent text-accent-foreground" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+            pathname === "/settings"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
           }`}
         >
-          <Settings className="w-4 h-4" />
+          <Settings className="h-4 w-4 shrink-0" />
           <span>Settings</span>
         </Link>
       </nav>
 
-      {/* Active Chats & Sessions Archive */}
-      <div className="px-3 pt-6 pb-2 flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        <span>Active Chats</span>
-        {sessions.length > 0 && (
-          <button
-            onClick={() => clearAllSessions()}
-            title="Clear All Chats"
-            className="text-destructive hover:text-destructive/80 transition-colors flex items-center space-x-1"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
-        {sessions.length === 0 ? (
-          <div className="text-center py-6 text-xs text-muted-foreground">
-            No active chat sessions found.
+      {/* Scrollable Explorer: Projects & Standalone Sessions */}
+      <div className="flex-1 p-4 overflow-y-auto space-y-4">
+        {/* Projects Workspace Header */}
+        <div>
+          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider mb-2">
+            <span>Workspaces</span>
+            <button
+              onClick={() => setIsCreatingProject((v) => !v)}
+              className="p-1 hover:text-emerald-400 rounded hover:bg-slate-800 transition"
+              title="Create Project"
+            >
+              <Plus size={14} />
+            </button>
           </div>
-        ) : (
-          sessions.map((chat) => {
-            const isActive = pathname === `/chat/${chat.job_id}`;
-            return (
-              <Link
-                key={chat.id}
-                href={`/chat/${chat.job_id}`}
-                onClick={() => loadSessionDetail(chat.id)}
-                className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm transition-colors group ${
-                  isActive ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-                }`}
-              >
-                <MessageSquare className="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-foreground" />
-                <span className="truncate flex-1 text-left">{chat.title || chat.prompt || chat.job_id}</span>
-              </Link>
-            );
-          })
-        )}
+
+          {isCreatingProject && (
+            <form onSubmit={handleCreateProject} className="mb-2 px-1">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Project name..."
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                className="w-full px-2.5 py-1.5 rounded bg-slate-800 text-xs border border-slate-700 text-slate-200 focus:outline-none focus:border-emerald-500 font-sans"
+              />
+            </form>
+          )}
+
+          <div className="space-y-1">
+            {projects.length === 0 ? (
+              <div className="text-[11px] text-slate-500 px-2 py-1">No projects yet.</div>
+            ) : (
+              projects.map((proj) => {
+                const isActiveProj = pathname === `/projects/${proj.id}`;
+                return (
+                  <Link
+                    key={proj.id}
+                    href={`/projects/${proj.id}`}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition ${
+                      isActiveProj
+                        ? "bg-slate-800 text-emerald-400 font-medium"
+                        : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Folder size={13} className="text-cyan-400 shrink-0" />
+                      <span className="truncate">{proj.name}</span>
+                    </div>
+                    <ChevronRight size={12} className="text-slate-500" />
+                  </Link>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Recent Standalone History */}
+        <div>
+          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider mb-2">
+            <span>Recent Chats</span>
+          </div>
+
+          <div className="space-y-1">
+            {sortedChats.length === 0 ? (
+              <div className="text-[11px] text-slate-500 px-2 py-2">No recent sessions.</div>
+            ) : (
+              sortedChats.map((chat, idx) => {
+                const effectiveTarget = chat.job_id || chat.id || `session-${idx}`;
+                const isActive = pathname === `/chat/${effectiveTarget}` || pathname === `/chat/${chat.id}`;
+                return (
+                  <Link
+                    key={chat.id || chat.job_id || `chat-item-${idx}`}
+                    href={`/chat/${effectiveTarget}`}
+                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition ${
+                      isActive
+                        ? "bg-slate-800 text-emerald-400 font-medium border border-emerald-500/20"
+                        : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate flex-1 mr-1">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          chat.status === "completed"
+                            ? "bg-emerald-500"
+                            : chat.status === "running"
+                            ? "bg-amber-500 animate-pulse"
+                            : "bg-slate-600"
+                        }`}
+                      />
+                      <span className="truncate">{chat.title || chat.prompt || "New Session"}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => handleTogglePin(e, chat.id)}
+                        title="Pin chat"
+                        className={`p-1 hover:text-emerald-400 ${chat.pinned ? "text-emerald-400" : "text-slate-500"}`}
+                      >
+                        <Pin size={11} />
+                      </button>
+                      <a
+                        href={`/api/run/jobs/${effectiveTarget}/download-zip`}
+                        title="Download ZIP"
+                        className="p-1 text-slate-500 hover:text-cyan-400"
+                      >
+                        <Download size={11} />
+                      </a>
+                      <button
+                        onClick={(e) => handleDeleteChat(e, chat.id, chat.job_id)}
+                        title="Delete chat"
+                        className="p-1 text-slate-500 hover:text-rose-400"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </Link>
+                );
+              })
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Footer Info */}
-      <div className="p-3 border-t border-border text-xs text-muted-foreground flex items-center justify-between">
-        <span className="flex items-center space-x-1">
-          <Cpu className="w-3.5 h-3.5 text-emerald-500" />
-          <span>Engine Active</span>
-        </span>
-        <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-secondary-foreground font-mono">v1.1</span>
+      <div className="p-3 border-t border-slate-800 text-[11px] text-slate-500 text-center font-mono">
+        v2.0.0-STORAGE-STABLE
       </div>
     </aside>
   );
 }
+
+export default Sidebar;

@@ -9,12 +9,12 @@ import { LiveSteps } from "@/components/chat/live-steps";
 import { ChatComposer } from "@/components/chat/composer";
 import { useJobStream } from "@/hooks/useJobStream";
 import { useChatStore } from "@/stores/chat-store";
-import { Terminal, Clock, ChevronDown, ChevronRight } from "lucide-react";
+import { Terminal, Clock, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
 
 export default function ChatDetailPage() {
   const params = useParams();
   const rawId = params?.id as string;
-  const { messages, activeSteps, loadSessionDetail, addMessage } = useChatStore();
+  const { messages = [], activeSteps = [], loadSessionDetail, addMessage } = useChatStore();
   const [activeJobId, setActiveJobId] = useState<string>(rawId);
   const { steps = [], isStreaming, error, stopStream } = useJobStream(activeJobId);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -38,7 +38,7 @@ export default function ChatDetailPage() {
       role: "user",
       content: text,
       timestamp: new Date().toISOString(),
-      status: "running"
+      status: "running",
     });
 
     try {
@@ -63,14 +63,37 @@ export default function ChatDetailPage() {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const headerPrompt = safeMessages[0]?.content || "Autonomous Execution Task";
+  const headerStatus: "idle" | "running" | "completed" | "failed" = isStreaming
+    ? "running"
+    : error
+    ? "failed"
+    : (safeLiveSteps.length > 0 || safeHistorySteps.length > 0)
+    ? "completed"
+    : "idle";
+  const headerStep = isStreaming ? safeLiveSteps.length : (safeHistorySteps.length || safeLiveSteps.length || 0);
+
   return (
     <AppShell>
       <div className="flex h-full w-full overflow-hidden">
-        {/* Left Side: Live Stream or Historical Replay */}
+        {/* Left Side: Live Execution & Timeline */}
         <div className="w-1/2 flex flex-col h-full border-r border-border bg-background/50">
-          <RunHeader jobId={activeJobId} isStreaming={isStreaming} onStop={stopStream} />
+          <RunHeader
+            prompt={headerPrompt}
+            status={headerStatus}
+            currentStep={headerStep}
+            maxSteps={20}
+            onCancel={stopStream}
+          />
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-xs text-destructive flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
             {safeMessages.length > 0 && (
               <div className="space-y-3">
                 {safeMessages.map((msg) => (
@@ -96,7 +119,7 @@ export default function ChatDetailPage() {
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Live Agent Execution
                 </h4>
-                <LiveSteps steps={safeLiveSteps} isStreaming={isStreaming} error={error} />
+                <LiveSteps steps={safeLiveSteps} />
               </div>
             ) : (
               <div className="space-y-2">

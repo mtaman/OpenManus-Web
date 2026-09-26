@@ -4,29 +4,44 @@ import mimetypes
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
-from omweb.config import get_workspace_root
+from omweb.config import get_storage_root
+from omweb.project_manager import project_manager
 
 router = APIRouter()
 
 def safe_resolve(subpath: str) -> Path:
-    ws = get_workspace_root().resolve()
+    storage = get_storage_root().resolve()
     clean_subpath = subpath.lstrip("/\\")
-    target = (ws / clean_subpath).resolve()
-    if not target.is_relative_to(ws):
+    target = (storage / clean_subpath).resolve()
+    
+    # Direct match in storage
+    if target.is_relative_to(storage) and target.exists() and target.is_file():
+        return target
+
+    # Search inside chat files if subpath is relative to a chat
+    for root, dirs, files in os.walk(storage):
+        if "files" in root:
+            possible = Path(root) / clean_subpath
+            if possible.exists() and possible.is_file():
+                return possible.resolve()
+
+    if not target.is_relative_to(storage):
         raise HTTPException(status_code=403, detail="Access denied: Path traversal detected")
     return target
 
 @router.get("")
 @router.get("/")
 async def list_files():
-    """List all artifacts and files in workspace recursively."""
-    ws = get_workspace_root().resolve()
-    ws.mkdir(parents=True, exist_ok=True)
+    """List all artifacts and files across storage repository recursively."""
+    storage = get_storage_root().resolve()
+    storage.mkdir(parents=True, exist_ok=True)
     items = []
-    for root, dirs, files in os.walk(ws):
+    for root, dirs, files in os.walk(storage):
         for f in files:
+            if f.endswith(".tmp") or f.endswith(".bak"):
+                continue
             p = Path(root) / f
-            rel = p.relative_to(ws)
+            rel = p.relative_to(storage)
             stat = p.stat()
             ext = p.suffix.lower()
             file_type = "code"
@@ -50,7 +65,7 @@ async def list_files():
                 "modified": stat.st_mtime,
                 "type": file_type
             })
-    return {"files": items, "workspace": str(ws)}
+    return {"files": items, "workspace": str(storage)}
 
 @router.get("/raw/{filepath:path}")
 async def get_raw_file(filepath: str):

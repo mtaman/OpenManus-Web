@@ -142,7 +142,7 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
       {/* Tab Content Display */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === "preview" && (
-          <PreviewTab currentHtmlPath={selectedFilePath} />
+          <PreviewTab currentHtmlPath={selectedFilePath} activeJobId={activeJobId} />
         )}
         {activeTab === "files" && (
           <FilesTab onSelectFile={handleSelectArtifact} activeJobId={activeJobId} />

@@ -36,3 +36,11 @@ backend/workspace/*
 backend/trending_repos.md
 
 .tmp.driveupload/
+
+# Storage & Runtime User Deliverables (Strictly Local)
+storage/*
+!storage/.gitkeep
+backend/jobs.json*
+backend/test_sse_*.json*
+*.tmp
+*.bak
