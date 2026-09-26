@@ -1,24 +1,36 @@
-﻿import React from "react";
-import { clsx } from "clsx";
+﻿"use client";
 
-export type SystemStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "idle";
+import React from "react";
 
-export function StatusPill({ status, label }: { status: SystemStatus; label?: string }) {
-  const indicatorColor: Record<SystemStatus, string> = {
-    pending: "bg-[var(--color-warning)] animate-pulse",
-    running: "bg-[var(--color-agent-running)] animate-pulse",
-    idle: "bg-[var(--color-ink-faint)]",
-    completed: "bg-[var(--color-success)]",
-    failed: "bg-[var(--color-danger)]",
-    cancelled: "bg-[var(--color-cancelled)]",
+interface StatusPillProps {
+  status?: string;
+  label?: string;
+}
+
+export function StatusPill({ status = "idle", label }: StatusPillProps) {
+  const safeStatus = (status || "idle").toLowerCase();
+
+  const getStatusColor = (st: string) => {
+    switch (st) {
+      case "running":
+        return "bg-amber-500 animate-pulse";
+      case "completed":
+        return "bg-emerald-500";
+      case "failed":
+        return "bg-rose-500";
+      default:
+        return "bg-muted-foreground/60";
+    }
   };
 
-  const displayLabel = label || status.toUpperCase();
+  const displayLabel = label || (status ? status.toUpperCase() : "IDLE");
 
   return (
-    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-line)] text-xs font-mono text-[var(--color-ink)]">
-      <span className={clsx("w-2 h-2 rounded-full", indicatorColor[status] || "bg-[var(--color-ink-faint)]")} />
-      <span>{displayLabel}</span>
+    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-card border border-border text-xs font-mono text-foreground shadow-sm">
+      <span className={`w-2 h-2 rounded-full ${getStatusColor(safeStatus)}`} />
+      <span className="font-semibold text-[10px] tracking-wider">{displayLabel}</span>
     </div>
   );
 }
+
+export default StatusPill;

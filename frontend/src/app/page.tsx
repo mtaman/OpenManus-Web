@@ -13,7 +13,7 @@ import { Sparkles, Terminal } from "lucide-react";
 export default function HomePage() {
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string>("");
-  const { steps, isStreaming, error, stopStream } = useJobStream(currentJobId);
+  const { steps = [], isStreaming, error, stopStream } = useJobStream(currentJobId);
   const { addMessage } = useChatStore();
 
   const handleSendPrompt = async (text: string) => {
@@ -39,18 +39,20 @@ export default function HomePage() {
       const data = await res.json();
 
       if (data.job_id) {
+        // Strictly stay on the page. No router.push, no replaceState redirect.
         setCurrentJobId(data.job_id);
-        window.history.replaceState(null, "", `/chat/${data.job_id}`);
       }
     } catch (err: any) {
       console.error("Execution error:", err);
     }
   };
 
+  const safeSteps = steps || [];
+
   return (
     <AppShell>
       <div className="flex h-full w-full overflow-hidden">
-        {/* Left: Chat & Live Execution */}
+        {/* Left Side: Stay on Same Page & Stream Live Execution */}
         <div className="w-1/2 flex flex-col h-full border-r border-border bg-background/50">
           <RunHeader jobId={currentJobId} isStreaming={isStreaming} onStop={stopStream} />
 
@@ -59,7 +61,7 @@ export default function HomePage() {
               <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
                 <div className="flex items-center space-x-2 text-xs font-semibold text-primary uppercase tracking-wider mb-1">
                   <Terminal className="w-3.5 h-3.5" />
-                  <span>User Task</span>
+                  <span>Active Prompt</span>
                 </div>
                 <p className="text-sm font-medium text-foreground whitespace-pre-wrap">{prompt}</p>
               </div>
@@ -71,9 +73,9 @@ export default function HomePage() {
                   <Sparkles className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-foreground">OpenManus Autonomous Workspace</h3>
+                  <h3 className="text-base font-bold text-foreground">OpenManus Workspace</h3>
                   <p className="text-xs text-muted-foreground max-w-sm mt-1">
-                    Assign a task to start autonomous browsing, tool invocations, and workspace file synthesis.
+                    Enter a prompt below. Live reasoning, tool execution, and logs run directly in this view.
                   </p>
                 </div>
               </div>
@@ -84,17 +86,22 @@ export default function HomePage() {
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Live Agent Timeline
                 </h4>
-                <LiveSteps steps={steps} isStreaming={isStreaming} error={error} />
+                <LiveSteps steps={safeSteps} isStreaming={isStreaming} error={error} />
               </div>
             )}
           </div>
 
           <div className="p-4 border-t border-border bg-card/40">
-            <ChatComposer onSend={handleSendPrompt} disabled={isStreaming} />
+            <ChatComposer
+              onSend={handleSendPrompt}
+              disabled={isStreaming}
+              isStreaming={isStreaming}
+              onStop={stopStream}
+            />
           </div>
         </div>
 
-        {/* Right: Workspace Panel */}
+        {/* Right Side: Dynamic Workspace Panel */}
         <div className="w-1/2 h-full flex flex-col">
           <WorkspacePanel />
         </div>

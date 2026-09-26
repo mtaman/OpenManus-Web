@@ -53,7 +53,6 @@ export default function ChatDetailPage() {
 
       if (data.job_id) {
         setActiveJobId(data.job_id);
-        window.history.replaceState(null, "", `/chat/${data.job_id}`);
       }
     } catch (err: any) {
       console.error("Execution error:", err);
@@ -126,7 +125,7 @@ export default function ChatDetailPage() {
                             <span className="text-muted-foreground text-[10px]">{new Date(step.timestamp).toLocaleTimeString()}</span>
                           </button>
                           {isOpen && (
-                            <div className="p-3 font-mono bg-background/40 border-t border-border/40 text-foreground whitespace-pre-wrap leading-relaxed text-[11px]">
+                            <div className="p-3 font-mono bg-background/50 border-t border-border/40 text-foreground whitespace-pre-wrap leading-relaxed text-[11px]">
                               {step.content}
                             </div>
                           )}
@@ -140,7 +139,12 @@ export default function ChatDetailPage() {
           </div>
 
           <div className="p-4 border-t border-border bg-card/40">
-            <ChatComposer onSend={handleSendPrompt} disabled={isStreaming} />
+            <ChatComposer
+              onSend={handleSendPrompt}
+              disabled={isStreaming}
+              isStreaming={isStreaming}
+              onStop={stopStream}
+            />
           </div>
         </div>
 
