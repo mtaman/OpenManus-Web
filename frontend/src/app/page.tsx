@@ -1,14 +1,7 @@
 ﻿"use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import ChatPage from "./chat/page";
 
 export default function RootPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace("/chat");
-  }, [router]);
-
-  return null;
+  return <ChatPage />;
 }

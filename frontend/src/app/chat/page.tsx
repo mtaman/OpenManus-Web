@@ -301,7 +301,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
     setHumanQuery(null);
     setHumanAnswer("");
     setSessionTimestamp("");
-    router.replace("/chat");
+    // [REDIRECT REMOVED]
   };
 
   const handleStopTask = async () => {
@@ -388,8 +388,8 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
 
       // Clean URL Synchronization
       if (typeof window !== "undefined" && jobId) {
-        window.history.replaceState({}, "", `/chat/${jobId}`);
-        router.replace(`/chat/${jobId}`);
+        // [HISTORY REPLACE REMOVED]
+        // [REDIRECT REMOVED]
       }
 
       // Connect SSE Stream
