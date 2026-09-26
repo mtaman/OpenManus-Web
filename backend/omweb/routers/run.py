@@ -17,19 +17,15 @@ from omweb.project_manager import project_manager
 
 router = APIRouter()
 
-
 class RunRequest(BaseModel):
     prompt: str
-
 
 class FeedbackRequest(BaseModel):
     response: str
 
-
 @router.post("")
 @router.post("/")
 async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
-    """Start an agent run asynchronously and return immediate job ID."""
     prompt = req.prompt.strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
@@ -46,9 +42,8 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     actual_job_id = getattr(job, "id", generated_job_id)
     background_tasks.add_task(run_instrumented, actual_job_id, prompt)
     
-    # Initialize persistent chat session record
+    chat_id = f"chat_{uuid.uuid4().hex[:10]}"
     try:
-        chat_id = f"chat_{uuid.uuid4().hex[:10]}"
         project_manager.save_chat_session(
             chat_id=chat_id,
             project_id="default_project",
@@ -62,19 +57,15 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     except Exception:
         pass
 
-    return {"job_id": actual_job_id, "status": getattr(job, "status", "running"), "chat_id": chat_id if 'chat_id' in locals() else ""}
-
+    return {"job_id": actual_job_id, "status": getattr(job, "status", "running"), "chat_id": chat_id}
 
 @router.get("/jobs")
 @router.get("/jobs/")
 async def list_jobs():
-    """List all registered jobs."""
     return {"jobs": job_manager.list_jobs()}
-
 
 @router.get("/jobs/{job_id}")
 async def get_job_detail(job_id: str):
-    """Retrieve full status, steps, and thoughts for a single job safely."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -89,100 +80,25 @@ async def get_job_detail(job_id: str):
         "events": getattr(job, "events", [])
     }
 
-
-@router.get("/jobs/{job_id}/files")
-async def get_job_files(job_id: str):
-    """Retrieve output files produced strictly for this job/project."""
-    ws = get_workspace_root().resolve()
-    project_dir = ws / "projects" / job_id
-    search_root = project_dir if project_dir.exists() else ws
-
-    if not search_root.exists():
-        return {"job_id": job_id, "files": []}
-
-    job_files = []
-    for root, dirs, files in os.walk(search_root):
-        if search_root == ws and "projects" in root:
-            continue
-        for f in files:
-            if f == "session_meta.json":
-                continue
-            p = Path(root) / f
-            rel = p.relative_to(search_root)
-            job_files.append({
-                "name": f,
-                "path": str(rel).replace("\\", "/"),
-                "size": p.stat().st_size
-            })
-
-    return {"job_id": job_id, "files": job_files}
-
-
-@router.get("/jobs/{job_id}/download-zip")
-async def download_job_zip(job_id: str):
-    """Compress and stream all artifacts of this job as a ZIP archive."""
-    job = job_manager.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    files_res = await get_job_files(job_id)
-    file_items = files_res.get("files", [])
-    if not file_items:
-        raise HTTPException(status_code=400, detail="No generated files found for this job")
-
-    ws = get_workspace_root().resolve()
-    project_dir = ws / "projects" / job_id
-    search_root = project_dir if project_dir.exists() else ws
-
-    zip_buffer = BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for f in file_items:
-            disk_path = search_root / f["path"]
-            if disk_path.is_file():
-                zip_file.write(disk_path, arcname=f["name"])
-
-    zip_buffer.seek(0)
-    filename = f"openmanus_{job_id}.zip"
-    return StreamingResponse(
-        zip_buffer,
-        media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
-
-@router.post("/jobs/{job_id}/feedback")
-async def provide_feedback(job_id: str, req: FeedbackRequest):
-    """Supply user response to AskHuman interruption."""
-    if job_id in human_answers:
-        human_data[job_id] = req.response
-        human_answers[job_id].set()
-        return {"status": "ok", "message": "Feedback sent to agent"}
-    raise HTTPException(status_code=400, detail="Job is not waiting for user feedback")
-
-
 @router.get("/jobs/{job_id}/stream")
 async def stream_job_events(job_id: str):
-    """Stream real-time SSE events for this job and persistently update event logs."""
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     async def event_generator():
         collected_events = []
-        
-        # Helper to record event
-        def persist_current_state(status_str="running"):
+        def persist_state(status_str="running"):
             try:
-                # Find matching chat by job_id or create/update
                 chats = project_manager.list_chats()
-                target_chat = next((c for c in chats if c.get("job_id") == job_id), None)
-                chat_id = target_chat.get("id") if target_chat else f"chat_{job_id}"
-                proj_id = target_chat.get("project_id") if target_chat else "default_project"
-                prompt_val = getattr(job, "prompt", target_chat.get("prompt", "") if target_chat else "")
+                target = next((c for c in chats if c.get("job_id") == job_id), None)
+                c_id = target.get("id") if target else f"chat_{job_id}"
+                p_id = target.get("project_id") if target else "default_project"
+                prompt_val = getattr(job, "prompt", target.get("prompt", "") if target else "")
                 
                 project_manager.save_chat_session(
-                    chat_id=chat_id,
-                    project_id=proj_id,
+                    chat_id=c_id,
+                    project_id=p_id,
                     title=prompt_val[:30] if prompt_val else job_id,
                     job_id=job_id,
                     prompt=prompt_val,
@@ -193,67 +109,29 @@ async def stream_job_events(job_id: str):
             except Exception:
                 pass
 
-        # Replay past events safely
         for ev in getattr(job, "events", []):
             ev_type = getattr(ev, "type", "message")
-            if hasattr(ev_type, "value"):
-                ev_type = ev_type.value
-            if hasattr(ev, "to_json"):
-                ev_data = ev.to_json()
-            elif isinstance(ev, dict):
-                ev_data = json.dumps(ev, ensure_ascii=False)
-            else:
-                ev_data = json.dumps({"content": str(ev)}, ensure_ascii=False)
-            
+            if hasattr(ev_type, "value"): ev_type = ev_type.value
+            ev_data = ev.to_json() if hasattr(ev, "to_json") else json.dumps({"content": str(ev)}, ensure_ascii=False)
             collected_events.append({"type": str(ev_type), "data": json.loads(ev_data) if ev_data.startswith("{") else ev_data})
             yield {"event": str(ev_type), "data": ev_data}
 
-        # Stream live events safely with zero latency and continuous persistence
         async for event in subscribe_events(job_id):
             if hasattr(event, "type"):
                 ev_type = event.type.value if hasattr(event.type, "value") else str(event.type)
                 ev_data = event.to_json() if hasattr(event, "to_json") else str(event.data)
-                
-                try:
-                    parsed_data = json.loads(ev_data)
-                except Exception:
-                    parsed_data = {"content": ev_data}
-                
-                collected_events.append({"type": str(ev_type), "data": parsed_data})
-                
-                is_terminal = str(ev_type).lower() in ["final", "error", "done"]
-                persist_current_state(status_str="completed" if is_terminal else "running")
-                
+                try: parsed = json.loads(ev_data)
+                except: parsed = {"content": ev_data}
+                collected_events.append({"type": str(ev_type), "data": parsed})
+                is_term = str(ev_type).lower() in ["final", "error", "done"]
+                persist_state("completed" if is_term else "running")
                 yield {"event": str(ev_type), "data": ev_data}
-                if is_terminal:
-                    break
+                if is_term: break
             elif isinstance(event, str):
-                lines = event.strip().split("\n")
-                evt_name = "message"
-                data_payload = ""
-                for line in lines:
-                    if line.startswith("event:"):
-                        evt_name = line.replace("event:", "").strip()
-                    elif line.startswith("data:"):
-                        data_payload = line.replace("data:", "").strip()
-                if not data_payload:
-                    data_payload = event
-                
-                collected_events.append({"type": evt_name, "data": data_payload})
-                is_terminal = evt_name.lower() in ["final", "error", "done"]
-                persist_current_state(status_str="completed" if is_terminal else "running")
-                
-                yield {"event": evt_name, "data": data_payload}
-                if is_terminal:
-                    break
+                collected_events.append({"type": "message", "data": event})
+                persist_state("running")
+                yield {"event": "message", "data": event}
 
-        persist_current_state(status_str="completed")
+        persist_state("completed")
 
-    return EventSourceResponse(
-        event_generator(),
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive"
-        }
-    )
+    return EventSourceResponse(event_generator(), headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

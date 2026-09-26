@@ -6,8 +6,6 @@ export interface AgentStep {
   step_number: number;
   type: "thought" | "tool_call" | "observation" | "plan";
   content: string;
-  tool_name?: string;
-  tool_args?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -16,8 +14,6 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
-  steps?: AgentStep[];
-  jobId?: string;
   status?: "pending" | "running" | "completed" | "failed";
 }
 
@@ -39,7 +35,7 @@ interface ChatState {
   resetChat: () => void;
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   currentJobId: null,
   isRunning: false,
@@ -51,22 +47,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const chats = await fetchChats();
       set({ sessions: chats });
     } catch (err) {
-      console.error("Failed to load chat sessions:", err);
+      console.error("Failed to load sessions:", err);
     }
   },
 
   loadSessionDetail: async (chatId: string) => {
     try {
       const res = await fetch(`/api/chats/${chatId}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const chat = data.chat;
+      let chat = null;
+      if (res.ok) {
+        const data = await res.json();
+        chat = data.chat;
+      } else {
+        const chats = await fetchChats();
+        chat = chats.find((c: any) => c.job_id === chatId || c.id === chatId);
+      }
+
       if (chat) {
         set({
           currentJobId: chat.job_id || null,
           messages: [
             {
-              id: chat.id,
+              id: chat.id || "msg_1",
               role: "user",
               content: chat.prompt || chat.title,
               timestamp: chat.created_at || new Date().toISOString(),
@@ -77,7 +79,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             id: `step_${idx}`,
             step_number: idx + 1,
             type: ev.type || "thought",
-            content: typeof ev.data === "string" ? ev.data : JSON.stringify(ev.data),
+            content: typeof ev.data === "string" ? ev.data : (ev.data?.content || JSON.stringify(ev.data)),
             timestamp: new Date().toISOString()
           }))
         });
@@ -92,30 +94,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ sessions: [], messages: [], currentJobId: null, activeSteps: [] });
   },
 
-  addMessage: (message) =>
-    set((state) => ({ messages: [...state.messages, message] })),
-
-  updateMessageStatus: (id, status) =>
-    set((state) => ({
-      messages: state.messages.map((msg) =>
-        msg.id === id ? { ...msg, status } : msg
-      ),
-    })),
-
-  appendStep: (step) =>
-    set((state) => ({ activeSteps: [...state.activeSteps, step] })),
-
+  addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
+  updateMessageStatus: (id, status) => set((state) => ({
+    messages: state.messages.map((msg) => msg.id === id ? { ...msg, status } : msg)
+  })),
+  appendStep: (step) => set((state) => ({ activeSteps: [...state.activeSteps, step] })),
   clearActiveSteps: () => set({ activeSteps: [] }),
-
   setCurrentJobId: (jobId) => set({ currentJobId: jobId }),
-
   setIsRunning: (isRunning) => set({ isRunning }),
-
-  resetChat: () =>
-    set({
-      messages: [],
-      currentJobId: null,
-      isRunning: false,
-      activeSteps: [],
-    }),
+  resetChat: () => set({ messages: [], currentJobId: null, isRunning: false, activeSteps: [] }),
 }));
