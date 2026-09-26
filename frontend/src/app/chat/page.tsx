@@ -80,7 +80,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
 
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Restore session data and connect stream if initialJobId is provided (Direct URL / History Access)
   useEffect(() => {
     if (initialJobId) {
       setActiveJobId(initialJobId);
@@ -102,8 +101,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
         } else {
           setSessionTimestamp(new Date().toLocaleString());
         }
-        
-        // Replay historical steps/events safely
+
         if (data.events && Array.isArray(data.events)) {
           const replayed: StepEvent[] = [];
           data.events.forEach((ev: any, idx: number) => {
@@ -162,7 +160,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
       setCurrentStepNum(step);
 
       if (eventType === "step_start") {
-        // Keep accordion collapsed
+        // Step initialized
       } else if (eventType === "thought") {
         const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
         appendStep("thought", raw, step);
@@ -200,38 +198,52 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
       }
     };
 
-    es.addEventListener("step_start", (e: any) => {
-      try { handleEventPayload("step_start", JSON.parse(e.data)); } catch {}
-    });
-    es.addEventListener("thought", (e: any) => {
-      try { handleEventPayload("thought", JSON.parse(e.data)); } catch {}
-    });
-    es.addEventListener("tool_call", (e: any) => {
-      try { handleEventPayload("tool_call", JSON.parse(e.data)); } catch {}
-    });
-    es.addEventListener("observation", (e: any) => {
-      try { handleEventPayload("observation", JSON.parse(e.data)); } catch {}
-    });
-    es.addEventListener("final", (e: any) => {
-      try { handleEventPayload("final", JSON.parse(e.data)); } catch {}
-    });
-    es.addEventListener("error", (e: any) => {
-      try { handleEventPayload("error", JSON.parse(e.data)); } catch {}
-    });
+    const bindEvt = (name: string) => {
+      es.addEventListener(name, (e: any) => {
+        try {
+          const parsed = JSON.parse(e.data);
+          handleEventPayload(name, parsed);
+        } catch {
+          handleEventPayload(name, { data: e.data });
+        }
+      });
+    };
+
+    bindEvt("step_start");
+    bindEvt("thought");
+    bindEvt("tool_call");
+    bindEvt("observation");
+    bindEvt("final");
+    bindEvt("error");
+    bindEvt("ping");
 
     es.onmessage = (e: any) => {
       try {
         const parsed = JSON.parse(e.data);
-        if (parsed.type) handleEventPayload(parsed.type, parsed);
+        const evType = parsed.type || "thought";
+        handleEventPayload(evType, parsed);
       } catch {}
     };
 
+    // Fail-safe auto unlock on disconnect
     es.onerror = () => {
+      console.warn("EventSource closed or connection interrupted for job:", jobId);
+      es.close();
+      fetch(`/api/run/jobs/${jobId}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d && (d.status === "completed" || d.status === "failed")) {
+            setStatus(d.status);
+            if (d.result) setFinalResult(safeRender(d.result));
+          } else {
+            setStatus("idle");
+          }
+        })
+        .catch(() => setStatus("idle"));
       fetchJobFiles(jobId);
     };
   };
 
-  // Live Timer for running task
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (status === "running") {
@@ -301,7 +313,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
     setHumanQuery(null);
     setHumanAnswer("");
     setSessionTimestamp("");
-    // [REDIRECT REMOVED]
   };
 
   const handleStopTask = async () => {
@@ -355,7 +366,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
     }
   };
 
-  // Task Runner with Clean URL & Stream Synchronization
   const handleStartTask = async (customPrompt?: string) => {
     const textToSend = (customPrompt !== undefined ? customPrompt : inputValue).trim();
     if (!textToSend) return;
@@ -381,22 +391,20 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
         body: JSON.stringify({ prompt: textToSend, max_steps: 20 }),
       });
 
-      if (!res.ok) throw new Error("Failed to start run");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to start run");
+      }
+
       const data = await res.json();
       const jobId = data.job_id;
       setActiveJobId(jobId);
 
-      // Clean URL Synchronization
-      if (typeof window !== "undefined" && jobId) {
-        // [HISTORY REPLACE REMOVED]
-        // [REDIRECT REMOVED]
-      }
-
-      // Connect SSE Stream
       connectStream(jobId);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Execution error:", err);
       setStatus("failed");
+      setFinalResult(err?.message || "Execution error encountered.");
     }
   };
 
@@ -416,9 +424,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
 
   return (
     <div className="flex h-full w-full bg-[var(--color-canvas)] text-[var(--color-ink)] overflow-hidden font-mono">
-      {/* Left Chat & Telemetry Feed */}
       <div className="flex-1 flex flex-col h-full border-r border-[var(--color-line)] min-w-0">
-        {/* Header Bar */}
         <div className="flex items-center justify-between px-6 py-2.5 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
           <div className="flex items-center gap-3">
             <Button
@@ -474,7 +480,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
           </div>
         </div>
 
-        {/* Telemetry Stream Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {submittedPrompt && (
             <div className="p-4 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-line)] text-xs font-mono space-y-2">
@@ -509,7 +514,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
             </div>
           )}
 
-          {/* Interactive Human Assistance Query Box (ask_human) */}
           {humanQuery && (
             <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs font-mono space-y-3 animate-pulse">
               <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-wider text-[11px]">
@@ -539,7 +543,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
             </div>
           )}
 
-          {/* Real-time Loader & Timer Indicator */}
           {status === "running" && (
             <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-cyan-500/20 bg-cyan-500/5 text-cyan-400">
               <div className="flex items-center gap-2.5">
@@ -552,7 +555,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
             </div>
           )}
 
-          {/* Execution Steps Accordion */}
           {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
             const stepNum = parseInt(stepNumStr, 10);
             const isExpanded = expandedSteps[stepNum] === true;
@@ -611,6 +613,11 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
                             <span className="whitespace-pre-wrap">{evt.content}</span>
                           </div>
                         )}
+                        {evt.type === "error" && (
+                          <div className="p-2 text-[11px] text-rose-400 bg-rose-500/10 rounded border border-rose-500/20 flex items-start gap-2">
+                            <span className="whitespace-pre-wrap">{evt.content}</span>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -619,7 +626,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
             );
           })}
 
-          {/* Final Result Card */}
           {finalResult && (
             <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs font-mono space-y-3">
               <div className="flex items-center justify-between">
@@ -635,7 +641,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
                   {copiedSection === "final-result" ? (
                     <>
                       <Check size={12} className="text-emerald-400" />
-                      <span className="font-sans">Copied!</span>
+                      <span className="text-emerald-400 font-sans">Copied!</span>
                     </>
                   ) : (
                     <>
@@ -652,7 +658,7 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
               {producedFiles.length > 0 && (
                 <div className="pt-3 border-t border-emerald-500/20">
                   <span className="text-[11px] font-semibold text-emerald-300 block mb-1.5">
-                    Generated Task Files (Live Preview Active in Panel):
+                    Generated Task Files:
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {producedFiles.map((f) => (
@@ -674,7 +680,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
           )}
         </div>
 
-        {/* Input Bar & Quick Prompt Pills */}
         <div className="p-4 border-t border-[var(--color-line)] bg-[var(--color-surface-1)] space-y-2.5">
           {status !== "running" && steps.length === 0 && (
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] text-[var(--color-ink-muted)]">
@@ -707,15 +712,16 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Assign an autonomous task to OpenManus..."
-              className="w-full bg-[var(--color-void)] border border-[var(--color-line)] rounded-lg pl-4 pr-12 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-cyan-500"
+              placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : "Assign an autonomous task to OpenManus..."}
+              disabled={status === "running"}
+              className="w-full bg-[var(--color-void)] border border-[var(--color-line)] rounded-lg pl-4 pr-12 py-2.5 text-xs text-[var(--color-ink)] focus:outline-none focus:border-cyan-500 disabled:opacity-60"
             />
             <Button
               type="submit"
               variant="primary"
               size="sm"
               disabled={status === "running" || !inputValue.trim()}
-              className="absolute right-1.5 h-7 w-7 p-0 flex items-center justify-center cursor-pointer"
+              className="absolute right-1.5 h-7 w-7 p-0 flex items-center justify-center cursor-pointer disabled:opacity-40"
             >
               <Send size={12} />
             </Button>
@@ -723,7 +729,6 @@ export default function ChatPage({ initialJobId }: { initialJobId?: string }) {
         </div>
       </div>
 
-      {/* Right Workspace View */}
       {showRightPanel && (
         <div className="flex-1 h-full min-w-0 transition-all">
           <WorkspacePanel

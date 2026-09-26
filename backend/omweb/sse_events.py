@@ -52,28 +52,40 @@ def get_job_queues(job_id: str) -> List[asyncio.Queue]:
     return _job_queues[job_id]
 
 async def dispatch_event(job_id: str, event: SSEEvent) -> None:
+    # 1. Record event in job_manager for late connection replay
+    try:
+        from omweb.job_manager import job_manager
+        ev_type_str = event.type.value if hasattr(event.type, "value") else str(event.type)
+        job_manager.append_event(job_id, {
+            "type": ev_type_str,
+            "step": event.step,
+            "data": event.data
+        })
+    except Exception:
+        pass
+
+    # 2. Forward SSEEvent directly to active queues
     queues = get_job_queues(job_id)
-    encoded = event.encode()
     for q in queues:
-        await q.put(encoded)
+        await q.put(event)
 
 async def subscribe_events(job_id: str):
     q = asyncio.Queue()
     queues = get_job_queues(job_id)
     queues.append(q)
     try:
-        yield SSEEvent(type=SSEEventType.PING, step=0, data={"status": "connected"}).encode()
+        # Initial connect ping
+        yield SSEEvent(type=SSEEventType.PING, step=0, data={"status": "connected"})
         while True:
             try:
-                msg = await asyncio.wait_for(q.get(), timeout=5.0)
-                yield msg
-                if "event: final" in msg or "event: error" in msg:
+                evt = await asyncio.wait_for(q.get(), timeout=12.0)
+                yield evt
+                ev_type = evt.type.value if hasattr(evt.type, "value") else str(evt.type)
+                if str(ev_type).lower() in ["final", "error", "done"]:
                     break
             except asyncio.TimeoutError:
-                # Keep-alive heartbeat comment to prevent browser SSE timeout
-                yield ": keep-alive\n\n"
+                # Keep-alive heartbeat to prevent browser timeout
+                yield SSEEvent(type=SSEEventType.PING, step=0, data={"keepalive": True})
     finally:
         if q in queues:
             queues.remove(q)
-
-

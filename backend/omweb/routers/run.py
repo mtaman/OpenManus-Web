@@ -21,6 +21,7 @@ router = APIRouter()
 class RunRequest(BaseModel):
     prompt: str
     project_id: Optional[str] = "default_project"
+    max_steps: Optional[int] = 30
 
 class FeedbackRequest(BaseModel):
     response: str
@@ -105,7 +106,6 @@ async def get_job_files(job_id: str):
 
 @router.get("/jobs/{job_id}/content")
 async def get_job_file_content(job_id: str, path: str = Query(...)):
-    """Retrieve content strictly from this job's isolated files directory."""
     chat = project_manager.get_chat(job_id) or {}
     chat_id = chat.get("id", f"chat_{job_id}")
     project_id = chat.get("project_id", "default_project")
@@ -124,7 +124,6 @@ async def get_job_file_content(job_id: str, path: str = Query(...)):
 
 @router.get("/jobs/{job_id}/raw/{filepath:path}")
 async def get_job_raw_file(job_id: str, filepath: str):
-    """Serve any asset strictly from this job's isolated workspace."""
     chat = project_manager.get_chat(job_id) or {}
     chat_id = chat.get("id", f"chat_{job_id}")
     project_id = chat.get("project_id", "default_project")
@@ -200,29 +199,56 @@ async def stream_job_events(job_id: str):
             except Exception:
                 pass
 
+        # 1. Replay historical events
         for ev in getattr(job, "events", []):
-            ev_type = getattr(ev, "type", "message")
-            if hasattr(ev_type, "value"): ev_type = ev_type.value
-            ev_data = ev.to_json() if hasattr(ev, "to_json") else json.dumps({"content": str(ev)}, ensure_ascii=False)
-            collected_events.append({"type": str(ev_type), "data": json.loads(ev_data) if ev_data.startswith("{") else ev_data})
+            if hasattr(ev, "type") and hasattr(ev, "to_json"):
+                ev_type = ev.type.value if hasattr(ev.type, "value") else str(ev.type)
+                ev_data = ev.to_json()
+            elif isinstance(ev, dict):
+                ev_type = ev.get("type", "thought")
+                ev_data = json.dumps(ev, ensure_ascii=False)
+            else:
+                ev_type = "thought"
+                ev_data = json.dumps({"content": str(ev)}, ensure_ascii=False)
             yield {"event": str(ev_type), "data": ev_data}
 
+        # 2. Stream live events with exact event names
         async for event in subscribe_events(job_id):
             if hasattr(event, "type"):
                 ev_type = event.type.value if hasattr(event.type, "value") else str(event.type)
-                ev_data = event.to_json() if hasattr(event, "to_json") else str(event.data)
+                ev_data = event.to_json() if hasattr(event, "to_json") else json.dumps(getattr(event, "data", {}), ensure_ascii=False)
                 try: parsed = json.loads(ev_data)
                 except: parsed = {"content": ev_data}
                 collected_events.append({"type": str(ev_type), "data": parsed})
                 is_term = str(ev_type).lower() in ["final", "error", "done"]
                 persist_state("completed" if is_term else "running")
                 yield {"event": str(ev_type), "data": ev_data}
-                if is_term: break
+                if is_term:
+                    break
+            elif isinstance(event, dict):
+                ev_type = event.get("event") or event.get("type") or "thought"
+                ev_data = json.dumps(event.get("data", event), ensure_ascii=False)
+                yield {"event": str(ev_type), "data": ev_data}
             elif isinstance(event, str):
-                collected_events.append({"type": "message", "data": event})
-                persist_state("running")
-                yield {"event": "message", "data": event}
+                lines = event.strip().split("\n")
+                evt_name = "message"
+                data_payload = ""
+                for line in lines:
+                    if line.startswith("event:"):
+                        evt_name = line.replace("event:", "").strip()
+                    elif line.startswith("data:"):
+                        data_payload = line.replace("data:", "").strip()
+                if not data_payload:
+                    data_payload = event
+                yield {"event": evt_name, "data": data_payload}
 
         persist_state("completed")
 
-    return EventSourceResponse(event_generator(), headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return EventSourceResponse(
+        event_generator(),
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
+    )
