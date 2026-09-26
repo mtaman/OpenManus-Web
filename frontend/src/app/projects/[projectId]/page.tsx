@@ -126,7 +126,7 @@ export default function ProjectWorkspacePage() {
     <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
       <Sidebar />
       <div className="flex flex-col flex-1 h-full overflow-hidden">
-        {/* Top Navigation Header */}
+        {/* Top Header */}
         <div className="h-16 flex items-center justify-between px-8 border-b border-slate-800 bg-slate-900/60 shrink-0">
           <div className="flex items-center gap-3">
             <Link
@@ -151,6 +151,7 @@ export default function ProjectWorkspacePage() {
 
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={handleDeleteProject}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 text-xs transition"
             >
@@ -160,9 +161,8 @@ export default function ProjectWorkspacePage() {
           </div>
         </div>
 
-        {/* Project Content Area */}
+        {/* Content Area */}
         <div className="flex-1 flex flex-col p-8 overflow-y-auto space-y-6">
-          {/* Project Summary Banner */}
           <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-2">
             <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles size={12} />
@@ -181,7 +181,7 @@ export default function ProjectWorkspacePage() {
             </div>
           </div>
 
-          {/* Chats Grid */}
+          {/* Sessions Section */}
           <div className="flex-1 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
