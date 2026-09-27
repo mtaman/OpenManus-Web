@@ -7,7 +7,10 @@ import {
   Package,
   TerminalSquare,
   FileCode2,
+  Download,
+  Loader2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PreviewTab } from "./preview-tab";
 import { FilesTab } from "./files-tab";
 import { ArtifactsTab } from "./artifacts-tab";
@@ -27,6 +30,7 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState<string | null>(null);
   const [jobFiles, setJobFiles] = useState<{ name: string; path: string }[]>([]);
+  const [exporting, setExporting] = useState<boolean>(false);
 
   useEffect(() => {
     if (!activeJobId) {
@@ -104,6 +108,30 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
     }
   };
 
+  const handleExportZip = async () => {
+    if (!activeJobId) return;
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/run/jobs/${activeJobId}/download-zip`);
+      if (!res.ok) {
+        throw new Error(`Failed to export ZIP (HTTP ${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `workspace_${activeJobId}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export workspace ZIP failed:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   useEffect(() => {
     if (overrideFile) {
       handleSelectArtifact(overrideFile);
@@ -150,11 +178,36 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
           })}
         </div>
 
-        {selectedFilePath && (
-          <span className="text-[11px] font-mono text-muted-foreground truncate max-w-[150px]">
-            {selectedFilePath}
-          </span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {selectedFilePath && (
+            <span className="text-[11px] font-mono text-muted-foreground truncate max-w-[130px] hidden sm:inline">
+              {selectedFilePath}
+            </span>
+          )}
+
+          {activeJobId && jobFiles.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportZip}
+              disabled={exporting}
+              className="h-7 px-2.5 text-xs font-sans gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground border-border/60 hover:bg-muted/60 shadow-manus-xs"
+              title="Export all session files as ZIP"
+            >
+              {exporting ? (
+                <>
+                  <Loader2 size={12} className="animate-spin text-primary" />
+                  <span>Exporting...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={12} className="text-primary" />
+                  <span>Export ZIP</span>
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden bg-background">
