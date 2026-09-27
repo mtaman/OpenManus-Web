@@ -3,6 +3,9 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { CodeBlock } from "@/components/chat/code-block";
 
 export interface MarkdownRendererProps {
@@ -16,11 +19,11 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
   return (
     <div className={`prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed text-foreground font-sans ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         components={{
-          // Intercept code blocks and route them to our interactive CodeBlock component
-          code({ node, inline, className, children, ...props }: any) {
-            const match = /language-(\w+)/.exec(className || "");
+          code({ node, inline, className: codeClass, children, ...props }: any) {
+            const match = /language-(\w+)/.exec(codeClass || "");
             const rawCode = String(children).replace(/\n$/, "");
 
             if (!inline && (match || rawCode.includes("\n"))) {
@@ -41,13 +44,9 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
               </code>
             );
           },
-
-          // Prevent double wrapping pre tags
           pre({ children }: any) {
             return <>{children}</>;
           },
-
-          // Rich Table Styling
           table({ children }: any) {
             return (
               <div className="my-3 overflow-x-auto rounded-xl border border-border bg-card/60 shadow-manus-xs">
@@ -66,8 +65,6 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
           td({ children }: any) {
             return <td className="px-3.5 py-2 border-t border-border/50 text-foreground/90">{children}</td>;
           },
-
-          // Typography styling
           h1({ children }: any) {
             return <h1 className="text-base font-semibold font-heading text-foreground mt-4 mb-2">{children}</h1>;
           },

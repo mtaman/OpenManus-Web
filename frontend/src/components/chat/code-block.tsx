@@ -73,7 +73,7 @@ export function CodeBlock({
 
   const cleanCode = typeof code === "string" ? code.trim() : String(code || "");
   const lines = cleanCode.split("\n");
-  const isLong = lines.length > 25;
+  const isLong = lines.length > 20;
 
   const normalizedLang = languageAliases[language.toLowerCase()] || "javascript";
   const displayLang = (language || "TEXT").toUpperCase();
@@ -90,7 +90,6 @@ export function CodeBlock({
         textArea.value = cleanCode;
         textArea.style.position = "fixed";
         textArea.style.left = "-999999px";
-        textArea.style.top = "-999999px";
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
@@ -136,26 +135,25 @@ export function CodeBlock({
 
   return (
     <div className={`my-3 overflow-hidden rounded-xl border border-border bg-[#0d1117] text-slate-100 shadow-manus-sm font-sans ${className}`}>
-      {/* Code Header Bar */}
       <div className="flex items-center justify-between px-3.5 py-2 border-b border-border/60 bg-[#161b22]">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 truncate">
           {normalizedLang === "bash" ? (
-            <Terminal size={13} className="text-primary" />
+            <Terminal size={13} className="text-primary flex-shrink-0" />
           ) : (
-            <FileCode size={13} className="text-primary" />
+            <FileCode size={13} className="text-primary flex-shrink-0" />
           )}
-          <span className="font-mono text-xs font-semibold text-foreground/90">
+          <span className="font-mono text-xs font-semibold text-foreground/90 truncate max-w-[180px] sm:max-w-none">
             {defaultFilename}
           </span>
           <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-muted/60 text-muted-foreground border border-border/40">
             {displayLang}
           </span>
-          <span className="text-[11px] font-mono text-muted-foreground">
+          <span className="hidden sm:inline-block text-[11px] font-mono text-muted-foreground">
             ({lines.length} lines)
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
             type="button"
             onClick={handleOpenInSandbox}
@@ -197,24 +195,23 @@ export function CodeBlock({
         </div>
       </div>
 
-      {/* Code Body */}
-      <div className={`relative transition-all ${isLong && !isExpanded ? "max-h-72 overflow-hidden" : "overflow-x-auto"}`}>
+      <div className={`relative transition-all ${isLong && !isExpanded ? "max-h-[380px] overflow-y-auto" : "overflow-x-auto"}`}>
         <HighlightComponent
           theme={themes.nightOwl}
           code={cleanCode}
           language={normalizedLang}
         >
-          {({ className, style, tokens, getLineProps, getTokenProps }: any) => (
+          {({ className: highlightClass, style, tokens, getLineProps, getTokenProps }: any) => (
             <pre
-              className={`${className} p-3.5 text-xs font-mono leading-relaxed bg-transparent m-0 overflow-x-auto`}
+              className={`${highlightClass} p-3.5 text-xs font-mono leading-relaxed bg-transparent m-0 min-w-full`}
               style={style}
             >
               {tokens.map((line: any, i: number) => (
                 <div key={i} {...getLineProps({ line })} className="table-row">
-                  <span className="table-cell select-none pr-4 text-right text-[11px] font-mono opacity-30 w-8">
+                  <span className="table-cell select-none pr-4 text-right text-[11px] font-mono opacity-35 w-8">
                     {i + 1}
                   </span>
-                  <span className="table-cell">
+                  <span className="table-cell whitespace-pre">
                     {line.map((token: any, key: number) => (
                       <span key={key} {...getTokenProps({ token })} />
                     ))}
@@ -224,13 +221,8 @@ export function CodeBlock({
             </pre>
           )}
         </HighlightComponent>
-
-        {isLong && !isExpanded && (
-          <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0d1117] via-[#0d1117]/80 to-transparent pointer-events-none" />
-        )}
       </div>
 
-      {/* Expand / Collapse Action Bar */}
       {isLong && (
         <div className="flex items-center justify-center p-1.5 border-t border-border/40 bg-[#161b22]/70">
           <button
@@ -241,12 +233,12 @@ export function CodeBlock({
             {isExpanded ? (
               <>
                 <ChevronUp size={13} />
-                <span>Show less</span>
+                <span>Collapse snippet</span>
               </>
             ) : (
               <>
                 <ChevronDown size={13} />
-                <span>Show all {lines.length} lines</span>
+                <span>Expand full view ({lines.length} lines)</span>
               </>
             )}
           </button>

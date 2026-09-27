@@ -26,7 +26,8 @@ import {
   Globe,
   Palette,
   Gamepad2,
-  ArrowUp
+  ArrowUp,
+  Activity
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkspacePanel } from "@/components/workspace/workspace-panel";
@@ -75,8 +76,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [selectedFileForEditor, setSelectedFileForEditor] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Record<number, boolean>>({});
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+  const [showRawTrace, setShowRawTrace] = useState(false);
 
-  // Closed by default for fresh sessions to ensure a clean landing
   const [showRightPanel, setShowRightPanel] = useState<boolean>(Boolean(initialJobId));
   const [sandboxDraft, setSandboxDraft] = useState<{ filename: string; content: string } | null>(null);
 
@@ -89,7 +90,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-    useEffect(() => {
+  useEffect(() => {
     const handleSandboxEvent = (e: Event) => {
       const customEvent = e as CustomEvent<{ code: string; language: string; filename: string }>;
       if (customEvent.detail) {
@@ -114,6 +115,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       connectStream(initialJobId);
       setShowRightPanel(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialJobId]);
 
   const fetchJobDetails = async (jobId: string) => {
@@ -144,7 +146,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           if (replayed.length > 0) setShowRightPanel(true);
         }
 
-        // Keep reasoning collapsed on completed runs
         if (data.status === "completed") {
           setExpandedSteps({});
         }
@@ -186,8 +187,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     const handleEventPayload = (eventType: string, payload: any) => {
       const step = payload.step || 1;
       setCurrentStepNum(step);
-
-      // Keep active step open during execution
       setExpandedSteps((prev) => ({ ...prev, [step]: true }));
 
       if (eventType === "thought") {
@@ -217,7 +216,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         const resText = payload.data?.result ?? "Task completed successfully.";
         setFinalResult(safeRender(resText));
         setStatus("completed");
-        // Auto-collapse reasoning steps when completed to prioritize the final deliverable
         setExpandedSteps({});
         fetchJobFiles(jobId);
         es.close();
@@ -416,11 +414,18 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
   const isFreshSession = steps.length === 0 && !submittedPrompt && status !== "running";
 
+  const isRawTraceOutput = Boolean(
+    finalResult &&
+    (finalResult.includes("Observed output of cmd") || finalResult.startsWith("Step 1:"))
+  );
+
+  const lastInformativeThought = [...steps]
+    .reverse()
+    .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step "));
+
   return (
     <div className="flex h-full w-full bg-background text-foreground overflow-hidden font-sans">
-      {/* Main Interaction Cockpit */}
       <div className="flex-1 flex flex-col h-full border-r border-border min-w-0 transition-all">
-        {/* Cockpit Sub-Header */}
         <div className="h-12 flex items-center justify-between px-5 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
           <div className="flex items-center gap-2.5">
             <button
@@ -487,14 +492,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           </div>
         </div>
 
-        {/* Dynamic Body: Centered Landing Screen OR Active Chat Stream */}
         {isFreshSession ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full">
             <h1 className="font-serif text-3xl sm:text-4xl font-normal text-foreground tracking-tight mb-8">
               What can I do for you?
             </h1>
 
-            {/* Centered Large Composer */}
             <div className="w-full bg-card rounded-2xl border border-border shadow-manus-md p-3.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all text-left">
               <textarea
                 ref={textareaRef}
@@ -502,7 +505,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={3}
-                placeholder="Assign a task or type / for more..."
+                placeholder="Assign an autonomous task or type code to execute..."
                 className="w-full bg-transparent border-0 outline-none text-sm text-foreground placeholder:text-muted-foreground resize-none leading-relaxed"
               />
               <div className="flex items-center justify-between pt-2 border-t border-border/50 mt-1">
@@ -524,7 +527,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             </div>
 
-            {/* Quick Action Pills */}
             <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
               {quickPills.map((pill, idx) => (
                 <button
@@ -540,7 +542,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             </div>
           </div>
         ) : (
-          /* Active Chat Stream Feed */
           <div className="flex-1 overflow-y-auto p-5 space-y-3.5">
             {submittedPrompt && (
               <div className="p-3.5 rounded-xl bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
@@ -577,7 +578,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             )}
 
-            {/* Human Intervention Required */}
             {humanQuery && (
               <div className="p-4 rounded-xl bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
                 <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
@@ -607,12 +607,11 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             )}
 
-            {/* Running Status Indicator */}
             {status === "running" && (
               <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
                 <div className="flex items-center gap-2 text-xs">
                   <Loader2 size={13} className="animate-spin text-manus-accent" />
-                  <span>Agent reasoning & executing autonomously...</span>
+                  <span>Agent reasoning &amp; executing autonomously...</span>
                 </div>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
                   {elapsedSeconds}s
@@ -620,7 +619,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             )}
 
-            {/* Grouped Step Accordions (Auto-Collapsing Supported) */}
             {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
               const stepNum = parseInt(stepNumStr, 10);
               const isExpanded = expandedSteps[stepNum] === true;
@@ -638,7 +636,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                       ) : (
                         <ChevronRight size={14} className="text-muted-foreground" />
                       )}
-                      <span className="text-xs font-medium text-foreground">
+                      <span className="text-xs font-semibold text-foreground">
                         Execution Step {stepNum}
                       </span>
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground">
@@ -695,12 +693,11 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               );
             })}
 
-            {/* Final Deliverable Card with Rich Markdown & CodeBlock support */}
             {finalResult && (
               <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-manus-success font-semibold tracking-wide text-xs">
-                    TASK DELIVERABLE COMPLETED
+                  <span className="text-manus-success font-semibold tracking-wide text-xs flex items-center gap-1.5">
+                    <span>TASK DELIVERABLE COMPLETED</span>
                   </span>
                   <button
                     type="button"
@@ -722,9 +719,42 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   </button>
                 </div>
 
-                <div className="text-foreground leading-relaxed">
-                  <MarkdownRenderer content={finalResult} />
-                </div>
+                {isRawTraceOutput ? (
+                  <div className="space-y-3">
+                    {lastInformativeThought ? (
+                      <div className="bg-background/60 p-3 rounded-lg border border-border/50 text-foreground leading-relaxed">
+                        <MarkdownRenderer content={lastInformativeThought.content} />
+                      </div>
+                    ) : (
+                      <p className="text-foreground/90 font-medium">
+                        Autonomous execution completed successfully. All artifacts and output files are prepared below.
+                      </p>
+                    )}
+
+                    <div className="border border-border/60 rounded-lg overflow-hidden bg-background/40">
+                      <button
+                        type="button"
+                        onClick={() => setShowRawTrace(!showRawTrace)}
+                        className="w-full flex items-center justify-between px-3 py-1.5 text-muted-foreground hover:text-foreground text-[11px] font-mono cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Activity size={12} />
+                          <span>Execution Trace &amp; Observations</span>
+                        </span>
+                        <span>{showRawTrace ? "Hide trace" : "View diagnostic trace"}</span>
+                      </button>
+                      {showRawTrace && (
+                        <div className="p-2.5 border-t border-border/40 font-mono text-[11px] text-muted-foreground bg-muted/30 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                          {finalResult}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-foreground leading-relaxed">
+                    <MarkdownRenderer content={finalResult} />
+                  </div>
+                )}
 
                 {producedFiles.length > 0 && (
                   <div className="pt-2.5 border-t border-manus-success/20">
@@ -755,7 +785,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           </div>
         )}
 
-        {/* Bottom Composer when session is active */}
         {!isFreshSession && (
           <div className="p-4 border-t border-border bg-card/40 space-y-2 shrink-0">
             <div className="relative flex items-center rounded-xl border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
@@ -782,7 +811,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         )}
       </div>
 
-      {/* Right Sandbox Workspace Panel */}
       {showRightPanel && (
         <div className="flex-1 h-full min-w-0 transition-all">
           <WorkspacePanel
