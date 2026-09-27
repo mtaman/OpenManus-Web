@@ -29,8 +29,8 @@ __pycache__/
 !/frontend/.env.local.example
 
 # Task output workspaces (local execution artifacts only)
-workspace/
-workspace/*
+/workspace/
+/workspace/*
 backend/workspace/
 backend/workspace/*
 backend/trending_repos.md

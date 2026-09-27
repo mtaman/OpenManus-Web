@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link
           href="/chat"
           title="Manus Agent"
-          className="w-9 h-9 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-serif font-bold text-sm shadow-manus-xs hover:opacity-90 transition-transform active:scale-95 mb-5"
+          className="w-9 h-9  text-primary-foreground flex items-center justify-center font-serif font-bold text-sm shadow-manus-xs hover:opacity-90 transition-transform active:scale-95 mb-5"
         ><img src="/logo.png" alt="OpenManus" className="w-8 h-8 rounded-lg object-contain shadow-manus-xs" /></Link>
 
         {/* Primary Navigation Rail */}
