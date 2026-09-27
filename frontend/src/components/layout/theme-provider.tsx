@@ -1,14 +1,17 @@
-"use client";
+﻿"use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import "@/i18n";
 
 type Theme = "dark" | "light" | "system";
 
-interface ThemeProviderProps {
+export interface ThemeProviderProps {
   children: React.ReactNode;
   defaultTheme?: Theme;
   storageKey?: string;
+  attribute?: string;
+  enableSystem?: boolean;
+  disableTransitionOnChange?: boolean;
 }
 
 interface ThemeProviderState {
@@ -25,8 +28,11 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "dark",
+  defaultTheme = "system",
   storageKey = "theme",
+  attribute = "class",
+  enableSystem = true,
+  disableTransitionOnChange = false,
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(defaultTheme);
@@ -44,7 +50,7 @@ export function ThemeProvider({
     const root = window.document.documentElement;
     root.classList.remove("light", "dark");
 
-    if (theme === "system") {
+    if (theme === "system" && enableSystem) {
       const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"
         : "light";
@@ -52,8 +58,8 @@ export function ThemeProvider({
       return;
     }
 
-    root.classList.add(theme);
-  }, [theme, mounted]);
+    root.classList.add(theme === "system" ? "dark" : theme);
+  }, [theme, mounted, enableSystem]);
 
   const value = {
     theme,
