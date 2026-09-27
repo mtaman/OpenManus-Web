@@ -7,7 +7,7 @@ export function Card({ children, className, ...props }: React.HTMLAttributes<HTM
     <div
       className={twMerge(
         clsx(
-          "bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded-[var(--radius-lg)] p-4 shadow-sm",
+          "bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded-[var(--radius-xs)] p-4 shadow-sm",
           className
         )
       )}

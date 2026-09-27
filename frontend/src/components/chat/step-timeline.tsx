@@ -18,7 +18,7 @@ export function StepTimeline({ steps }: { steps: StepGroup[] }) {
       {populatedSteps.map((group) => (
         <div
           key={group.step}
-          className="rounded-[var(--radius-lg)] border border-[var(--color-line)] bg-[var(--color-surface-1)] p-3.5 shadow-sm"
+          className="rounded-[var(--radius-xs)] border border-[var(--color-line)] bg-[var(--color-surface-1)] p-3.5 shadow-sm"
         >
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--color-line-subtle)] text-xs font-mono text-[var(--color-ink-muted)]">
             <span className="font-semibold text-[var(--color-ink)]">Execution Step {group.step}</span>

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -38,7 +38,7 @@ export function Sidebar() {
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [pRes, cRes] = await Promise.all([
         fetch("/api/chats/projects"),
@@ -55,13 +55,44 @@ export function Sidebar() {
     } catch (e) {
       console.error("Failed to load sidebar data", e);
     }
-  };
+  }, []);
 
+  // Initial load and sync on route change
   useEffect(() => {
     fetchData();
-    const timer = setInterval(fetchData, 4000);
+  }, [fetchData, pathname]);
+
+  // Window focus & custom event listeners (smart refresh without background noise)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchData();
+      }
+    };
+    window.addEventListener("focus", handleVisibility);
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("omweb:refresh-sidebar", fetchData);
+
+    return () => {
+      window.removeEventListener("focus", handleVisibility);
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("omweb:refresh-sidebar", fetchData);
+    };
+  }, [fetchData]);
+
+  // Conditional polling: ONLY active if a task/session is currently in 'running' state
+  useEffect(() => {
+    const hasRunningTask = chats.some((c) => c.status === "running");
+    if (!hasRunningTask) return;
+
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchData();
+      }
+    }, 6000);
+
     return () => clearInterval(timer);
-  }, []);
+  }, [chats, fetchData]);
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,7 +179,7 @@ export function Sidebar() {
                 placeholder="Workspace name..."
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded-md bg-background text-xs border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-sans"
+                className="w-full px-2.5 py-1.5 rounded-xs bg-background text-xs border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-sans"
               />
             </form>
           )}
@@ -166,7 +197,7 @@ export function Sidebar() {
                   <Link
                     key={proj.id}
                     href={`/projects/${proj.id}`}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-all ${
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-xs text-xs transition-all ${
                       isActiveProj
                         ? "bg-muted text-foreground font-medium border border-border/80 shadow-manus-xs"
                         : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
