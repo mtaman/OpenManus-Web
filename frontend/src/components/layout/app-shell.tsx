@@ -7,10 +7,10 @@ import {
   MessageSquare,
   Folder,
   FolderOpen,
-  History,
   Settings,
+  History,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
 } from "lucide-react";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -18,9 +18,9 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const navItems = [
   { href: "/chat", icon: MessageSquare, label: "Chat" },
-  { href: "/projects", icon: Folder, label: "Projects" },
-  { href: "/files", icon: FolderOpen, label: "Files" },
+  { href: "/projects", icon: FolderOpen, label: "Projects" },
   { href: "/history", icon: History, label: "History" },
+  { href: "/files", icon: Folder, label: "Files" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
@@ -28,60 +28,75 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Standalone Fullscreen Mode for Setup Wizard
+  if (pathname === "/setup") {
+    return (
+      <div className="min-h-screen w-screen bg-background text-foreground font-sans overflow-x-hidden selection:bg-primary/25">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground font-sans">
       {/* 64px Primary Icon Rail (Manus Architecture) */}
-      <aside className="w-16 flex-shrink-0 flex flex-col items-center py-3 bg-card border-r border-border z-30 select-none">
-        {/* Brand Monogram */}
-        <Link
-          href="/chat"
-          title="Manus Agent"
-          className="w-9 h-9  text-primary-foreground flex items-center justify-center font-serif font-bold text-sm shadow-manus-xs hover:opacity-90 transition-transform active:scale-95 mb-5"
-        ><img src="/logo.png" alt="OpenManus" className="w-8 h-8 rounded-lg object-contain shadow-manus-xs" /></Link>
+      <aside className="w-16 h-full flex flex-col items-center justify-between py-3 border-r border-border bg-card/60 backdrop-blur-md z-30 shrink-0 select-none">
+        {/* Brand Logo */}
+        <div className="flex flex-col items-center gap-4">
+          <Link
+            href="/chat"
+            className="w-10 h-10 rounded-xl bg-card border border-border/80 flex items-center justify-center p-1.5 shadow-manus-xs hover:border-primary/50 transition-all group"
+            title="OpenManus Web"
+          >
+            <img
+              src="/logo.png"
+              alt="OpenManus"
+              className="w-full h-full object-contain group-hover:scale-105 transition-transform"
+            />
+          </Link>
 
-        {/* Primary Navigation Rail */}
-        <nav className="flex-1 flex flex-col gap-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active =
-              pathname === item.href ||
-              (item.href !== "/chat" && pathname.startsWith(item.href)) ||
-              (item.href === "/chat" && pathname.startsWith("/chat"));
+          {/* Navigation Rail */}
+          <nav className="flex flex-col gap-1.5">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active =
+                pathname === item.href ||
+                (item.href !== "/chat" && pathname.startsWith(item.href)) ||
+                (item.href === "/chat" && pathname.startsWith("/chat"));
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={item.label}
-                className={`w-10 h-10 flex items-center justify-center rounded-md transition-all duration-150 ${
-                  active
-                    ? "bg-primary text-primary-foreground shadow-manus-xs"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <Icon size={18} strokeWidth={active ? 2 : 1.75} />
-              </Link>
-            );
-          })}
-        </nav>
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.label}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
+                    active
+                      ? "bg-primary text-primary-foreground shadow-manus-xs"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <Icon size={18} />
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
 
         {/* Toggle secondary sidebar button */}
-        <button
-          type="button"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-          className="w-10 h-10 mb-2 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
-        >
-          {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-        </button>
+        <div className="flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+            className="w-10 h-10 mb-2 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+          >
+            {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+          </button>
 
-        {/* Bottom Rail Actions */}
-        <div className="flex flex-col items-center gap-2 pt-2 border-t border-border/60">
-          <ThemeToggle />
-          <div
-            title="Core Online"
-            className="w-2 h-2 rounded-full bg-manus-success mt-1 animate-pulse"
-          />
+          {/* Bottom Rail Actions */}
+          <div className="flex flex-col items-center gap-2 pt-2 border-t border-border/60">
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 
