@@ -48,7 +48,7 @@ export function ChatComposer({
 
   return (
     <form onSubmit={handleSubmit} className="relative flex flex-col w-full">
-      <div className="flex items-end gap-2 bg-card border border-border rounded-xl p-2 shadow-sm focus-within:border-primary/50 transition-colors">
+      <div className="flex items-end gap-2 bg-card border border-border rounded-xl p-2 shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all">
         <textarea
           ref={textareaRef}
           value={input}
@@ -57,7 +57,7 @@ export function ChatComposer({
           placeholder={placeholder}
           disabled={disabled && !isStreaming}
           rows={1}
-          className="flex-1 bg-transparent resize-none border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground max-h-40 py-1.5 px-2"
+          className="flex-1 bg-transparent resize-none border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground max-h-40 py-1 px-2"
         />
         {isStreaming ? (
           <Button
@@ -65,9 +65,9 @@ export function ChatComposer({
             size="sm"
             variant="destructive"
             onClick={onStop}
-            className="h-8 px-3 shrink-0"
+            className="h-7 px-2.5 text-xs rounded-md shrink-0 cursor-pointer shadow-manus-xs"
           >
-            <Square className="w-3.5 h-3.5 mr-1" />
+            <Square className="w-3 h-3 mr-1 fill-current" />
             <span>Stop</span>
           </Button>
         ) : (
@@ -75,9 +75,9 @@ export function ChatComposer({
             type="submit"
             size="sm"
             disabled={disabled || !input.trim()}
-            className="h-8 w-8 p-0 shrink-0 rounded-lg"
+            className="h-7 w-7 p-0 shrink-0 rounded-md cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs"
           >
-            <Send className="w-3.5 h-3.5" />
+            <Send className="w-3 h-3" />
           </Button>
         )}
       </div>

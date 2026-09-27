@@ -1,40 +1,51 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { useTheme } from "@/components/layout/theme-provider";
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
+    setMounted(true);
   }, []);
 
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    if (newTheme === "dark") {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+  if (!mounted) {
+    return (
+      <div 
+        className="w-8 h-8 rounded-md border border-border bg-card shadow-manus-xs opacity-50"
+        aria-hidden="true" 
+      />
+    );
+  }
+
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  const handleToggle = () => {
+    setTheme(isDark ? "light" : "dark");
   };
 
   return (
     <button
-      onClick={toggleTheme}
+      onClick={handleToggle}
       type="button"
       aria-label="Toggle Theme"
-      className="p-2 rounded-lg border border-border bg-card text-foreground hover:bg-muted transition-colors"
+      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-border bg-card text-foreground shadow-manus-xs hover:bg-muted hover:text-foreground active:scale-95 transition-all duration-150 cursor-pointer"
     >
-      {theme === "dark" ? (
-        <Sun className="h-4 w-4 text-amber-400"/>
+      {isDark ? (
+        <Sun className="h-4 w-4 text-amber-400 transition-transform duration-200 rotate-0 hover:rotate-45" />
       ) : (
-        <Moon className="h-4 w-4 text-slate-700"/>
+        <Moon className="h-4 w-4 text-[#34322D] transition-transform duration-200 -rotate-12 hover:rotate-0" />
       )}
     </button>
   );
 }
+
+export default ThemeToggle;
