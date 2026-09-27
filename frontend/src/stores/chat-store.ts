@@ -7,6 +7,9 @@ export interface AgentStep {
   type: "thought" | "tool_call" | "observation" | "plan";
   content: string;
   timestamp: string;
+  tool_name?: string;
+  tool_args?: Record<string, any>;
+  toolName?: string;
 }
 
 export interface ChatMessage {
@@ -72,16 +75,18 @@ export const useChatStore = create<ChatState>((set) => ({
               role: "user",
               content: chat.prompt || chat.title,
               timestamp: chat.created_at || new Date().toISOString(),
-              status: chat.status === "completed" ? "completed" : "running"
-            }
+              status: chat.status === "completed" ? "completed" : "running",
+            },
           ],
           activeSteps: (chat.events || []).map((ev: any, idx: number) => ({
             id: `step_${idx}`,
             step_number: idx + 1,
             type: ev.type || "thought",
             content: typeof ev.data === "string" ? ev.data : (ev.data?.content || JSON.stringify(ev.data)),
-            timestamp: new Date().toISOString()
-          }))
+            timestamp: new Date().toISOString(),
+            tool_name: ev.data?.name || ev.data?.tool,
+            tool_args: ev.data?.arguments,
+          })),
         });
       }
     } catch (err) {
@@ -96,7 +101,7 @@ export const useChatStore = create<ChatState>((set) => ({
 
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   updateMessageStatus: (id, status) => set((state) => ({
-    messages: state.messages.map((msg) => msg.id === id ? { ...msg, status } : msg)
+    messages: state.messages.map((msg) => (msg.id === id ? { ...msg, status } : msg)),
   })),
   appendStep: (step) => set((state) => ({ activeSteps: [...state.activeSteps, step] })),
   clearActiveSteps: () => set({ activeSteps: [] }),
