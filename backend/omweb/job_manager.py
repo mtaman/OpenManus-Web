@@ -48,6 +48,14 @@ class JobManager:
             if error is not None:
                 job.error = error
 
+    def complete_job(self, job_id: str, result: Optional[str] = None) -> None:
+        """Marks the job as completed with the given result text."""
+        self.update_status(job_id, status="completed", result=result)
+
+    def fail_job(self, job_id: str, error: Optional[str] = None) -> None:
+        """Marks the job as failed with the given error message."""
+        self.update_status(job_id, status="failed", error=error)
+
     def list_jobs(self) -> List[Dict[str, Any]]:
         return [job.to_dict() for job in sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)]
 
