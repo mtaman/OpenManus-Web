@@ -1,6 +1,13 @@
 ﻿<div align="center">
 
 <img src="assets/image/OpenManus-Web-logo-2.png" alt="OpenManus Web Logo" width="200">
+
+[![OpenManus](https://img.shields.io/badge/OpenManus-Core-blue?style=for-the-badge&logo=github)](https://github.com/FoundationAgents/OpenManus)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI%202.0-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-000000?style=for-the-badge&logo=next.js)](https://nextjs.org)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+
 </div>
 
 # 👋 OpenManus Web — Professional Dashboard for the OpenManus AI Agent
@@ -10,10 +17,7 @@
 
 **A complete web interface for full control of OpenManus — visual execution, live streaming, and complete file & settings management.**
 
-[![OpenManus](https://img.shields.io/badge/OpenManus-Core-blue?style=for-the-badge&logo=github)](https://github.com/FoundationAgents/OpenManus)
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI%202.0-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-000000?style=for-the-badge&logo=next.js)](https://nextjs.org)
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
 
 </div>
 
