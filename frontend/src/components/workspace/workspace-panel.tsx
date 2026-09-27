@@ -43,13 +43,21 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
           setJobFiles(list);
 
           if (!selectedFilePath && list.length > 0) {
-            const entryHtml =
+            const entryFile =
               list.find((f: any) => f.name.toLowerCase() === "index.html") ||
-              list.find((f: any) => f.name.toLowerCase().endsWith(".html") || f.name.toLowerCase().endsWith(".htm")) ||
+              list.find((f: any) => {
+                const l = f.name.toLowerCase();
+                return l.endsWith(".html") || l.endsWith(".htm");
+              }) ||
+              list.find((f: any) => {
+                const l = f.name.toLowerCase();
+                return l.endsWith(".md") || l.endsWith(".markdown");
+              }) ||
+              list.find((f: any) => f.name.toLowerCase().endsWith(".svg")) ||
               list[0];
 
-            if (entryHtml) {
-              setSelectedFilePath(entryHtml.name);
+            if (entryFile) {
+              setSelectedFilePath(entryFile.name);
             }
           }
         }
@@ -67,10 +75,32 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
     setSelectedFilePath(filename);
     setDraftContent(null);
     const lower = filename.toLowerCase();
-    if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+    const isPreviewable =
+      lower.endsWith(".html") ||
+      lower.endsWith(".htm") ||
+      lower.endsWith(".md") ||
+      lower.endsWith(".markdown") ||
+      lower.endsWith(".svg");
+
+    if (isPreviewable) {
       setActiveTab("preview");
     } else {
       setActiveTab("editor");
+    }
+  };
+
+  const handleEditorSaved = (savedPath: string) => {
+    setSelectedFilePath(savedPath);
+    const lower = savedPath.toLowerCase();
+    const isPreviewable =
+      lower.endsWith(".html") ||
+      lower.endsWith(".htm") ||
+      lower.endsWith(".md") ||
+      lower.endsWith(".markdown") ||
+      lower.endsWith(".svg");
+
+    if (isPreviewable) {
+      setActiveTab("preview");
     }
   };
 
@@ -84,12 +114,7 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
     if (overrideDraft) {
       setSelectedFilePath(overrideDraft.filename);
       setDraftContent(overrideDraft.content);
-      const lower = overrideDraft.filename.toLowerCase();
-      if (lower.endsWith(".html") || lower.endsWith(".htm")) {
-        setActiveTab("editor");
-      } else {
-        setActiveTab("editor");
-      }
+      setActiveTab("editor");
     }
   }, [overrideDraft]);
 
@@ -142,7 +167,12 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
         {activeTab === "artifacts" && <ArtifactsTab />}
         {activeTab === "logs" && <LogsTab />}
         {activeTab === "editor" && (
-          <EditorTab filePath={selectedFilePath} initialContent={draftContent} activeJobId={activeJobId} />
+          <EditorTab
+            filePath={selectedFilePath}
+            initialContent={draftContent}
+            activeJobId={activeJobId}
+            onSave={handleEditorSaved}
+          />
         )}
       </div>
     </div>

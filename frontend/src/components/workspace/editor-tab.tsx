@@ -9,6 +9,7 @@ export interface EditorTabProps {
   filePath?: string | null;
   initialContent?: string | null;
   activeJobId?: string | null;
+  onSave?: (filePath: string, content: string) => void;
 }
 
 const extToLangMap: Record<string, string> = {
@@ -26,6 +27,7 @@ const extToLangMap: Record<string, string> = {
   sh: "bash",
   bash: "bash",
   md: "markdown",
+  markdown: "markdown",
   sql: "sql",
   yaml: "yaml",
   yml: "yaml",
@@ -36,7 +38,7 @@ const extToLangMap: Record<string, string> = {
   txt: "text",
 };
 
-export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabProps) {
+export function EditorTab({ filePath, initialContent, activeJobId, onSave }: EditorTabProps) {
   const [content, setContent] = useState<string>(initialContent || "");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -47,7 +49,6 @@ export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabPr
   const preRef = useRef<HTMLPreElement | null>(null);
   const gutterRef = useRef<HTMLDivElement | null>(null);
 
-  // Detect file language
   const fileExt = filePath ? (filePath.split(".").pop()?.toLowerCase() || "") : "txt";
   const detectedLanguage = extToLangMap[fileExt] || "javascript";
   const displayLang = (fileExt || "TEXT").toUpperCase();
@@ -84,7 +85,6 @@ export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabPr
     loadFile();
   }, [filePath, initialContent]);
 
-  // Synchronized scrolling between textarea, highlight overlay, and gutter
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
     if (preRef.current) {
@@ -96,7 +96,6 @@ export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabPr
     }
   };
 
-  // Support Tab key for indentation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Tab") {
       e.preventDefault();
@@ -136,6 +135,14 @@ export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabPr
 
       if (res.ok) {
         setStatusMsg("Saved successfully");
+        onSave?.(filePath, content);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("openmanus:file-saved", {
+              detail: { path: filePath, content },
+            })
+          );
+        }
         setTimeout(() => setStatusMsg(null), 3500);
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -150,8 +157,6 @@ export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabPr
 
   const lines = content.split("\n");
   const lineCount = Math.max(1, lines.length);
-
-  // Safe wrapper for React 19 JSX compatibility
   const HighlightComponent = Highlight as any;
 
   return (
@@ -240,7 +245,6 @@ export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabPr
 
       {/* Editor Body */}
       <div className="relative flex-1 flex min-h-0 bg-[#0d1117] overflow-hidden">
-        {/* Line Numbers Gutter */}
         <div
           ref={gutterRef}
           aria-hidden="true"
@@ -251,9 +255,7 @@ export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabPr
           ))}
         </div>
 
-        {/* Code Canvas Area (Synchronized Highlighting + Input) */}
         <div className="relative flex-1 min-w-0 h-full overflow-hidden">
-          {/* Syntax Highlighting Background Layer */}
           <pre
             ref={preRef}
             aria-hidden="true"
@@ -279,7 +281,6 @@ export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabPr
             </HighlightComponent>
           </pre>
 
-          {/* Transparent Interactive Textarea Overlay */}
           <textarea
             ref={textareaRef}
             value={content}

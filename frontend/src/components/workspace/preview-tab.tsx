@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Monitor, RefreshCw, ExternalLink, Code2, Sparkles } from "lucide-react";
+import { Monitor, RefreshCw, ExternalLink, Code2, Sparkles, FileText, Image as ImageIcon } from "lucide-react";
+import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 
 export interface PreviewTabProps {
   jobId?: string | null;
@@ -16,30 +17,60 @@ export function PreviewTab({
   activeJobId,
   currentHtmlPath,
   filePath,
-  overrideFile
+  overrideFile,
 }: PreviewTabProps) {
   const effectiveJobId = jobId || activeJobId || null;
   const [autoFile, setAutoFile] = useState<string | null>(null);
-
   const explicitFile = overrideFile || currentHtmlPath || filePath || null;
   const effectiveFile = explicitFile || autoFile;
 
-  const [rawHtml, setRawHtml] = useState<string>("");
+  const [rawContent, setRawContent] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
+  // File classification
+  const lowerFile = (effectiveFile || "").toLowerCase();
+  const isMarkdown = lowerFile.endsWith(".md") || lowerFile.endsWith(".markdown");
+  const isSvg = lowerFile.endsWith(".svg");
+  const isHtml = lowerFile.endsWith(".html") || lowerFile.endsWith(".htm");
+
+  // Listen to openmanus:file-saved event for instant automatic reload
+  useEffect(() => {
+    const handleSaved = (e: Event) => {
+      const ce = e as CustomEvent<{ path?: string }>;
+      if (!effectiveFile || !ce.detail?.path || ce.detail.path.endsWith(effectiveFile) || effectiveFile.endsWith(ce.detail.path)) {
+        setRefreshKey((k) => k + 1);
+      }
+    };
+
+    window.addEventListener("openmanus:file-saved", handleSaved);
+    return () => {
+      window.removeEventListener("openmanus:file-saved", handleSaved);
+    };
+  }, [effectiveFile]);
+
+  // Discover previewable file automatically if none specified
   useEffect(() => {
     if (effectiveJobId && !explicitFile) {
       fetch(`/api/run/jobs/${effectiveJobId}/files`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.files && Array.isArray(data.files)) {
-            const html = data.files.find((f: { name: string }) => {
-              const lower = f.name.toLowerCase();
-              return lower.endsWith(".html") || lower.endsWith(".htm");
-            });
-            if (html) {
-              setAutoFile(html.name);
+            // Priority: index.html > any .html > any .md > any .svg
+            const bestFile =
+              data.files.find((f: any) => f.name.toLowerCase() === "index.html") ||
+              data.files.find((f: any) => {
+                const l = f.name.toLowerCase();
+                return l.endsWith(".html") || l.endsWith(".htm");
+              }) ||
+              data.files.find((f: any) => {
+                const l = f.name.toLowerCase();
+                return l.endsWith(".md") || l.endsWith(".markdown");
+              }) ||
+              data.files.find((f: any) => f.name.toLowerCase().endsWith(".svg"));
+
+            if (bestFile) {
+              setAutoFile(bestFile.name);
             }
           }
         })
@@ -47,45 +78,51 @@ export function PreviewTab({
     }
   }, [effectiveJobId, explicitFile]);
 
-  const fetchHtml = useCallback(async () => {
-    if (!effectiveJobId || !effectiveFile) {
-      setRawHtml("");
+  // Fetch file content with dual fallback (content API & job storage)
+  const fetchContent = useCallback(async () => {
+    if (!effectiveFile) {
+      setRawContent("");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/run/jobs/${effectiveJobId}/content?path=${encodeURIComponent(effectiveFile)}`);
+      let res = await fetch(`/api/files/content?path=${encodeURIComponent(effectiveFile)}`);
+      if (!res.ok && effectiveJobId) {
+        res = await fetch(`/api/run/jobs/${effectiveJobId}/content?path=${encodeURIComponent(effectiveFile)}`);
+      }
+
       if (res.ok) {
         const data = await res.json();
-        setRawHtml(data.content || "");
+        setRawContent(data.content || "");
       } else {
-        setRawHtml("");
+        setRawContent("");
       }
     } catch (e) {
       console.error("Failed to load preview content", e);
-      setRawHtml("");
+      setRawContent("");
     } finally {
       setLoading(false);
     }
-  }, [effectiveJobId, effectiveFile, refreshKey]);
+  }, [effectiveFile, effectiveJobId, refreshKey]);
 
   useEffect(() => {
-    fetchHtml();
-  }, [fetchHtml]);
+    fetchContent();
+  }, [fetchContent]);
 
+  // Sandboxed HTML base href injection
   const sandboxedHtml = useMemo(() => {
-    if (!rawHtml || !effectiveJobId) return "";
-    const baseHref = `/api/run/jobs/${effectiveJobId}/raw/`;
+    if (!rawContent || !isHtml) return "";
+    const baseHref = effectiveJobId ? `/api/run/jobs/${effectiveJobId}/raw/` : `/api/files/raw/`;
     const baseTag = `<base href="${baseHref}">`;
 
-    if (rawHtml.includes("<head>")) {
-      return rawHtml.replace("<head>", `<head>${baseTag}`);
+    if (rawContent.includes("<head>")) {
+      return rawContent.replace("<head>", `<head>${baseTag}`);
     }
-    return `${baseTag}${rawHtml}`;
-  }, [rawHtml, effectiveJobId]);
+    return `${baseTag}${rawContent}`;
+  }, [rawContent, isHtml, effectiveJobId]);
 
-  if (!effectiveJobId || !effectiveFile || !rawHtml) {
+  if (!effectiveFile || (!rawContent && !loading)) {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full bg-background text-muted-foreground p-8 select-none font-sans">
         <div className="flex flex-col items-center max-w-sm text-center space-y-4">
@@ -96,7 +133,7 @@ export function PreviewTab({
           <div>
             <h3 className="text-sm font-semibold font-heading text-foreground">Sandbox Standby</h3>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Live web applications and HTML deliverables generated for this session will appear here in real time.
+              Live web applications (.html, .svg) and Markdown documents (.md) will render here in real time.
             </p>
           </div>
           {loading && (
@@ -110,32 +147,49 @@ export function PreviewTab({
     );
   }
 
-  const rawUrl = `/api/run/jobs/${effectiveJobId}/raw/${effectiveFile}`;
+  const rawUrl = effectiveJobId
+    ? `/api/run/jobs/${effectiveJobId}/raw/${effectiveFile}`
+    : `/api/files/raw/${effectiveFile}`;
+
+  const renderBadge = () => {
+    if (isHtml) return <span className="px-1.5 py-0.5 rounded text-[10px] bg-manus-success/15 text-manus-success border border-manus-success/30 font-mono">HTML App</span>;
+    if (isMarkdown) return <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/15 text-primary border border-primary/30 font-mono">Markdown</span>;
+    if (isSvg) return <span className="px-1.5 py-0.5 rounded text-[10px] bg-manus-info/15 text-manus-info border border-manus-info/30 font-mono">Vector SVG</span>;
+    return <span className="px-1.5 py-0.5 rounded text-[10px] bg-muted text-muted-foreground font-mono">Preview</span>;
+  };
 
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-hidden font-sans">
+      {/* Subheader Toolbar */}
       <div className="h-10 border-b border-border bg-card/60 backdrop-blur-sm px-4 flex items-center justify-between shrink-0 text-xs">
-        <div className="flex items-center gap-2 text-foreground">
-          <Monitor className="w-4 h-4 text-manus-accent" />
+        <div className="flex items-center gap-2 text-foreground min-w-0">
+          {isMarkdown ? (
+            <FileText className="w-4 h-4 text-primary shrink-0" />
+          ) : isSvg ? (
+            <ImageIcon className="w-4 h-4 text-manus-info shrink-0" />
+          ) : (
+            <Monitor className="w-4 h-4 text-manus-accent shrink-0" />
+          )}
           <span className="font-mono text-xs font-medium truncate max-w-[200px]">{effectiveFile}</span>
-          <span className="px-1.5 py-0.5 rounded text-[10px] bg-manus-success/15 text-manus-success border border-manus-success/30 font-mono">
-            Isolated
-          </span>
+          {renderBadge()}
         </div>
-        <div className="flex items-center gap-1.5">
+
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
+            type="button"
             onClick={() => setRefreshKey((k) => k + 1)}
             disabled={loading}
-            title="Refresh Sandbox"
+            title="Refresh Live Preview"
             className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
+
           <a
             href={rawUrl}
             target="_blank"
             rel="noopener noreferrer"
-            title="Open in new window"
+            title="Open artifact in new window"
             className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition flex items-center gap-1 text-[11px] cursor-pointer"
           >
             <ExternalLink className="w-3.5 h-3.5" />
@@ -143,14 +197,46 @@ export function PreviewTab({
         </div>
       </div>
 
-      <div className="flex-1 w-full h-full bg-white relative overflow-hidden">
-        <iframe
-          key={`${effectiveJobId}-${effectiveFile}-${refreshKey}`}
-          title="Sandbox Preview"
-          srcDoc={sandboxedHtml}
-          sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
-          className="w-full h-full border-0"
-        />
+      {/* Dynamic Visual Canvas Area */}
+      <div className="flex-1 w-full h-full relative overflow-hidden bg-background">
+        {/* 1. Markdown Live Document Rendering */}
+        {isMarkdown && (
+          <div className="w-full h-full overflow-y-auto p-6 md:p-8 bg-card/40">
+            <div className="max-w-3xl mx-auto rounded-xl border border-border/80 bg-card p-6 shadow-manus-sm">
+              <MarkdownRenderer content={rawContent} />
+            </div>
+          </div>
+        )}
+
+        {/* 2. Vector SVG Visual Rendering */}
+        {isSvg && (
+          <div className="w-full h-full flex items-center justify-center p-8 bg-slate-950/40 overflow-auto">
+            <div
+              className="max-w-full max-h-full flex items-center justify-center p-4 rounded-xl border border-border/60 bg-card shadow-manus-md"
+              dangerouslySetInnerHTML={{ __html: rawContent }}
+            />
+          </div>
+        )}
+
+        {/* 3. Isolated Sandbox HTML Application Rendering */}
+        {isHtml && (
+          <div className="w-full h-full bg-white relative overflow-hidden">
+            <iframe
+              key={`${effectiveJobId}-${effectiveFile}-${refreshKey}`}
+              title="Sandbox Preview"
+              srcDoc={sandboxedHtml}
+              sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
+              className="w-full h-full border-0"
+            />
+          </div>
+        )}
+
+        {/* 4. Fallback Text Preview */}
+        {!isMarkdown && !isSvg && !isHtml && (
+          <div className="w-full h-full overflow-y-auto p-6 font-mono text-xs text-foreground bg-muted/20">
+            <pre className="whitespace-pre-wrap">{rawContent}</pre>
+          </div>
+        )}
       </div>
     </div>
   );
