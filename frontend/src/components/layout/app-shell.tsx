@@ -1,67 +1,104 @@
 ﻿"use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageSquare, FolderGit2, History, Settings, Activity } from "lucide-react";
-import { StatusPill } from "@/components/ui/status-pill";
+import {
+  MessageSquare,
+  Folder,
+  FolderOpen,
+  History,
+  Settings,
+  PanelLeftClose,
+  PanelLeft
+} from "lucide-react";
+import { Header } from "@/components/layout/header";
+import { Sidebar } from "@/components/layout/sidebar";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const navItems = [
   { href: "/chat", icon: MessageSquare, label: "Chat" },
-  { href: "/files", icon: FolderGit2, label: "Files" },
+  { href: "/projects", icon: Folder, label: "Projects" },
+  { href: "/files", icon: FolderOpen, label: "Files" },
   { href: "/history", icon: History, label: "History" },
   { href: "/settings", icon: Settings, label: "Settings" },
-  { href: "/setup", icon: Activity, label: "Diagnostics" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[var(--color-canvas)] text-[var(--color-ink)]">
-      {/* 72px Navigation Rail */}
-      <aside className="w-[72px] flex-shrink-0 flex flex-col items-center py-4 bg-[var(--color-surface-1)] border-r border-[var(--color-line)] z-20">
-        <div className="w-10 h-10 rounded-[var(--radius-lg)] bg-[var(--color-accent-500)] flex items-center justify-center font-bold text-white mb-6 shadow-[0_0_15px_var(--color-accent-glow)]">
-          OM
-        </div>
-        <nav className="flex-1 flex flex-col gap-3">
+    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground font-sans">
+      {/* 64px Primary Icon Rail (Manus Architecture) */}
+      <aside className="w-16 flex-shrink-0 flex flex-col items-center py-3 bg-card border-r border-border z-30 select-none">
+        {/* Brand Monogram */}
+        <Link
+          href="/chat"
+          title="Manus Agent"
+          className="w-9 h-9 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-serif font-bold text-sm shadow-manus-xs hover:opacity-90 transition-transform active:scale-95 mb-5"
+        >
+          M
+        </Link>
+
+        {/* Primary Navigation Rail */}
+        <nav className="flex-1 flex flex-col gap-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname.startsWith(item.href);
+            const active =
+              pathname === item.href ||
+              (item.href !== "/chat" && pathname.startsWith(item.href)) ||
+              (item.href === "/chat" && pathname.startsWith("/chat"));
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 title={item.label}
-                className={`w-11 h-11 flex items-center justify-center rounded-[var(--radius-md)] transition-all ${
+                className={`w-10 h-10 flex items-center justify-center rounded-md transition-all duration-150 ${
                   active
-                    ? "bg-[var(--color-accent-bg)] text-[var(--color-accent-400)] border border-[var(--color-accent-500)]/40"
-                    : "text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)]"
+                    ? "bg-primary text-primary-foreground shadow-manus-xs"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                <Icon size={20} />
+                <Icon size={18} strokeWidth={active ? 2 : 1.75} />
               </Link>
             );
           })}
         </nav>
+
+        {/* Toggle secondary sidebar button */}
+        <button
+          type="button"
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+          className="w-10 h-10 mb-2 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+        >
+          {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+        </button>
+
+        {/* Bottom Rail Actions */}
+        <div className="flex flex-col items-center gap-2 pt-2 border-t border-border/60">
+          <ThemeToggle />
+          <div
+            title="Core Online"
+            className="w-2 h-2 rounded-full bg-manus-success mt-1 animate-pulse"
+          />
+        </div>
       </aside>
 
-      {/* Main Content Area with Glass Header */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-14 px-6 flex items-center justify-between glass-1 border-b border-[var(--color-line)] z-10">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold tracking-wide text-sm">OpenManus Dashboard</span>
-            <span className="text-xs text-[var(--color-ink-faint)] font-mono">v1.1</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <StatusPill status="idle" label="ENGINE READY" />
-          </div>
-        </header>
+      {/* 260px Secondary Sidebar (Collapsible) */}
+      {isSidebarOpen && <Sidebar />}
 
-        <main className="flex-1 min-h-0 overflow-auto bg-[var(--color-canvas)]">
+      {/* Main Workspace Area with Header */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
+        <Header />
+        <main className="flex-1 min-h-0 overflow-hidden relative flex">
           {children}
         </main>
       </div>
     </div>
   );
 }
+
+export default AppShell;

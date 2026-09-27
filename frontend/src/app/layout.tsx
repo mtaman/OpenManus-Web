@@ -3,6 +3,7 @@ import { DM_Sans, Libre_Baskerville, Cairo } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { I18nProvider } from "@/components/providers/i18n-provider";
+import { AppShell } from "@/components/layout/app-shell";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -47,7 +48,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${dmSans.variable} ${libreBaskerville.variable}${cairo.variable}`}
+      className={`${dmSans.variable} ${libreBaskerville.variable} ${cairo.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-manus-accent selection:text-white">
         <ThemeProvider
@@ -56,7 +57,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <I18nProvider>{children}</I18nProvider>
+          <I18nProvider>
+            <AppShell>{children}</AppShell>
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

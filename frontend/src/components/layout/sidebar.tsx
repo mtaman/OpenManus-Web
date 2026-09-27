@@ -1,25 +1,24 @@
 ﻿"use client";
+
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  MessageSquare,
-  FolderOpen,
-  Settings,
-  Bot,
-  Trash2,
-  Pin,
-  Download,
   Folder,
   Plus,
-  ChevronRight
+  Pin,
+  Download,
+  Trash2,
+  FolderOpen
 } from "lucide-react";
+
 interface ProjectItem {
   id: string;
   name: string;
   description?: string;
   created_at?: string;
 }
+
 interface ChatItem {
   id: string;
   job_id: string;
@@ -30,6 +29,7 @@ interface ChatItem {
   created_at?: string;
   pinned?: boolean;
 }
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -37,6 +37,7 @@ export function Sidebar() {
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+
   const fetchData = async () => {
     try {
       const [pRes, cRes] = await Promise.all([
@@ -55,11 +56,13 @@ export function Sidebar() {
       console.error("Failed to load sidebar data", e);
     }
   };
+
   useEffect(() => {
     fetchData();
     const timer = setInterval(fetchData, 4000);
     return () => clearInterval(timer);
   }, []);
+
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -78,6 +81,7 @@ export function Sidebar() {
       console.error("Failed to create project", err);
     }
   };
+
   const handleDeleteChat = async (e: React.MouseEvent, chatId: string, jobId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -92,6 +96,7 @@ export function Sidebar() {
       console.error("Failed to delete chat", err);
     }
   };
+
   const handleTogglePin = (e: React.MouseEvent, chatId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -99,102 +104,60 @@ export function Sidebar() {
       prev.map((c) => (c.id === chatId ? { ...c, pinned: !c.pinned } : c))
     );
   };
-  // Only standalone chats belong in RECENT CHATS
+
   const standaloneChats = chats.filter(
     (c) => !c.project_id || c.project_id === "default_project"
   );
+
   const sortedChats = [...standaloneChats].sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
     return 0;
   });
+
   return (
-    <aside className="w-64 border-e border-slate-800 bg-slate-900 flex flex-col h-screen select-none shrink-0 font-sans">
-      <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
-        <Link href="/chat" className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-emerald-600 text-white shadow-md">
-            <Bot className="h-5 w-5" />
-          </div>
-          <span className="font-bold text-base tracking-tight text-slate-100">
-            OpenManus
-          </span>
-        </Link>
+    <aside className="w-[260px] border-r border-border bg-card/60 backdrop-blur-md flex flex-col h-screen select-none shrink-0 font-sans transition-all duration-200">
+      {/* Workspace Header */}
+      <div className="h-14 flex items-center justify-between px-4 border-b border-border">
+        <span className="font-heading font-semibold text-xs tracking-wider text-muted-foreground uppercase">
+          Workspaces & Chats
+        </span>
+        <button
+          type="button"
+          onClick={() => setIsCreatingProject((v) => !v)}
+          className="p-1 hover:text-foreground text-muted-foreground rounded-sm hover:bg-muted transition cursor-pointer"
+          title="Create New Workspace"
+        >
+          <Plus size={14} />
+        </button>
       </div>
-      <nav className="p-4 space-y-1 border-b border-slate-800">
-        <Link
-          href="/chat"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-            pathname === "/chat" || pathname.startsWith("/chat/")
-              ? "bg-emerald-600 text-white shadow-sm"
-              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-          }`}
-        >
-          <MessageSquare className="h-4 w-4 shrink-0" />
-          <span>Chat</span>
-        </Link>
-        <Link
-          href="/projects"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-            pathname.startsWith("/projects")
-              ? "bg-emerald-600 text-white shadow-sm"
-              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-          }`}
-        >
-          <Folder className="h-4 w-4 shrink-0" />
-          <span>Projects</span>
-        </Link>
-        <Link
-          href="/files"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-            pathname === "/files"
-              ? "bg-emerald-600 text-white shadow-sm"
-              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-          }`}
-        >
-          <FolderOpen className="h-4 w-4 shrink-0" />
-          <span>Files</span>
-        </Link>
-        <Link
-          href="/settings"
-          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
-            pathname === "/settings"
-              ? "bg-emerald-600 text-white shadow-sm"
-              : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-          }`}
-        >
-          <Settings className="h-4 w-4 shrink-0" />
-          <span>Settings</span>
-        </Link>
-      </nav>
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
+
+      {/* Scrollable Workspaces & Sessions */}
+      <div className="flex-1 p-3 overflow-y-auto space-y-4">
         {/* Workspaces Section */}
         <div>
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider mb-2">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-2 uppercase tracking-wider mb-1.5">
             <span>Workspaces</span>
-            <button
-              type="button"
-              onClick={() => setIsCreatingProject((v) => !v)}
-              className="p-1 hover:text-emerald-400 rounded hover:bg-slate-800 transition cursor-pointer"
-              title="Create Project"
-            >
-              <Plus size={14} />
-            </button>
           </div>
+
           {isCreatingProject && (
             <form onSubmit={handleCreateProject} className="mb-2 px-1">
               <input
                 type="text"
                 autoFocus
-                placeholder="Project name..."
+                placeholder="Workspace name..."
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
-                className="w-full px-2.5 py-1.5 rounded bg-slate-800 text-xs border border-slate-700 text-slate-200 focus:outline-none focus:border-emerald-500 font-sans"
+                className="w-full px-2.5 py-1.5 rounded-md bg-background text-xs border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-sans"
               />
             </form>
           )}
-          <div className="space-y-1">
+
+          <div className="space-y-0.5">
             {projects.length === 0 ? (
-              <div className="text-[11px] text-slate-500 px-2 py-1">No projects yet.</div>
+              <div className="text-[11px] text-muted-foreground/70 px-2 py-1">
+                No workspaces yet.
+              </div>
             ) : (
               projects.map((proj) => {
                 const isActiveProj = pathname === `/projects/${proj.id}`;
@@ -203,18 +166,18 @@ export function Sidebar() {
                   <Link
                     key={proj.id}
                     href={`/projects/${proj.id}`}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition ${
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-all ${
                       isActiveProj
-                        ? "bg-slate-800 text-emerald-400 font-medium"
-                        : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
+                        ? "bg-muted text-foreground font-medium border border-border/80 shadow-manus-xs"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                     }`}
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <Folder size={13} className="text-cyan-400 shrink-0" />
+                      <Folder size={13} className="text-manus-info shrink-0" />
                       <span className="truncate">{proj.name}</span>
                     </div>
                     {projChatsCount > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-cyan-400 font-mono">
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-sm bg-background border border-border text-muted-foreground font-mono">
                         {projChatsCount}
                       </span>
                     )}
@@ -224,25 +187,30 @@ export function Sidebar() {
             )}
           </div>
         </div>
-        {/* Recent Standalone Chats Section */}
+
+        {/* Recent Chats Section */}
         <div>
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-400 px-2 uppercase tracking-wider mb-2">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-2 uppercase tracking-wider mb-1.5">
             <span>Recent Chats</span>
           </div>
-          <div className="space-y-1">
+
+          <div className="space-y-0.5">
             {sortedChats.length === 0 ? (
-              <div className="text-[11px] text-slate-500 px-2 py-2">No standalone chats.</div>
+              <div className="text-[11px] text-muted-foreground/70 px-2 py-2">
+                No recent sessions.
+              </div>
             ) : (
               sortedChats.map((chat, idx) => {
                 const effectiveTarget = chat.job_id || chat.id || `session-${idx}`;
-                const isActive = pathname === `/chat/${effectiveTarget}` || pathname === `/chat/${chat.id}`;
+                const isActive =
+                  pathname === `/chat/${effectiveTarget}` || pathname === `/chat/${chat.id}`;
                 return (
                   <div
                     key={chat.id || chat.job_id || `chat-row-${idx}`}
-                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition ${
+                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-all ${
                       isActive
-                        ? "bg-slate-800 text-emerald-400 font-medium border border-emerald-500/20"
-                        : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
+                        ? "bg-muted text-foreground font-medium border border-border shadow-manus-xs"
+                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                     }`}
                   >
                     <Link
@@ -252,20 +220,25 @@ export function Sidebar() {
                       <span
                         className={`w-2 h-2 rounded-full shrink-0 ${
                           chat.status === "completed"
-                            ? "bg-emerald-500"
+                            ? "bg-manus-success"
                             : chat.status === "running"
-                            ? "bg-amber-500 animate-pulse"
-                            : "bg-slate-600"
+                            ? "bg-manus-warning animate-pulse"
+                            : "bg-muted-foreground/40"
                         }`}
                       />
-                      <span className="truncate">{chat.title || chat.prompt || "New Session"}</span>
+                      <span className="truncate">
+                        {chat.title || chat.prompt || "New Session"}
+                      </span>
                     </Link>
+
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={(e) => handleTogglePin(e, chat.id)}
                         title="Pin chat"
-                        className={`p-1 hover:text-emerald-400 cursor-pointer ${chat.pinned ? "text-emerald-400" : "text-slate-500"}`}
+                        className={`p-1 hover:text-foreground cursor-pointer rounded-sm ${
+                          chat.pinned ? "text-primary" : "text-muted-foreground"
+                        }`}
                       >
                         <Pin size={11} />
                       </button>
@@ -274,10 +247,13 @@ export function Sidebar() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          window.open(`/api/run/jobs/${effectiveTarget}/download-zip`, "_blank");
+                          window.open(
+                            `/api/run/jobs/${effectiveTarget}/download-zip`,
+                            "_blank"
+                          );
                         }}
                         title="Download ZIP"
-                        className="p-1 text-slate-500 hover:text-cyan-400 cursor-pointer"
+                        className="p-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-sm"
                       >
                         <Download size={11} />
                       </button>
@@ -285,7 +261,7 @@ export function Sidebar() {
                         type="button"
                         onClick={(e) => handleDeleteChat(e, chat.id, chat.job_id)}
                         title="Delete chat"
-                        className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer"
+                        className="p-1 text-muted-foreground hover:text-manus-error cursor-pointer rounded-sm"
                       >
                         <Trash2 size={11} />
                       </button>
@@ -297,10 +273,17 @@ export function Sidebar() {
           </div>
         </div>
       </div>
-      <div className="p-3 border-t border-slate-800 text-[11px] text-slate-500 text-center font-mono">
-        v2.0.0-PROD
+
+      {/* Footer System Status */}
+      <div className="p-2.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+        <span className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-manus-success animate-pulse" />
+          <span>Manus Core</span>
+        </span>
+        <span className="text-[10px] text-muted-foreground/60">v2.0.0</span>
       </div>
     </aside>
   );
 }
+
 export default Sidebar;
