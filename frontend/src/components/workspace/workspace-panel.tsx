@@ -142,7 +142,7 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
         {activeTab === "artifacts" && <ArtifactsTab />}
         {activeTab === "logs" && <LogsTab />}
         {activeTab === "editor" && (
-          <EditorTab filePath={selectedFilePath} initialContent={draftContent} />
+          <EditorTab filePath={selectedFilePath} initialContent={draftContent} activeJobId={activeJobId} />
         )}
       </div>
     </div>

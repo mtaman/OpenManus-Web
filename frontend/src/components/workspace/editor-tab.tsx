@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { Highlight, themes } from "prism-react-renderer";
-import { Save, FileCode, Check, Copy, Code2 } from "lucide-react";
+import { Save, FileCode, Check, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface EditorTabProps {
   filePath?: string | null;
   initialContent?: string | null;
+  activeJobId?: string | null;
 }
 
 const extToLangMap: Record<string, string> = {
@@ -35,7 +36,7 @@ const extToLangMap: Record<string, string> = {
   txt: "text",
 };
 
-export function EditorTab({ filePath, initialContent }: EditorTabProps) {
+export function EditorTab({ filePath, initialContent, activeJobId }: EditorTabProps) {
   const [content, setContent] = useState<string>(initialContent || "");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -126,13 +127,19 @@ export function EditorTab({ filePath, initialContent }: EditorTabProps) {
       const res = await fetch("/api/files/content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: filePath, content }),
+        body: JSON.stringify({
+          path: filePath,
+          content,
+          job_id: activeJobId || undefined,
+        }),
       });
+
       if (res.ok) {
         setStatusMsg("Saved successfully");
-        setTimeout(() => setStatusMsg(null), 3000);
+        setTimeout(() => setStatusMsg(null), 3500);
       } else {
-        setStatusMsg("Failed to save");
+        const errData = await res.json().catch(() => ({}));
+        setStatusMsg(errData.detail || "Failed to save");
       }
     } catch {
       setStatusMsg("Save error");
@@ -169,17 +176,29 @@ export function EditorTab({ filePath, initialContent }: EditorTabProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {statusMsg && (
-            <span className="text-[11px] font-mono text-manus-success mr-1">
-              {statusMsg}
+        <div className="flex items-center gap-2 shrink-0">
+          {saving && (
+            <span className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
+              <Loader2 size={11} className="animate-spin text-primary" />
+              <span>Saving...</span>
+            </span>
+          )}
+
+          {!saving && statusMsg && (
+            <span
+              className={`flex items-center gap-1 text-[11px] font-mono ${
+                statusMsg.includes("success") ? "text-manus-success" : "text-manus-error"
+              }`}
+            >
+              {statusMsg.includes("success") && <Check size={11} />}
+              <span>{statusMsg}</span>
             </span>
           )}
 
           <button
             type="button"
             onClick={handleCopy}
-            disabled={!content}
+            disabled={!content || saving}
             className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all cursor-pointer disabled:opacity-30"
             title="Copy file content"
           >
@@ -201,11 +220,20 @@ export function EditorTab({ filePath, initialContent }: EditorTabProps) {
             size="sm"
             onClick={handleSave}
             disabled={saving || loading || !filePath}
-            className="h-7 px-2.5 text-xs shadow-manus-xs cursor-pointer font-sans"
+            className="h-7 px-2.5 text-xs shadow-manus-xs cursor-pointer font-sans min-w-[70px]"
             title="Save changes to disk"
           >
-            <Save size={12} className="mr-1" />
-            <span>{saving ? "Saving..." : "Save"}</span>
+            {saving ? (
+              <>
+                <Loader2 size={12} className="mr-1 animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <Save size={12} className="mr-1" />
+                <span>Save</span>
+              </>
+            )}
           </Button>
         </div>
       </div>
