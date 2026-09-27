@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import React, { useEffect, useState } from "react";
-import { Save, FileCode } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { Highlight, themes } from "prism-react-renderer";
+import { Save, FileCode, Check, Copy, Code2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface EditorTabProps {
@@ -9,11 +10,46 @@ export interface EditorTabProps {
   initialContent?: string | null;
 }
 
+const extToLangMap: Record<string, string> = {
+  html: "markup",
+  htm: "markup",
+  svg: "markup",
+  xml: "markup",
+  js: "javascript",
+  jsx: "jsx",
+  ts: "typescript",
+  tsx: "tsx",
+  py: "python",
+  css: "css",
+  json: "json",
+  sh: "bash",
+  bash: "bash",
+  md: "markdown",
+  sql: "sql",
+  yaml: "yaml",
+  yml: "yaml",
+  rs: "rust",
+  go: "go",
+  c: "c",
+  cpp: "cpp",
+  txt: "text",
+};
+
 export function EditorTab({ filePath, initialContent }: EditorTabProps) {
   const [content, setContent] = useState<string>(initialContent || "");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const preRef = useRef<HTMLPreElement | null>(null);
+  const gutterRef = useRef<HTMLDivElement | null>(null);
+
+  // Detect file language
+  const fileExt = filePath ? (filePath.split(".").pop()?.toLowerCase() || "") : "txt";
+  const detectedLanguage = extToLangMap[fileExt] || "javascript";
+  const displayLang = (fileExt || "TEXT").toUpperCase();
 
   useEffect(() => {
     if (initialContent !== undefined && initialContent !== null) {
@@ -37,7 +73,7 @@ export function EditorTab({ filePath, initialContent }: EditorTabProps) {
         } else {
           setContent("// Error loading file or binary file.");
         }
-      } catch (err) {
+      } catch {
         setContent("// Failed to fetch file content.");
       } finally {
         setLoading(false);
@@ -46,6 +82,41 @@ export function EditorTab({ filePath, initialContent }: EditorTabProps) {
 
     loadFile();
   }, [filePath, initialContent]);
+
+  // Synchronized scrolling between textarea, highlight overlay, and gutter
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    const target = e.currentTarget;
+    if (preRef.current) {
+      preRef.current.scrollTop = target.scrollTop;
+      preRef.current.scrollLeft = target.scrollLeft;
+    }
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = target.scrollTop;
+    }
+  };
+
+  // Support Tab key for indentation
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newContent = content.substring(0, start) + "  " + content.substring(end);
+      setContent(newContent);
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 2;
+      }, 0);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!content) return;
+    navigator.clipboard.writeText(content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const handleSave = async () => {
     if (!filePath) return;
@@ -70,45 +141,133 @@ export function EditorTab({ filePath, initialContent }: EditorTabProps) {
     }
   };
 
+  const lines = content.split("\n");
+  const lineCount = Math.max(1, lines.length);
+
+  // Safe wrapper for React 19 JSX compatibility
+  const HighlightComponent = Highlight as any;
+
   return (
-    <div className="flex flex-col h-full bg-background font-mono text-xs">
-      <div className="h-10 border-b border-border bg-card/60 px-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FileCode size={14} className="text-primary" />
-          <span className="font-semibold text-foreground truncate max-w-xs">
+    <div className="flex flex-col h-full bg-[#0d1117] text-slate-100 font-sans select-text">
+      {/* Editor Header */}
+      <div className="h-10 border-b border-[#30363d] bg-[#161b22] px-3.5 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileCode size={14} className="text-primary shrink-0" />
+          <span className="font-mono text-xs font-semibold text-foreground/90 truncate max-w-[180px]">
             {filePath || "draft-snippet"}
           </span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted/60 text-muted-foreground border border-border/40 shrink-0">
+            {displayLang}
+          </span>
+          <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline">
+            ({lineCount} lines)
+          </span>
           {initialContent && !filePath && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/10 text-primary border border-primary/20">
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/10 text-primary border border-primary/20 shrink-0">
               Draft
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-1.5 shrink-0">
           {statusMsg && (
-            <span className="text-[11px] text-muted-foreground mr-2">{statusMsg}</span>
+            <span className="text-[11px] font-mono text-manus-success mr-1">
+              {statusMsg}
+            </span>
           )}
+
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={!content}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all cursor-pointer disabled:opacity-30"
+            title="Copy file content"
+          >
+            {copied ? (
+              <>
+                <Check size={12} className="text-manus-success" />
+                <span className="text-manus-success">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy size={12} />
+                <span className="hidden sm:inline">Copy</span>
+              </>
+            )}
+          </button>
+
           <Button
             variant="primary"
             size="sm"
             onClick={handleSave}
             disabled={saving || loading || !filePath}
-            className="h-7 text-xs shadow-manus-xs cursor-pointer"
+            className="h-7 px-2.5 text-xs shadow-manus-xs cursor-pointer font-sans"
+            title="Save changes to disk"
           >
             <Save size={12} className="mr-1" />
-            {saving ? "Saving..." : "Save"}
+            <span>{saving ? "Saving..." : "Save"}</span>
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 p-3 min-h-0 bg-background">
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          disabled={loading}
-          className="w-full h-full p-3 rounded-lg bg-card border border-border text-foreground font-mono text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs"
-          placeholder="File content..."
-        />
+      {/* Editor Body */}
+      <div className="relative flex-1 flex min-h-0 bg-[#0d1117] overflow-hidden">
+        {/* Line Numbers Gutter */}
+        <div
+          ref={gutterRef}
+          aria-hidden="true"
+          className="select-none py-3 pl-3 pr-2.5 text-right font-mono text-[11px] leading-[20px] text-slate-500 bg-[#161b22]/70 border-r border-[#30363d]/60 overflow-hidden w-11 shrink-0"
+        >
+          {Array.from({ length: lineCount }, (_, i) => (
+            <div key={i}>{i + 1}</div>
+          ))}
+        </div>
+
+        {/* Code Canvas Area (Synchronized Highlighting + Input) */}
+        <div className="relative flex-1 min-w-0 h-full overflow-hidden">
+          {/* Syntax Highlighting Background Layer */}
+          <pre
+            ref={preRef}
+            aria-hidden="true"
+            className="absolute inset-0 m-0 p-3 font-mono text-xs leading-[20px] whitespace-pre overflow-hidden pointer-events-none bg-transparent"
+            style={{ tabSize: 2 }}
+          >
+            <HighlightComponent
+              theme={themes.nightOwl}
+              code={content || " "}
+              language={detectedLanguage}
+            >
+              {({ tokens, getTokenProps }: any) => (
+                <code>
+                  {tokens.map((line: any, i: number) => (
+                    <div key={i} className="leading-[20px]">
+                      {line.map((token: any, key: number) => (
+                        <span key={key} {...getTokenProps({ token })} />
+                      ))}
+                    </div>
+                  ))}
+                </code>
+              )}
+            </HighlightComponent>
+          </pre>
+
+          {/* Transparent Interactive Textarea Overlay */}
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onScroll={handleScroll}
+            onKeyDown={handleKeyDown}
+            disabled={loading}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
+            className="absolute inset-0 w-full h-full p-3 font-mono text-xs leading-[20px] whitespace-pre bg-transparent text-transparent caret-white resize-none outline-none overflow-auto border-0 focus:ring-0 selection:bg-primary/35 shadow-none"
+            style={{ tabSize: 2 }}
+            placeholder={loading ? "Loading file..." : "Type or paste code here..."}
+          />
+        </div>
       </div>
     </div>
   );
