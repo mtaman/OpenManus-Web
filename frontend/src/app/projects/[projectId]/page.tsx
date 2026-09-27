@@ -136,7 +136,6 @@ export default function ProjectWorkspacePage() {
 
   return (
     <div className="flex flex-col flex-1 h-full w-full bg-background text-foreground overflow-hidden font-sans">
-      {/* Navigation Breadcrumb Header */}
       <div className="h-14 flex items-center justify-between px-8 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
           <Link
@@ -171,9 +170,7 @@ export default function ProjectWorkspacePage() {
         </div>
       </div>
 
-      {/* Scrollable Content Area */}
       <div className="flex-1 p-8 overflow-y-auto space-y-6 bg-background">
-        {/* Summary & Metrics Bar */}
         <div className="p-5 rounded-2xl border border-border bg-card space-y-3 shadow-manus-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-manus-success uppercase tracking-wider flex items-center gap-1.5">
@@ -201,7 +198,6 @@ export default function ProjectWorkspacePage() {
           </div>
         </div>
 
-        {/* Sessions Grid */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -255,7 +251,6 @@ export default function ProjectWorkspacePage() {
                         {chat.title || chat.prompt || "New Session"}
                       </h3>
 
-                      {/* Deliverables Badges */}
                       {hasDeliverables && (
                         <div className="mb-3 space-y-1">
                           <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-mono">
@@ -311,7 +306,6 @@ export default function ProjectWorkspacePage() {
         </div>
       </div>
 
-      {/* Fixed Bottom Input Composer */}
       <div className="p-4 border-t border-border bg-card/60 backdrop-blur-sm shrink-0">
         <form onSubmit={handleStartProjectChat} className="flex items-center gap-2 p-1.5 pl-3.5 rounded-xl border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all">
           <input

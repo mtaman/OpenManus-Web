@@ -69,7 +69,6 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex flex-col flex-1 h-full w-full bg-background text-foreground overflow-hidden font-sans">
-      {/* Header Bar */}
       <div className="h-14 flex items-center justify-between px-8 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
           <Folder className="h-5 w-5 text-manus-accent" />
@@ -84,7 +83,6 @@ export default function ProjectsPage() {
         </Button>
       </div>
 
-      {/* Main Content Area */}
       <div className="flex-1 p-8 overflow-y-auto bg-background">
         {loading ? (
           <div className="flex items-center justify-center h-48 text-muted-foreground text-xs animate-pulse font-mono">
@@ -153,7 +151,6 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Modal Dialog */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
