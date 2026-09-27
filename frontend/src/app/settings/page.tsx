@@ -1,16 +1,16 @@
 ﻿"use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-  Save, 
-  RefreshCw, 
-  Cpu, 
-  Globe, 
-  Search, 
-  Box, 
-  Share2, 
-  Info, 
-  Check, 
+import {
+  Save,
+  RefreshCw,
+  Cpu,
+  Globe,
+  Search,
+  Box,
+  Share2,
+  Info,
+  Check,
   AlertTriangle,
   Plus,
   Trash2,
@@ -120,8 +120,8 @@ export default function SettingsPage() {
           ...prev,
           llm: { ...prev.llm, ...(cfg.llm || {}) },
           llm_vision: { ...prev.llm_vision, ...(cfg["llm.vision"] || cfg.llm_vision || {}) },
-          browser: { 
-            ...prev.browser, 
+          browser: {
+            ...prev.browser,
             ...(cfg.browser || {}),
             proxy: { ...prev.browser.proxy, ...(cfg["browser.proxy"] || (cfg.browser && cfg.browser.proxy) || {}) }
           },
@@ -131,7 +131,6 @@ export default function SettingsPage() {
           mcp: { ...prev.mcp, ...(cfg.mcp || {}) },
           runflow: { ...prev.runflow, ...(cfg.runflow || {}) }
         }));
-
         if (data.custom_models && Array.isArray(data.custom_models)) {
           setCustomModels(data.custom_models);
         }
@@ -282,7 +281,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Promote a custom profile to become the active Primary LLM
   const promoteToPrimary = (cm: any) => {
     setConfig((prev: any) => ({
       ...prev,
@@ -329,43 +327,50 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="flex h-full w-full bg-[var(--color-canvas)] text-[var(--color-ink)] font-mono overflow-hidden">
-      {/* Sub-Sidebar */}
-      <div className="w-56 border-r border-[var(--color-line)] bg-[var(--color-surface-1)] flex flex-col p-3 space-y-1">
-        <span className="text-[11px] font-bold text-[var(--color-ink-muted)] uppercase tracking-wider px-3 py-2">
+    <div className="flex h-full w-full bg-background text-foreground font-sans overflow-hidden">
+      {/* Configuration Sub-Sidebar */}
+      <div className="w-56 border-r border-border bg-card/40 flex flex-col p-3 space-y-1 shrink-0">
+        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2">
           Configuration
         </span>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded text-xs transition cursor-pointer ${
-              activeTab === tab.id
-                ? "bg-[var(--color-surface-2)] text-cyan-400 border border-[var(--color-line)] shadow-sm font-semibold"
-                : "text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]/60"
-            }`}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
+        <div className="space-y-1">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-manus-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
-        <div className="pt-4 mt-auto border-t border-[var(--color-line-subtle)] space-y-2">
+        <div className="pt-4 mt-auto border-t border-border space-y-2">
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="w-full flex items-center justify-center gap-1.5 h-8 bg-cyan-600 hover:bg-cyan-500 text-black font-semibold text-xs cursor-pointer"
+            className="w-full flex items-center justify-center gap-1.5 h-8 bg-primary text-primary-foreground font-medium text-xs rounded-md shadow-manus-xs cursor-pointer"
           >
             {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
             <span>{saving ? "Saving..." : "Save Config"}</span>
           </Button>
 
           {saveStatus && (
-            <div className={`p-2 rounded text-[11px] font-sans leading-tight border ${
-              saveStatus.includes("Error") || saveStatus.includes("Failed")
-                ? "bg-red-500/10 border-red-500/30 text-red-400"
-                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-            }`}>
+            <div
+              className={`p-2 rounded-md text-[11px] leading-tight border ${
+                saveStatus.includes("Error") || saveStatus.includes("Failed")
+                  ? "bg-manus-error/10 border-manus-error/30 text-manus-error"
+                  : "bg-manus-success/10 border-manus-success/30 text-manus-success"
+              }`}
+            >
               {saveStatus}
             </div>
           )}
@@ -373,48 +378,49 @@ export default function SettingsPage() {
       </div>
 
       {/* Main Settings Panel */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-6">
-        
-        {/* TAB 1: 2026 MODERN MODEL HUB */}
+      <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-background">
+        {/* TAB 1: MODEL HUB */}
         {activeTab === "llm" && (
           <div className="space-y-6 max-w-4xl">
-            <div className="border-b border-[var(--color-line)] pb-4">
+            <div className="border-b border-border pb-4">
               <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-cyan-400" />
-                <h2 className="text-sm font-bold text-[var(--color-ink)] uppercase tracking-wider">
-                  2026 Model Hub & Multi-Provider Architecture
+                <Sparkles size={16} className="text-manus-accent" />
+                <h2 className="text-sm font-semibold font-heading text-foreground uppercase tracking-wide">
+                  Model Hub & Multi-Provider Architecture
                 </h2>
               </div>
-              <p className="text-xs text-[var(--color-ink-faint)] font-sans mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Centralized orchestration for local inference engines, cloud APIs, and specialized sub-agents.
               </p>
             </div>
 
             {/* Provider Grid Selector */}
             <div className="space-y-2">
-              <span className="text-xs font-semibold text-[var(--color-ink-muted)] block">
+              <span className="text-xs font-medium text-foreground block">
                 Select Provider Preset:
               </span>
-              <div className="grid grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 {PROVIDER_PRESETS.map((p) => {
                   const isCurrent = config.llm.base_url.includes(p.id) || (p.id === "lmstudio" && config.llm.base_url.includes("1234"));
                   return (
                     <button
                       key={p.id}
                       onClick={() => selectProviderPreset(p)}
-                      className={`flex flex-col items-start p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                      className={`flex flex-col items-start p-3 rounded-lg border text-left transition-all cursor-pointer ${
                         isCurrent
-                          ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-400 shadow-sm"
-                          : "bg-[var(--color-surface-1)] border-[var(--color-line)] hover:border-cyan-500/30 text-[var(--color-ink)]"
+                          ? "bg-muted border-primary shadow-manus-xs text-foreground"
+                          : "bg-card border-border hover:border-primary/40 text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       <div className="flex items-center justify-between w-full mb-1">
-                        <span className="text-xs font-bold">{p.name}</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-ink-faint)] border border-[var(--color-line-subtle)]">
+                        <span className="text-xs font-semibold">{p.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-sm bg-background border border-border text-muted-foreground font-mono">
                           {p.badge}
                         </span>
                       </div>
-                      <span className="text-[10px] text-[var(--color-ink-faint)] truncate w-full">{p.defaultModel}</span>
+                      <span className="text-[10px] text-muted-foreground/80 truncate w-full font-mono">
+                        {p.defaultModel}
+                      </span>
                     </button>
                   );
                 })}
@@ -422,11 +428,11 @@ export default function SettingsPage() {
             </div>
 
             {/* Detected Models Bar */}
-            <div className="p-4 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-1)] space-y-3">
+            <div className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-manus-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Layers size={14} className="text-cyan-400" />
-                  <span className="text-xs font-bold text-[var(--color-ink)] uppercase">
+                  <Layers size={14} className="text-manus-accent" />
+                  <span className="text-xs font-medium text-foreground uppercase tracking-wider">
                     Detected Local Models ({availableModels.length})
                   </span>
                 </div>
@@ -435,36 +441,36 @@ export default function SettingsPage() {
                   size="sm"
                   onClick={handleFetchModels}
                   disabled={fetchingModels}
-                  className="h-7 text-[11px] border-[var(--color-line)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] cursor-pointer"
+                  className="h-7 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-manus-xs"
                 >
-                  {fetchingModels ? <RefreshCw size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                  {fetchingModels ? <RefreshCw size={11} className="animate-spin mr-1" /> : <RefreshCw size={11} className="mr-1" />}
                   <span>Scan Models</span>
                 </Button>
               </div>
 
               {availableModels.length > 0 ? (
                 <div className="space-y-2">
-                  <span className="text-[10px] text-[var(--color-ink-faint)] block">
-                    Click any badge to select, or use Quick Assign buttons:
+                  <span className="text-[10px] text-muted-foreground block">
+                    Click badge to assign detected model:
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {availableModels.map((m) => (
                       <div
                         key={m}
-                        className="flex items-center gap-1.5 p-1.5 px-2.5 rounded bg-[var(--color-surface-2)] border border-[var(--color-line)] text-xs text-[var(--color-ink)]"
+                        className="flex items-center gap-1.5 p-1.5 px-2.5 rounded-md bg-background border border-border text-xs text-foreground shadow-manus-xs font-mono"
                       >
-                        <span className="font-bold text-cyan-300">{m}</span>
-                        <div className="flex items-center gap-1 ml-2 border-l border-[var(--color-line)] pl-2">
+                        <span className="font-semibold text-primary">{m}</span>
+                        <div className="flex items-center gap-1 ml-2 border-l border-border pl-2">
                           <button
                             onClick={() => assignDetectedModel(m, "primary")}
-                            className="px-1.5 py-0.5 rounded bg-cyan-600/30 hover:bg-cyan-600 text-cyan-200 text-[10px] cursor-pointer"
+                            className="px-1.5 py-0.5 rounded-sm bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-sans font-medium cursor-pointer"
                             title="Set as Primary Model"
                           >
                             Primary
                           </button>
                           <button
                             onClick={() => assignDetectedModel(m, "vision")}
-                            className="px-1.5 py-0.5 rounded bg-purple-600/30 hover:bg-purple-600 text-purple-200 text-[10px] cursor-pointer"
+                            className="px-1.5 py-0.5 rounded-sm bg-manus-accent/10 hover:bg-manus-accent/20 text-manus-accent text-[10px] font-sans font-medium cursor-pointer"
                             title="Set as Vision Model"
                           >
                             Vision
@@ -475,32 +481,31 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="text-[11px] text-[var(--color-ink-faint)] font-sans">
+                <div className="text-[11px] text-muted-foreground">
                   No local models scanned yet. Click "Scan Models" to retrieve models loaded in LM Studio or Ollama.
                 </div>
               )}
             </div>
 
             {/* Active Primary Reasoning Model Card */}
-            <div className="p-5 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-1)] space-y-4">
-              <div className="flex items-center justify-between border-b border-[var(--color-line-subtle)] pb-3">
+            <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-manus-xs">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs font-bold text-[var(--color-ink)] uppercase">
-                    ACTIVE PRIMARY REASONING MODEL [LLM]
+                  <span className="flex h-2 w-2 rounded-full bg-manus-success animate-pulse" />
+                  <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                    Active Primary Reasoning Model [LLM]
                   </span>
                 </div>
 
-                {/* Quick Profile Selector */}
                 {customModels.length > 0 && (
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-[var(--color-ink-muted)]">Switch to Profile:</span>
+                    <span className="text-[11px] text-muted-foreground">Profile:</span>
                     <select
                       onChange={(e) => {
                         const selected = customModels.find((m) => m.name === e.target.value);
                         if (selected) promoteToPrimary(selected);
                       }}
-                      className="bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-2 py-1 text-xs text-amber-300 font-mono"
+                      className="bg-background border border-border rounded-md px-2 py-1 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs"
                     >
                       <option value="">Select custom profile...</option>
                       {customModels.map((cm) => (
@@ -511,67 +516,62 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Model ID</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Model ID</label>
                   <input
                     type="text"
                     value={config.llm.model}
                     onChange={(e) => setConfig({ ...config, llm: { ...config.llm, model: e.target.value } })}
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
                   />
                 </div>
-
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Base Endpoint URL</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Base Endpoint URL</label>
                   <input
                     type="text"
                     value={config.llm.base_url}
                     onChange={(e) => setConfig({ ...config, llm: { ...config.llm, base_url: e.target.value } })}
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
                   />
                 </div>
-
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">API Key</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">API Key</label>
                   <input
                     type="password"
                     value={config.llm.api_key}
                     onChange={(e) => setConfig({ ...config, llm: { ...config.llm, api_key: e.target.value } })}
                     placeholder="Leave masked to retain key"
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
                   />
                 </div>
-
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Provider Tag (api_type)</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Provider Tag (api_type)</label>
                   <input
                     type="text"
                     value={config.llm.api_type || ""}
                     onChange={(e) => setConfig({ ...config, llm: { ...config.llm, api_type: e.target.value } })}
                     placeholder="ollama / azure / aws / jiekou (blank for OpenAI)"
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
                   />
                 </div>
-
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Context Window (max_tokens)</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Context Window (max_tokens)</label>
                   <input
                     type="number"
                     value={config.llm.max_tokens}
                     onChange={(e) => setConfig({ ...config, llm: { ...config.llm, max_tokens: parseInt(e.target.value, 10) } })}
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
                   />
                 </div>
-
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Temperature</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Temperature</label>
                   <input
                     type="number"
                     step="0.1"
                     value={config.llm.temperature}
                     onChange={(e) => setConfig({ ...config, llm: { ...config.llm, temperature: parseFloat(e.target.value) } })}
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
                   />
                 </div>
               </div>
@@ -583,66 +583,66 @@ export default function SettingsPage() {
                   size="sm"
                   onClick={() => handleTestLLM()}
                   disabled={testingLLM}
-                  className="flex items-center gap-1.5 text-xs border-[var(--color-line)] bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs border-border bg-background hover:bg-muted text-foreground rounded-md shadow-manus-xs cursor-pointer"
                 >
-                  {testingLLM ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} className="text-amber-400" />}
+                  {testingLLM ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} className="text-manus-warning" />}
                   <span>Test Primary Endpoint</span>
                 </Button>
 
                 {testResult && (
-                  <span className={`text-xs font-sans flex items-center gap-1.5 ${testResult.ok ? "text-emerald-400" : "text-red-400"}`}>
+                  <span className={`text-xs flex items-center gap-1.5 ${testResult.ok ? "text-manus-success" : "text-manus-error"}`}>
                     {testResult.ok ? <Check size={13} /> : <AlertTriangle size={13} />}
-                    {testResult.message}
+                    <span>{testResult.message}</span>
                   </span>
                 )}
               </div>
             </div>
 
             {/* Vision Model Override Card */}
-            <div className="p-4 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-1)] space-y-3">
-              <span className="text-xs font-bold text-[var(--color-ink-muted)] uppercase tracking-wider block">
+            <div className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-manus-xs">
+              <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">
                 Visual Perception Model [llm.vision]
               </span>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Vision Model ID</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Vision Model ID</label>
                   <input
                     type="text"
                     value={config.llm_vision.model}
                     onChange={(e) => setConfig({ ...config, llm_vision: { ...config.llm_vision, model: e.target.value } })}
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Vision Base URL</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Vision Base URL</label>
                   <input
                     type="text"
                     value={config.llm_vision.base_url}
                     onChange={(e) => setConfig({ ...config, llm_vision: { ...config.llm_vision, base_url: e.target.value } })}
-                    className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Specialized Agent Profiles [llm.*] */}
+            {/* Specialized Agent Profiles */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Bot size={15} className="text-cyan-400" />
-                    <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
+                    <Bot size={15} className="text-manus-accent" />
+                    <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
                       Specialized Agent Profiles [llm.*]
                     </h3>
                   </div>
-                  <p className="text-[11px] text-[var(--color-ink-faint)] font-sans">
+                  <p className="text-[11px] text-muted-foreground">
                     Configure dedicated models & independent endpoints for task-specific sub-agents.
                   </p>
                 </div>
                 <Button
                   onClick={addCustomModel}
                   size="sm"
-                  className="flex items-center gap-1 h-7 px-2.5 text-xs bg-cyan-600 hover:bg-cyan-500 text-black font-semibold cursor-pointer"
+                  className="flex items-center gap-1 h-7 px-2.5 text-xs bg-primary text-primary-foreground font-medium rounded-md shadow-manus-xs cursor-pointer"
                 >
                   <Plus size={12} />
                   <span>Add Dedicated Agent</span>
@@ -650,34 +650,30 @@ export default function SettingsPage() {
               </div>
 
               {customModels.map((cm, idx) => (
-                <div key={cm.id} className="p-4 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-1)] space-y-3">
-                  <div className="flex items-center justify-between border-b border-[var(--color-line-subtle)] pb-2">
+                <div key={cm.id} className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-manus-xs">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                    <span className="text-xs font-semibold text-manus-warning font-mono">
+                      [llm.{cm.name || `agent_${idx + 1}`}]
+                    </span>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-amber-400 uppercase">
-                        [llm.{cm.name || `agent_${idx + 1}`}]
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {/* PROMOTE TO PRIMARY BUTTON */}
                       <button
                         onClick={() => promoteToPrimary(cm)}
-                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-semibold cursor-pointer"
+                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-manus-success/15 hover:bg-manus-success/25 text-manus-success border border-manus-success/30 font-medium cursor-pointer transition-all"
                         title="Set this profile as the active Primary Model"
                       >
                         <ArrowUpCircle size={12} />
                         <span>Set as Primary Active</span>
                       </button>
-
                       <button
                         onClick={() => handleTestLLM(cm.base_url, cm.api_key, cm.model)}
-                        className="flex items-center gap-1 text-[10px] text-cyan-400 hover:underline cursor-pointer"
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                       >
                         <Zap size={11} />
-                        <span>Test Endpoint</span>
+                        <span>Test</span>
                       </button>
                       <button
                         onClick={() => removeCustomModel(cm.id)}
-                        className="text-red-400 hover:text-red-300 p-1 cursor-pointer"
+                        className="text-muted-foreground hover:text-manus-error p-1 cursor-pointer"
                         title="Remove Agent Profile"
                       >
                         <Trash2 size={13} />
@@ -685,9 +681,9 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">Section Identifier</label>
+                      <label className="text-[10px] font-medium text-muted-foreground block mb-1">Identifier</label>
                       <input
                         type="text"
                         value={cm.name}
@@ -695,11 +691,11 @@ export default function SettingsPage() {
                           const val = e.target.value;
                           setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, name: val } : m));
                         }}
-                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs text-[var(--color-ink)]"
+                        className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-manus-xs"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">Model ID</label>
+                      <label className="text-[10px] font-medium text-muted-foreground block mb-1">Model ID</label>
                       <input
                         type="text"
                         value={cm.model}
@@ -707,11 +703,11 @@ export default function SettingsPage() {
                           const val = e.target.value;
                           setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, model: val } : m));
                         }}
-                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs text-[var(--color-ink)]"
+                        className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-manus-xs"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">Base Endpoint URL</label>
+                      <label className="text-[10px] font-medium text-muted-foreground block mb-1">Endpoint URL</label>
                       <input
                         type="text"
                         value={cm.base_url}
@@ -719,45 +715,7 @@ export default function SettingsPage() {
                           const val = e.target.value;
                           setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, base_url: val } : m));
                         }}
-                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs text-[var(--color-ink)]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">API Key</label>
-                      <input
-                        type="password"
-                        value={cm.api_key}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, api_key: val } : m));
-                        }}
-                        placeholder="Leave masked or blank"
-                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs text-[var(--color-ink)]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">Max Tokens</label>
-                      <input
-                        type="number"
-                        value={cm.max_tokens || 8192}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, max_tokens: val } : m));
-                        }}
-                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs text-[var(--color-ink)]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">Temperature</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={cm.temperature ?? 0.0}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, temperature: val } : m));
-                        }}
-                        className="w-full bg-[var(--color-surface-2)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs text-[var(--color-ink)]"
+                        className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-manus-xs"
                       />
                     </div>
                   </div>
@@ -770,99 +728,57 @@ export default function SettingsPage() {
         {/* TAB 2: BROWSER */}
         {activeTab === "browser" && (
           <div className="space-y-6 max-w-3xl">
-            <div className="border-b border-[var(--color-line)] pb-4">
-              <h2 className="text-sm font-bold text-[var(--color-ink)] uppercase tracking-wider">
+            <div className="border-b border-border pb-4">
+              <h2 className="text-sm font-semibold font-heading text-foreground uppercase tracking-wider">
                 Browser Automation & CDP [browser]
               </h2>
-              <p className="text-xs text-[var(--color-ink-faint)] font-sans mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Headless flags, Playwright security toggles, and remote DevTools debugging.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">CDP URL (Live View Target)</label>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">CDP URL</label>
                 <input
                   type="text"
                   value={config.browser.cdp_url}
                   onChange={(e) => setConfig({ ...config, browser: { ...config.browser, cdp_url: e.target.value } })}
                   placeholder="http://localhost:9222"
-                  className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                  className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
                 />
               </div>
-
               <div>
-                <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Custom Chrome Path</label>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Chrome Path</label>
                 <input
                   type="text"
                   value={config.browser.chrome_instance_path || ""}
                   onChange={(e) => setConfig({ ...config, browser: { ...config.browser, chrome_instance_path: e.target.value } })}
                   placeholder="C:\Program Files\Google\Chrome\Application\chrome.exe"
-                  className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                  className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
                 />
-              </div>
-
-              <div className="flex items-center gap-2 pt-4">
-                <input
-                  type="checkbox"
-                  id="headless"
-                  checked={config.browser.headless}
-                  onChange={(e) => setConfig({ ...config, browser: { ...config.browser, headless: e.target.checked } })}
-                  className="rounded border-[var(--color-line)]"
-                />
-                <label htmlFor="headless" className="text-xs text-[var(--color-ink)] font-sans cursor-pointer">
-                  Headless Mode (Run browser invisibly in background)
-                </label>
-              </div>
-
-              <div className="flex items-center gap-2 pt-4">
-                <input
-                  type="checkbox"
-                  id="disable_sec"
-                  checked={config.browser.disable_security}
-                  onChange={(e) => setConfig({ ...config, browser: { ...config.browser, disable_security: e.target.checked } })}
-                  className="rounded border-[var(--color-line)]"
-                />
-                <label htmlFor="disable_sec" className="text-xs text-[var(--color-ink)] font-sans cursor-pointer">
-                  Disable Browser Security (Bypass CORS and certificate blocks)
-                </label>
               </div>
             </div>
 
-            <div className="border-t border-[var(--color-line)] pt-4 space-y-3">
-              <h3 className="text-xs font-bold text-[var(--color-ink-muted)] uppercase tracking-wider">
-                Proxy Settings [browser.proxy]
-              </h3>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">Server URL</label>
-                  <input
-                    type="text"
-                    value={config.browser.proxy.server || ""}
-                    onChange={(e) => setConfig({ ...config, browser: { ...config.browser, proxy: { ...config.browser.proxy, server: e.target.value } } })}
-                    placeholder="http://proxy:8080"
-                    className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">Username</label>
-                  <input
-                    type="text"
-                    value={config.browser.proxy.username || ""}
-                    onChange={(e) => setConfig({ ...config, browser: { ...config.browser, proxy: { ...config.browser.proxy, username: e.target.value } } })}
-                    className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-[var(--color-ink-muted)] block mb-1">Password</label>
-                  <input
-                    type="password"
-                    value={config.browser.proxy.password || ""}
-                    onChange={(e) => setConfig({ ...config, browser: { ...config.browser, proxy: { ...config.browser.proxy, password: e.target.value } } })}
-                    className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-2.5 py-1 text-xs"
-                  />
-                </div>
-              </div>
+            <div className="space-y-2 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.browser.headless}
+                  onChange={(e) => setConfig({ ...config, browser: { ...config.browser, headless: e.target.checked } })}
+                  className="rounded border-border text-primary"
+                />
+                <span className="text-xs text-foreground">Headless Mode (Run browser invisibly in background)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.browser.disable_security}
+                  onChange={(e) => setConfig({ ...config, browser: { ...config.browser, disable_security: e.target.checked } })}
+                  className="rounded border-border text-primary"
+                />
+                <span className="text-xs text-foreground">Disable Browser Security (Bypass CORS restrictions)</span>
+              </label>
             </div>
           </div>
         )}
@@ -870,22 +786,22 @@ export default function SettingsPage() {
         {/* TAB 3: SEARCH */}
         {activeTab === "search" && (
           <div className="space-y-6 max-w-3xl">
-            <div className="border-b border-[var(--color-line)] pb-4">
-              <h2 className="text-sm font-bold text-[var(--color-ink)] uppercase tracking-wider">
+            <div className="border-b border-border pb-4">
+              <h2 className="text-sm font-semibold font-heading text-foreground uppercase tracking-wider">
                 Search Engine Orchestration [search]
               </h2>
-              <p className="text-xs text-[var(--color-ink-faint)] font-sans mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Primary search engine, fallback chain, and rate limit retries.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Primary Engine</label>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Primary Engine</label>
                 <select
                   value={config.search.engine}
                   onChange={(e) => setConfig({ ...config, search: { ...config.search, engine: e.target.value } })}
-                  className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
+                  className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs"
                 >
                   <option value="Google">Google</option>
                   <option value="DuckDuckGo">DuckDuckGo</option>
@@ -893,34 +809,13 @@ export default function SettingsPage() {
                   <option value="Baidu">Baidu</option>
                 </select>
               </div>
-
               <div>
-                <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Fallback Chain (comma-separated)</label>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">Fallback Chain (comma-separated)</label>
                 <input
                   type="text"
                   value={Array.isArray(config.search.fallback_engines) ? config.search.fallback_engines.join(", ") : ""}
                   onChange={(e) => setConfig({ ...config, search: { ...config.search, fallback_engines: e.target.value.split(",").map((s) => s.trim()) } })}
-                  className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs text-[var(--color-ink)]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Max Retries</label>
-                <input
-                  type="number"
-                  value={config.search.max_retries}
-                  onChange={(e) => setConfig({ ...config, search: { ...config.search, max_retries: parseInt(e.target.value, 10) } })}
-                  className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Retry Delay (seconds)</label>
-                <input
-                  type="number"
-                  value={config.search.retry_delay}
-                  onChange={(e) => setConfig({ ...config, search: { ...config.search, retry_delay: parseInt(e.target.value, 10) } })}
-                  className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs"
+                  className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
                 />
               </div>
             </div>
@@ -930,46 +825,43 @@ export default function SettingsPage() {
         {/* TAB 4: SANDBOX */}
         {activeTab === "sandbox" && (
           <div className="space-y-6 max-w-3xl">
-            <div className="border-b border-[var(--color-line)] pb-4">
-              <h2 className="text-sm font-bold text-[var(--color-ink)] uppercase tracking-wider">
+            <div className="border-b border-border pb-4">
+              <h2 className="text-sm font-semibold font-heading text-foreground uppercase tracking-wider">
                 Execution Sandboxing [sandbox / daytona]
               </h2>
-              <p className="text-xs text-[var(--color-ink-faint)] font-sans mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Local Docker container sandbox and Daytona remote cloud workspaces.
               </p>
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  id="use_sb"
                   checked={config.sandbox.use_sandbox}
                   onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, use_sandbox: e.target.checked } })}
-                  className="rounded border-[var(--color-line)]"
+                  className="rounded border-border text-primary"
                 />
-                <label htmlFor="use_sb" className="text-xs text-[var(--color-ink)] font-sans cursor-pointer">
-                  Enable Local Docker Sandbox (Requires Docker Desktop running)
-                </label>
-              </div>
+                <span className="text-xs text-foreground">Enable Local Docker Sandbox (Requires Docker running)</span>
+              </label>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Docker Image</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Docker Image</label>
                   <input
                     type="text"
                     value={config.sandbox.image}
                     onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, image: e.target.value } })}
-                    className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">Memory Limit</label>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">Memory Limit</label>
                   <input
                     type="text"
                     value={config.sandbox.memory_limit}
                     onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, memory_limit: e.target.value } })}
-                    className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs"
+                    className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
                   />
                 </div>
               </div>
@@ -980,51 +872,48 @@ export default function SettingsPage() {
         {/* TAB 5: MCP & AGENTS */}
         {activeTab === "mcp" && (
           <div className="space-y-6 max-w-3xl">
-            <div className="border-b border-[var(--color-line)] pb-4">
-              <h2 className="text-sm font-bold text-[var(--color-ink)] uppercase tracking-wider">
+            <div className="border-b border-border pb-4">
+              <h2 className="text-sm font-semibold font-heading text-foreground uppercase tracking-wider">
                 Multi-Agent Workflow & MCP Tools
               </h2>
-              <p className="text-xs text-[var(--color-ink-faint)] font-sans mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Model Context Protocol modules and multi-agent task distribution.
               </p>
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  id="data_agent"
                   checked={config.runflow.use_data_analysis_agent}
                   onChange={(e) => setConfig({ ...config, runflow: { ...config.runflow, use_data_analysis_agent: e.target.checked } })}
-                  className="rounded border-[var(--color-line)]"
+                  className="rounded border-border text-primary"
                 />
-                <label htmlFor="data_agent" className="text-xs text-[var(--color-ink)] font-sans cursor-pointer">
-                  Use Data Analysis Specialist Agent (runflow.use_data_analysis_agent)
-                </label>
-              </div>
+                <span className="text-xs text-foreground">Use Data Analysis Specialist Agent</span>
+              </label>
 
               <div>
-                <label className="text-[11px] text-[var(--color-ink-muted)] block mb-1">MCP Server Reference</label>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">MCP Server Reference</label>
                 <input
                   type="text"
                   value={config.mcp.server_reference}
                   onChange={(e) => setConfig({ ...config, mcp: { ...config.mcp, server_reference: e.target.value } })}
-                  className="w-full bg-[var(--color-surface-1)] border border-[var(--color-line)] rounded px-3 py-1.5 text-xs"
+                  className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
                 />
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 6: DIAGNOSTICS & ACCURATE HARDWARE */}
+        {/* TAB 6: DIAGNOSTICS & HARDWARE */}
         {activeTab === "system" && (
           <div className="space-y-6 max-w-3xl">
-            <div className="border-b border-[var(--color-line)] pb-4 flex items-center justify-between">
+            <div className="border-b border-border pb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-bold text-[var(--color-ink)] uppercase tracking-wider">
+                <h2 className="text-sm font-semibold font-heading text-foreground uppercase tracking-wider">
                   Hardware Diagnostics & Sync
                 </h2>
-                <p className="text-xs text-[var(--color-ink-faint)] font-sans mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Accurate CPU name, RAM telemetry, and repository commit status.
                 </p>
               </div>
@@ -1035,74 +924,59 @@ export default function SettingsPage() {
 
             {systemInfo ? (
               <div className="space-y-4">
-                <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-line)] space-y-3">
+                <div className="p-4 rounded-xl bg-card border border-border space-y-3 shadow-manus-xs">
                   <div className="flex items-center gap-2">
-                    <Cpu size={15} className="text-cyan-400" />
-                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
+                    <Cpu size={15} className="text-manus-accent" />
+                    <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
                       Host Hardware Telemetry
                     </span>
                   </div>
 
-                  <div className="p-3 rounded bg-[var(--color-surface-2)] space-y-2 text-xs">
+                  <div className="p-3 rounded-lg bg-background border border-border/60 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-[var(--color-ink-muted)]">Processor:</span>
-                      <span className="text-[var(--color-ink)] font-bold text-emerald-400">{systemInfo.os.cpu_brand}</span>
+                      <span className="text-muted-foreground">Processor:</span>
+                      <span className="text-foreground font-semibold font-mono">{systemInfo.os.cpu_brand}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[var(--color-ink-muted)]">Physical Cores / Threads:</span>
-                      <span className="text-[var(--color-ink)] font-bold">{systemInfo.os.cores} Cores</span>
+                      <span className="text-muted-foreground">Physical Cores / Threads:</span>
+                      <span className="text-foreground font-semibold font-mono">{systemInfo.os.cores} Cores</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[var(--color-ink-muted)]">System RAM:</span>
-                      <span className="text-[var(--color-ink)] font-bold">
+                      <span className="text-muted-foreground">System RAM:</span>
+                      <span className="text-foreground font-semibold font-mono">
                         {systemInfo.os.memory?.available_gb} GB free / {systemInfo.os.memory?.total_gb} GB total ({systemInfo.os.memory?.usage_percent}% load)
                       </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[var(--color-ink-muted)]">OS Architecture:</span>
-                      <span className="text-[var(--color-ink)] font-bold">{systemInfo.os.system} {systemInfo.os.release} ({systemInfo.os.machine})</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-line)] space-y-3">
+                <div className="p-4 rounded-xl bg-card border border-border space-y-3 shadow-manus-xs">
                   <div className="flex items-center gap-2">
-                    <Activity size={15} className="text-amber-400" />
-                    <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    <Activity size={15} className="text-manus-warning" />
+                    <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
                       Ecosystem & Repositories
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-xs">
-                    <div className="p-3 rounded bg-[var(--color-surface-2)] space-y-1">
-                      <span className="text-[11px] text-[var(--color-ink-muted)] font-bold block">OpenManus (Core)</span>
-                      <div>Commit: <span className="font-bold text-emerald-400">{systemInfo.repositories.openmanus.commit}</span></div>
-                      <div className="text-[10px] text-[var(--color-ink-faint)]">Target: {systemInfo.repositories.openmanus.target_commit}</div>
-                      <div className="text-[10px] text-[var(--color-ink-faint)] truncate">Path: {systemInfo.repositories.openmanus.path}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                    <div className="p-3 rounded-lg bg-background border border-border/60 space-y-1">
+                      <span className="text-[11px] text-muted-foreground font-bold block font-sans">OpenManus (Core)</span>
+                      <div>Commit: <span className="font-bold text-manus-success">{systemInfo.repositories.openmanus.commit}</span></div>
                     </div>
-
-                    <div className="p-3 rounded bg-[var(--color-surface-2)] space-y-1">
-                      <span className="text-[11px] text-[var(--color-ink-muted)] font-bold block">OpenManus Web (PWA)</span>
-                      <div>Commit: <span className="font-bold text-cyan-400">{systemInfo.repositories.openmanus_web.commit}</span></div>
-                      <div className="text-[10px] text-[var(--color-ink-faint)]">Version: {systemInfo.repositories.openmanus_web.version}</div>
-                      <div className="text-[10px] text-[var(--color-ink-faint)] truncate">Path: {systemInfo.repositories.openmanus_web.path}</div>
+                    <div className="p-3 rounded-lg bg-background border border-border/60 space-y-1">
+                      <span className="text-[11px] text-muted-foreground font-bold block font-sans">OpenManus Web (PWA)</span>
+                      <div>Commit: <span className="font-bold text-primary">{systemInfo.repositories.openmanus_web.commit}</span></div>
                     </div>
                   </div>
                 </div>
-
-                <div className="p-4 rounded-lg bg-[var(--color-surface-1)] border border-[var(--color-line)] text-xs space-y-1">
-                  <div className="text-[var(--color-ink-muted)]">Python Runtime: <span className="text-[var(--color-ink)] font-bold">{systemInfo.software.python}</span></div>
-                  <div className="text-[10px] text-[var(--color-ink-faint)] truncate">Path: {systemInfo.software.python_executable}</div>
-                </div>
               </div>
             ) : (
-              <div className="p-8 text-center text-xs text-[var(--color-ink-faint)]">
-                Loading accurate telemetry...
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                Loading hardware telemetry...
               </div>
             )}
           </div>
         )}
-
       </div>
     </div>
   );

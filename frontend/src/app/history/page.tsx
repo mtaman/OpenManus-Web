@@ -2,8 +2,16 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Sidebar } from "@/components/layout/sidebar";
-import { History, Trash2, Download, ExternalLink, Calendar, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import {
+  History,
+  Trash2,
+  Download,
+  ExternalLink,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  AlertCircle
+} from "lucide-react";
 
 interface JobItem {
   id: string;
@@ -50,94 +58,105 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-mono">
-      <Sidebar />
-      <div className="flex flex-col flex-1 h-full overflow-hidden">
-        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-900/50">
-          <div className="flex items-center gap-2">
-            <History className="h-5 w-5 text-emerald-400" />
-            <h1 className="font-bold text-base text-slate-100">Session History & Archives</h1>
-          </div>
-          <span className="text-xs text-slate-400">Total Sessions: {jobs.length}</span>
+    <div className="flex flex-col flex-1 h-full w-full bg-background text-foreground overflow-hidden font-sans">
+      {/* Header Bar */}
+      <div className="h-14 flex items-center justify-between px-6 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2.5">
+          <History className="h-4 w-4 text-manus-accent" />
+          <h1 className="font-heading font-semibold text-sm text-foreground">
+            Session History & Archives
+          </h1>
         </div>
+        <span className="text-xs text-muted-foreground font-mono">
+          Total Sessions: {jobs.length}
+        </span>
+      </div>
 
-        <div className="flex-1 p-6 overflow-y-auto bg-slate-950">
-          {loading ? (
-            <div className="flex items-center justify-center h-48 text-slate-400 text-xs animate-pulse">
-              Loading session history...
+      {/* Sessions Content */}
+      <div className="flex-1 p-6 overflow-y-auto bg-background">
+        {loading ? (
+          <div className="flex items-center justify-center h-48 text-muted-foreground text-xs animate-pulse">
+            Loading session history...
+          </div>
+        ) : jobs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-card border border-border shadow-manus-sm flex items-center justify-center text-muted-foreground">
+              <History size={24} />
             </div>
-          ) : jobs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center text-slate-500 space-y-2">
-              <History size={32} className="text-slate-600" />
-              <p className="text-sm">No recorded chat sessions found.</p>
+            <div>
+              <p className="text-sm font-medium text-foreground">No recorded sessions found</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Start a new task from the chat dashboard to create a session.
+              </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {jobs.map((job) => {
-                if (!job || !job.id) return null;
-                return (
-                  <div
-                    key={job.id}
-                    className="flex flex-col justify-between p-4 rounded-xl border border-slate-800 bg-slate-900/70 hover:border-slate-700 transition group shadow-md"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold flex items-center gap-1">
-                          <Calendar size={11} /> {job.id}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 ${
-                            job.status === "completed"
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                              : job.status === "running"
-                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse"
-                              : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                          }`}
-                        >
-                          {job.status === "completed" && <CheckCircle2 size={10} />}
-                          {job.status === "running" && <Clock size={10} />}
-                          {job.status === "failed" && <AlertCircle size={10} />}
-                          {job.status}
-                        </span>
-                      </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {jobs.map((job) => {
+              if (!job || !job.id) return null;
+              return (
+                <div
+                  key={job.id}
+                  className="flex flex-col justify-between p-4 rounded-xl border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono flex items-center gap-1">
+                        <Calendar size={11} /> {job.id}
+                      </span>
 
-                      <p className="text-xs text-slate-200 line-clamp-3 mb-4 leading-relaxed font-sans">
-                        {job.prompt || "No prompt recorded"}
-                      </p>
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-medium flex items-center gap-1 ${
+                          job.status === "completed"
+                            ? "bg-manus-success/15 text-manus-success border border-manus-success/30"
+                            : job.status === "running"
+                            ? "bg-manus-warning/15 text-manus-warning border border-manus-warning/30 animate-pulse"
+                            : "bg-manus-error/15 text-manus-error border border-manus-error/30"
+                        }`}
+                      >
+                        {job.status === "completed" && <CheckCircle2 size={10} />}
+                        {job.status === "running" && <Clock size={10} />}
+                        {job.status === "failed" && <AlertCircle size={10} />}
+                        <span>{job.status}</span>
+                      </span>
                     </div>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-800/80 mt-auto">
-                      <Link
-                        href={`/chat/${job.id}`}
-                        className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium transition"
-                      >
-                        <ExternalLink size={13} />
-                        <span>Open Session</span>
-                      </Link>
+                    <p className="text-xs text-foreground line-clamp-3 mb-4 leading-relaxed font-sans">
+                      {job.prompt || "No prompt recorded"}
+                    </p>
+                  </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <a
-                          href={`/api/run/jobs/${job.id}/download-zip`}
-                          title="Download ZIP"
-                          className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-400 transition"
-                        >
-                          <Download size={13} />
-                        </a>
-                        <button
-                          onClick={(e) => handleDelete(e, job.id)}
-                          title="Delete session"
-                          className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-rose-400 transition"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                  <div className="flex items-center justify-between pt-3 border-t border-border/60 mt-auto">
+                    <Link
+                      href={`/chat/${job.id}`}
+                      className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium transition-all"
+                    >
+                      <ExternalLink size={13} />
+                      <span>Open Session</span>
+                    </Link>
+
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={`/api/run/jobs/${job.id}/download-zip`}
+                        title="Download ZIP"
+                        className="p-1.5 rounded-md bg-muted hover:bg-muted/80 text-foreground border border-border text-[11px] transition shadow-manus-xs"
+                      >
+                        <Download size={13} />
+                      </a>
+                      <button
+                        onClick={(e) => handleDelete(e, job.id)}
+                        title="Delete session"
+                        className="p-1.5 rounded-md bg-muted hover:bg-manus-error/20 text-muted-foreground hover:text-manus-error border border-border transition cursor-pointer"
+                      >
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
