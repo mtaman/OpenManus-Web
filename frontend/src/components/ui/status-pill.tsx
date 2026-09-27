@@ -2,8 +2,10 @@
 
 import React from "react";
 
-interface StatusPillProps {
-  status?: string;
+export type SystemStatus = "idle" | "running" | "completed" | "failed" | string;
+
+export interface StatusPillProps {
+  status?: SystemStatus;
   label?: string;
 }
 

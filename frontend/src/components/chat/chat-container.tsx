@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   Send,
   Wrench,
@@ -23,9 +24,11 @@ import {
   Loader2,
   Sparkles,
   Layout,
-  Gauge,
+  Globe,
+  Palette,
   Gamepad2,
-  Clock
+  Clock,
+  ArrowUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkspacePanel } from "@/components/workspace/workspace-panel";
@@ -73,7 +76,10 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [selectedFileForEditor, setSelectedFileForEditor] = useState<string | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Record<number, boolean>>({});
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [showRightPanel, setShowRightPanel] = useState(true);
+
+  // Closed by default for fresh sessions for a clean screen
+  const [showRightPanel, setShowRightPanel] = useState<boolean>(Boolean(initialJobId));
+
   const [tokensUsed, setTokensUsed] = useState({ input: 0, output: 0, total: 0 });
   const [humanQuery, setHumanQuery] = useState<string | null>(null);
   const [humanAnswer, setHumanAnswer] = useState("");
@@ -81,12 +87,14 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (initialJobId) {
       setActiveJobId(initialJobId);
       fetchJobDetails(initialJobId);
       connectStream(initialJobId);
+      setShowRightPanel(true);
     }
   }, [initialJobId]);
 
@@ -98,11 +106,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         if (data.prompt) setSubmittedPrompt(data.prompt);
         if (data.status) setStatus(data.status);
         if (data.result) setFinalResult(safeRender(data.result));
-        if (data.created_at || data.timestamp) {
-          setSessionTimestamp(data.created_at || data.timestamp);
-        } else {
-          setSessionTimestamp(new Date().toLocaleString());
-        }
+        setSessionTimestamp(data.created_at || data.timestamp || new Date().toLocaleString());
 
         if (data.events && Array.isArray(data.events)) {
           const replayed: StepEvent[] = [];
@@ -119,11 +123,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             });
           });
           setSteps(replayed);
+          if (replayed.length > 0) setShowRightPanel(true);
         }
         fetchJobFiles(jobId);
       }
     } catch (e) {
-      console.error("Failed to fetch job details for restoration", e);
+      console.error("Failed to fetch job details", e);
     }
   };
 
@@ -178,6 +183,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           const fullPath = match[1].trim();
           const fileName = fullPath.split(/[\/\\]/).pop() || fullPath;
           setSelectedFileForEditor(fileName);
+          setShowRightPanel(true);
         }
         fetchJobFiles(jobId);
       } else if (eventType === "final") {
@@ -214,26 +220,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     bindEvt("error");
     bindEvt("ping");
 
-    es.onmessage = (e: any) => {
-      try {
-        const parsed = JSON.parse(e.data);
-        handleEventPayload(parsed.type || "thought", parsed);
-      } catch {}
-    };
-
     es.onerror = () => {
       es.close();
-      fetch(`/api/run/jobs/${jobId}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d && (d.status === "completed" || d.status === "failed")) {
-            setStatus(d.status);
-            if (d.result) setFinalResult(safeRender(d.result));
-          } else {
-            setStatus("idle");
-          }
-        })
-        .catch(() => setStatus("idle"));
       fetchJobFiles(jobId);
     };
   };
@@ -259,33 +247,10 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
   const copyText = (text: string, identifier: string) => {
     if (!text) return;
-    const onCopySuccess = () => {
+    navigator.clipboard.writeText(text).then(() => {
       setCopiedSection(identifier);
       setTimeout(() => setCopiedSection(null), 2000);
-    };
-
-    if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-      navigator.clipboard.writeText(text).then(onCopySuccess).catch(() => fallbackCopy(text));
-    } else {
-      fallbackCopy(text);
-    }
-
-    function fallbackCopy(str: string) {
-      try {
-        const textArea = document.createElement("textarea");
-        textArea.value = str;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        const successful = document.execCommand("copy");
-        document.body.removeChild(textArea);
-        if (successful) onCopySuccess();
-      } catch (err) {
-        console.error("Fallback copy error:", err);
-      }
-    }
+    });
   };
 
   const handleNewSession = () => {
@@ -306,6 +271,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     setHumanQuery(null);
     setHumanAnswer("");
     setSessionTimestamp("");
+    setShowRightPanel(false);
     router.push("/chat");
   };
 
@@ -397,6 +363,13 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleStartTask();
+    }
+  };
+
   const groupedSteps = steps.reduce((acc, s) => {
     if (!acc[s.step]) {
       acc[s.step] = [];
@@ -405,31 +378,19 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     return acc;
   }, {} as Record<number, StepEvent[]>);
 
-  const quickPrompts = [
-    {
-      label: "Dashboard Widget",
-      icon: <Layout size={12} />,
-      prompt:
-        "In the workspace, create a file named 'analytics_widget.html' featuring a clean modern health card with an animated SVG radial progress ring and real-time refresh button, then terminate.",
-    },
-    {
-      label: "Interactive Counter",
-      icon: <Gauge size={12} />,
-      prompt:
-        "In the workspace, create a file named 'counter_app.html' with a modern component using CSS, including a glowing button that changes color on hover and increments a click counter in JavaScript, then terminate.",
-    },
-    {
-      label: "Mini Pong Game",
-      icon: <Gamepad2 size={12} />,
-      prompt:
-        "In the workspace, create a file named 'mini_pong.html' with a playable HTML5 canvas retro pong game with keyboard controls and score counter, then terminate.",
-    },
+  const quickPills = [
+    { label: "Create slides", icon: <Layout size={13} />, prompt: "Create an interactive presentation in HTML with modern slide navigation and CSS styling, then terminate." },
+    { label: "Build website", icon: <Globe size={13} />, prompt: "Build a responsive modern single-page website in HTML and Tailwind CSS with a clean hero section and pricing cards, then terminate." },
+    { label: "Design", icon: <Palette size={13} />, prompt: "In workspace, create an animated SVG dashboard widget with modern cards and dark mode styling, then terminate." },
+    { label: "Create games", icon: <Gamepad2 size={13} />, prompt: "Create a playable HTML5 canvas retro game with keyboard controls, sound effects, and score tracking, then terminate." },
   ];
+
+  const isFreshSession = steps.length === 0 && !submittedPrompt && status !== "running";
 
   return (
     <div className="flex h-full w-full bg-background text-foreground overflow-hidden font-sans">
-      {/* Left Chat Interaction Area */}
-      <div className="flex-1 flex flex-col h-full border-r border-border min-w-0">
+      {/* Main Interaction Cockpit */}
+      <div className="flex-1 flex flex-col h-full border-r border-border min-w-0 transition-all">
         {/* Cockpit Sub-Header */}
         <div className="h-12 flex items-center justify-between px-5 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
           <div className="flex items-center gap-2.5">
@@ -468,9 +429,11 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </span>
             )}
 
-            <span className="text-xs font-mono text-muted-foreground">
-              Step {currentStepNum} / 20
-            </span>
+            {currentStepNum > 0 && (
+              <span className="text-xs font-mono text-muted-foreground">
+                Step {currentStepNum} / 20
+              </span>
+            )}
 
             {status === "running" && (
               <Button
@@ -495,268 +458,300 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           </div>
         </div>
 
-        {/* Scrollable Conversation Stream */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3.5">
-          {/* User Prompt Card */}
-          {submittedPrompt && (
-            <div className="p-3.5 rounded-xl bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
-              <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-                <span className="flex items-center gap-1.5 font-medium text-foreground">
-                  <User size={13} className="text-primary" />
-                  <span>User Task</span>
-                  {sessionTimestamp && <span className="text-[10px] text-muted-foreground font-normal">({sessionTimestamp})</span>}
-                </span>
+        {/* Dynamic Body: Centered Landing Screen OR Active Chat Stream */}
+        {isFreshSession ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full">
+            <h1 className="font-serif text-3xl sm:text-4xl font-normal text-foreground tracking-tight mb-8">
+              What can I do for you?
+            </h1>
 
-                <button
-                  type="button"
-                  onClick={() => copyText(submittedPrompt, "user-prompt")}
-                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                  title="Copy Task Prompt"
-                >
-                  {copiedSection === "user-prompt" ? (
-                    <>
-                      <Check size={11} className="text-manus-success" />
-                      <span className="text-manus-success">Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={11} />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
-                {submittedPrompt}
-              </div>
-            </div>
-          )}
-
-          {/* Human Intervention Required */}
-          {humanQuery && (
-            <div className="p-4 rounded-xl bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
-              <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
-                <HelpCircle size={14} />
-                <span>Agent Requires Human Input:</span>
-              </div>
-              <div className="p-2.5 rounded-md bg-background border border-border text-foreground">
-                {humanQuery}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={humanAnswer}
-                  onChange={(e) => setHumanAnswer(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendHumanAnswer()}
-                  placeholder="Type your response to the agent..."
-                  className="flex-1 bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <Button
-                  variant="primary"
-                  onClick={handleSendHumanAnswer}
-                  className="text-xs px-3 h-8 rounded-md cursor-pointer"
-                >
-                  Submit Answer
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Running Status Indicator */}
-          {status === "running" && (
-            <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
-              <div className="flex items-center gap-2 text-xs">
-                <Loader2 size={13} className="animate-spin text-manus-accent" />
-                <span>Agent reasoning & executing autonomously...</span>
-              </div>
-              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
-                {elapsedSeconds}s
-              </span>
-            </div>
-          )}
-
-          {/* Grouped Step Accordions */}
-          {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
-            const stepNum = parseInt(stepNumStr, 10);
-            const isExpanded = expandedSteps[stepNum] === true;
-
-            return (
-              <div key={stepNum} className="border border-border rounded-xl bg-card/60 overflow-hidden shadow-manus-xs transition-all">
-                <button
-                  type="button"
-                  onClick={() => toggleStep(stepNum)}
-                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    {isExpanded ? (
-                      <ChevronDown size={14} className="text-manus-accent" />
-                    ) : (
-                      <ChevronRight size={14} className="text-muted-foreground" />
-                    )}
-                    <span className="text-xs font-medium text-foreground">
-                      Execution Step {stepNum}
-                    </span>
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground">
-                      {stepEvents.length} events
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">
-                    {isExpanded ? "Collapse" : "View reasoning"}
+            {/* Centered Large Composer */}
+            <div className="w-full bg-card rounded-2xl border border-border shadow-manus-md p-3.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all text-left">
+              <textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={3}
+                placeholder="Assign a task or type / for more..."
+                className="w-full bg-transparent border-0 outline-none text-sm text-foreground placeholder:text-muted-foreground resize-none leading-relaxed"
+              />
+              <div className="flex items-center justify-between pt-2 border-t border-border/50 mt-1">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+                    <Sparkles size={12} className="text-manus-accent" />
+                    <span>OpenManus Engine</span>
                   </span>
-                </button>
-
-                {isExpanded && (
-                  <div className="p-3.5 pt-1 border-t border-border/60 space-y-2 bg-background/50">
-                    {stepEvents.map((evt) => (
-                      <div key={evt.id} className="text-xs space-y-1">
-                        {evt.type === "thought" && (
-                          <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
-                            <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
-                            <div className="whitespace-pre-wrap leading-relaxed font-sans text-xs">
-                              {evt.content}
-                            </div>
-                          </div>
-                        )}
-
-                        {evt.type === "tool_call" && evt.toolName && (
-                          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted border border-border text-foreground font-mono text-xs">
-                            <Wrench size={13} className="text-manus-info mt-0.5 flex-shrink-0" />
-                            <div className="truncate">
-                              <span className="font-semibold text-primary mr-1">{evt.toolName}:</span>
-                              <span>{evt.content}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {evt.type === "observation" && (
-                          <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
-                            <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
-                            <span className="whitespace-pre-wrap">{evt.content}</span>
-                          </div>
-                        )}
-
-                        {evt.type === "error" && (
-                          <div className="p-2.5 text-xs text-manus-error bg-manus-error/10 rounded-lg border border-manus-error/20 flex items-start gap-2">
-                            <span className="whitespace-pre-wrap">{evt.content}</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Final Result Card */}
-          {finalResult && (
-            <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-2 shadow-manus-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-manus-success font-semibold tracking-wide text-xs">
-                  TASK DELIVERABLE COMPLETED
-                </span>
-                <button
-                  type="button"
-                  onClick={() => copyText(finalResult, "final-result")}
-                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all"
-                  title="Copy Final Result"
-                >
-                  {copiedSection === "final-result" ? (
-                    <>
-                      <Check size={12} className="text-manus-success" />
-                      <span className="text-manus-success">Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={12} />
-                      <span>Copy Result</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="text-foreground whitespace-pre-wrap font-sans text-xs leading-relaxed">
-                {finalResult}
-              </div>
-
-              {producedFiles.length > 0 && (
-                <div className="pt-2.5 border-t border-manus-success/20">
-                  <span className="text-[11px] font-semibold text-foreground block mb-1.5">
-                    Generated Files:
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {producedFiles.map((f) => (
-                      <button
-                        key={f.path}
-                        type="button"
-                        onClick={() => setSelectedFileForEditor(f.name)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
-                      >
-                        <FileText size={12} className="text-manus-accent" />
-                        <span>{f.name}</span>
-                        <ExternalLink size={10} className="opacity-60" />
-                      </button>
-                    ))}
-                  </div>
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => handleStartTask()}
+                  disabled={!inputValue.trim()}
+                  className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs cursor-pointer hover:bg-primary/90"
+                  title="Dispatch Task (Enter)"
+                >
+                  <ArrowUp size={15} />
+                </button>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Bottom Composer & Quick Tasks */}
-        <div className="p-4 border-t border-border bg-card/40 space-y-2 shrink-0">
-          {status !== "running" && steps.length === 0 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1 text-[11px] text-manus-accent font-semibold mr-1 shrink-0">
-                <Sparkles size={12} />
-                Quick Tasks:
-              </span>
-              {quickPrompts.map((qp, idx) => (
+            {/* Quick Action Pills */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+              {quickPills.map((pill, idx) => (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => handleStartTask(qp.prompt)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground text-xs transition-all cursor-pointer whitespace-nowrap shadow-manus-xs"
+                  onClick={() => handleStartTask(pill.prompt)}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-card/60 hover:bg-muted text-xs text-foreground transition-all cursor-pointer shadow-manus-xs"
                 >
-                  {qp.icon}
-                  <span>{qp.label}</span>
+                  <span className="text-muted-foreground">{pill.icon}</span>
+                  <span>{pill.label}</span>
                 </button>
               ))}
             </div>
-          )}
+          </div>
+        ) : (
+          /* Active Chat Stream Feed */
+          <div className="flex-1 overflow-y-auto p-5 space-y-3.5">
+            {submittedPrompt && (
+              <div className="p-3.5 rounded-xl bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+                <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <User size={13} className="text-primary" />
+                    <span>User Task</span>
+                    {sessionTimestamp && <span className="text-[10px] text-muted-foreground font-normal">({sessionTimestamp})</span>}
+                  </span>
 
-          {/* Manus Input Box */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleStartTask();
-            }}
-            className="flex items-center gap-2 p-1.5 pl-3.5 rounded-xl border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all"
-          >
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : "Assign an autonomous task to OpenManus..."}
-              disabled={status === "running"}
-              className="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground disabled:opacity-50"
-            />
+                  <button
+                    type="button"
+                    onClick={() => copyText(submittedPrompt, "user-prompt")}
+                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                    title="Copy Task Prompt"
+                  >
+                    {copiedSection === "user-prompt" ? (
+                      <>
+                        <Check size={11} className="text-manus-success" />
+                        <span className="text-manus-success">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={11} />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
 
-            <Button
-              type="submit"
-              size="sm"
-              disabled={status === "running" || !inputValue.trim()}
-              className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs"
-            >
-              <Send size={12} />
-            </Button>
-          </form>
-        </div>
+                <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
+                  {submittedPrompt}
+                </div>
+              </div>
+            )}
+
+            {/* Human Intervention Required */}
+            {humanQuery && (
+              <div className="p-4 rounded-xl bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
+                <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
+                  <HelpCircle size={14} />
+                  <span>Agent Requires Human Input:</span>
+                </div>
+                <div className="p-2.5 rounded-md bg-background border border-border text-foreground">
+                  {humanQuery}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={humanAnswer}
+                    onChange={(e) => setHumanAnswer(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendHumanAnswer()}
+                    placeholder="Type your response to the agent..."
+                    className="flex-1 bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <Button
+                    variant="primary"
+                    onClick={handleSendHumanAnswer}
+                    className="text-xs px-3 h-8 rounded-md cursor-pointer"
+                  >
+                    Submit Answer
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Running Status Indicator */}
+            {status === "running" && (
+              <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
+                <div className="flex items-center gap-2 text-xs">
+                  <Loader2 size={13} className="animate-spin text-manus-accent" />
+                  <span>Agent reasoning & executing autonomously...</span>
+                </div>
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
+                  {elapsedSeconds}s
+                </span>
+              </div>
+            )}
+
+            {/* Grouped Step Accordions */}
+            {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
+              const stepNum = parseInt(stepNumStr, 10);
+              const isExpanded = expandedSteps[stepNum] === true;
+
+              return (
+                <div key={stepNum} className="border border-border rounded-xl bg-card/60 overflow-hidden shadow-manus-xs transition-all">
+                  <button
+                    type="button"
+                    onClick={() => toggleStep(stepNum)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isExpanded ? (
+                        <ChevronDown size={14} className="text-manus-accent" />
+                      ) : (
+                        <ChevronRight size={14} className="text-muted-foreground" />
+                      )}
+                      <span className="text-xs font-medium text-foreground">
+                        Execution Step {stepNum}
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground">
+                        {stepEvents.length} events
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">
+                      {isExpanded ? "Collapse" : "View reasoning"}
+                    </span>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="p-3.5 pt-1 border-t border-border/60 space-y-2 bg-background/50">
+                      {stepEvents.map((evt) => (
+                        <div key={evt.id} className="text-xs space-y-1">
+                          {evt.type === "thought" && (
+                            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
+                              <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
+                              <div className="whitespace-pre-wrap leading-relaxed font-sans text-xs">
+                                {evt.content}
+                              </div>
+                            </div>
+                          )}
+
+                          {evt.type === "tool_call" && evt.toolName && (
+                            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted border border-border text-foreground font-mono text-xs">
+                              <Wrench size={13} className="text-manus-info mt-0.5 flex-shrink-0" />
+                              <div className="truncate">
+                                <span className="font-semibold text-primary mr-1">{evt.toolName}:</span>
+                                <span>{evt.content}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {evt.type === "observation" && (
+                            <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
+                              <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
+                              <span className="whitespace-pre-wrap">{evt.content}</span>
+                            </div>
+                          )}
+
+                          {evt.type === "error" && (
+                            <div className="p-2.5 text-xs text-manus-error bg-manus-error/10 rounded-lg border border-manus-error/20 flex items-start gap-2">
+                              <span className="whitespace-pre-wrap">{evt.content}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Final Result Card */}
+            {finalResult && (
+              <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-2 shadow-manus-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-manus-success font-semibold tracking-wide text-xs">
+                    TASK DELIVERABLE COMPLETED
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(finalResult, "final-result")}
+                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all"
+                    title="Copy Final Result"
+                  >
+                    {copiedSection === "final-result" ? (
+                      <>
+                        <Check size={12} className="text-manus-success" />
+                        <span className="text-manus-success">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={12} />
+                        <span>Copy Result</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="text-foreground whitespace-pre-wrap font-sans text-xs leading-relaxed">
+                  {finalResult}
+                </div>
+
+                {producedFiles.length > 0 && (
+                  <div className="pt-2.5 border-t border-manus-success/20">
+                    <span className="text-[11px] font-semibold text-foreground block mb-1.5">
+                      Generated Files:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {producedFiles.map((f) => (
+                        <button
+                          key={f.path}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFileForEditor(f.name);
+                            setShowRightPanel(true);
+                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
+                        >
+                          <FileText size={12} className="text-manus-accent" />
+                          <span>{f.name}</span>
+                          <ExternalLink size={10} className="opacity-60" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Bottom Composer when session is active */}
+        {!isFreshSession && (
+          <div className="p-4 border-t border-border bg-card/40 space-y-2 shrink-0">
+            <div className="relative flex items-center rounded-xl border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
+              <textarea
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : "Assign a follow-up task (Shift+Enter for newline)..."}
+                disabled={status === "running"}
+                className="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground disabled:opacity-50 resize-none max-h-24 py-1"
+              />
+              <Button
+                type="button"
+                onClick={() => handleStartTask()}
+                size="sm"
+                disabled={status === "running" || !inputValue.trim()}
+                className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs"
+              >
+                <Send size={12} />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Right Sandbox / Workspace Panel */}
+      {/* Right Sandbox Workspace Panel */}
       {showRightPanel && (
         <div className="flex-1 h-full min-w-0 transition-all">
           <WorkspacePanel
