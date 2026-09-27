@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Sidebar } from "@/components/layout/sidebar";
 import { Folder, Plus, Trash2, Calendar, MessageSquare, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ProjectItem {
   id: string;
@@ -68,126 +68,135 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
-      <Sidebar />
-      <div className="flex flex-col flex-1 h-full overflow-hidden">
-        <div className="h-16 flex items-center justify-between px-8 border-b border-slate-800 bg-slate-900/50 shrink-0">
-          <div className="flex items-center gap-3">
-            <Folder className="h-5 w-5 text-emerald-400" />
-            <h1 className="font-bold text-base text-slate-100">Projects Workspace</h1>
-          </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition shadow"
-          >
-            <Plus size={14} />
-            <span>New Project</span>
-          </button>
+    <div className="flex flex-col flex-1 h-full w-full bg-background text-foreground overflow-hidden font-sans">
+      {/* Header Bar */}
+      <div className="h-14 flex items-center justify-between px-8 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-3">
+          <Folder className="h-5 w-5 text-manus-accent" />
+          <h1 className="font-heading font-semibold text-sm text-foreground">Projects Workspace</h1>
         </div>
+        <Button
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-2 h-8 px-3.5 rounded-md bg-primary text-primary-foreground text-xs font-medium transition shadow-manus-xs cursor-pointer"
+        >
+          <Plus size={14} />
+          <span>New Project</span>
+        </Button>
+      </div>
 
-        <div className="flex-1 p-8 overflow-y-auto bg-slate-950">
-          {loading ? (
-            <div className="flex items-center justify-center h-48 text-slate-400 text-xs animate-pulse">
-              Loading projects...
+      {/* Main Content Area */}
+      <div className="flex-1 p-8 overflow-y-auto bg-background">
+        {loading ? (
+          <div className="flex items-center justify-center h-48 text-muted-foreground text-xs animate-pulse font-mono">
+            Loading projects...
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center text-muted-foreground space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-card border border-border shadow-manus-sm flex items-center justify-center text-muted-foreground">
+              <Folder size={24} />
             </div>
-          ) : projects.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center text-slate-500 space-y-3">
-              <Folder size={40} className="text-slate-600" />
-              <p className="text-sm font-medium">No projects created yet.</p>
+            <div>
+              <p className="text-sm font-medium text-foreground">No projects created yet.</p>
               <button
+                type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="text-xs text-emerald-400 hover:underline"
+                className="text-xs text-primary hover:underline mt-1 cursor-pointer"
               >
                 Create your first project
               </button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((proj) => (
-                <div
-                  key={proj.id}
-                  className="flex flex-col justify-between p-5 rounded-xl border border-slate-800 bg-slate-900/70 hover:border-slate-700 transition group shadow-md"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-[10px] text-cyan-400 uppercase tracking-widest font-mono font-semibold">
-                        {proj.id}
-                      </span>
-                      <button
-                        onClick={() => handleDelete(proj.id)}
-                        className="text-slate-500 hover:text-rose-400 transition p-1"
-                        title="Delete project"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                    <h3 className="text-sm font-semibold text-slate-100 group-hover:text-emerald-300 transition">
-                      {proj.name}
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                      {proj.description || "No description provided."}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-800 mt-6 text-xs">
-                    <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                      <Calendar size={11} /> {proj.created_at?.split(" ")[0] || "Recent"}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map((proj) => (
+              <div
+                key={proj.id}
+                className="flex flex-col justify-between p-5 rounded-xl border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] text-primary uppercase tracking-wider font-mono font-semibold">
+                      {proj.id}
                     </span>
-                    <Link
-                      href={`/projects/${proj.id}`}
-                      className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-medium"
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(proj.id)}
+                      className="text-muted-foreground hover:text-manus-error transition p-1 cursor-pointer"
+                      title="Delete project"
                     >
-                      <span>Open Workspace</span>
-                      <ArrowRight size={12} />
-                    </Link>
+                      <Trash2 size={13} />
+                    </button>
                   </div>
+                  <h3 className="text-xs font-semibold text-foreground group-hover:text-primary transition font-heading">
+                    {proj.name}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2 font-sans">
+                    {proj.description || "No description provided."}
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-border/60 mt-6 text-xs">
+                  <span className="text-muted-foreground text-[11px] flex items-center gap-1 font-mono">
+                    <Calendar size={11} /> {proj.created_at?.split(" ")[0] || "Recent"}
+                  </span>
+                  <Link
+                    href={`/projects/${proj.id}`}
+                    className="flex items-center gap-1 text-primary hover:underline font-medium transition-all"
+                  >
+                    <span>Open Workspace</span>
+                    <ArrowRight size={12} />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
+      {/* Modal Dialog */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl space-y-4">
-            <h2 className="text-sm font-bold text-slate-100">Create New Project</h2>
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+            <h2 className="text-sm font-semibold font-heading text-foreground">Create New Project</h2>
             <form onSubmit={handleCreate} className="space-y-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Project Name</label>
+                <label className="text-xs text-muted-foreground block mb-1 font-medium">Project Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Weather App Microservice"
                   value={nameInput}
                   onChange={(e) => setNameInput(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-800 text-xs border border-slate-700 text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full px-3 py-2 rounded-md bg-background text-xs border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs font-sans"
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Description (Optional)</label>
+                <label className="text-xs text-muted-foreground block mb-1 font-medium">Description (Optional)</label>
                 <textarea
                   rows={3}
                   placeholder="Goals and requirements for this workspace..."
                   value={descInput}
                   onChange={(e) => setDescInput(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-800 text-xs border border-slate-700 text-slate-100 focus:outline-none focus:border-emerald-500 resize-none"
+                  className="w-full px-3 py-2 rounded-md bg-background text-xs border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none shadow-manus-xs font-sans"
                 />
               </div>
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:bg-slate-800 transition"
+                  className="text-xs cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition shadow"
+                  size="sm"
+                  className="text-xs px-4 bg-primary text-primary-foreground shadow-manus-xs cursor-pointer"
                 >
                   Create
-                </button>
+                </Button>
               </div>
             </form>
           </div>
