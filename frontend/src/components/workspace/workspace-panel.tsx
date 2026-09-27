@@ -1,7 +1,16 @@
 ﻿"use client";
 
 import React, { useState, useEffect } from "react";
-import { Monitor, FolderTree, Package, TerminalSquare, FileCode2, Globe, FileText, ExternalLink, Download } from "lucide-react";
+import {
+  Monitor,
+  FolderTree,
+  Package,
+  TerminalSquare,
+  FileCode2,
+  Globe,
+  FileText,
+  Download
+} from "lucide-react";
 import { PreviewTab } from "./preview-tab";
 import { FilesTab } from "./files-tab";
 import { ArtifactsTab } from "./artifacts-tab";
@@ -20,7 +29,6 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [jobFiles, setJobFiles] = useState<{ name: string; path: string }[]>([]);
 
-  // Fetch all artifacts generated in the active job
   useEffect(() => {
     if (!activeJobId) {
       setJobFiles([]);
@@ -34,11 +42,11 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
           const list = data.files || [];
           setJobFiles(list);
 
-          // Auto-select entrypoint if no file is manually selected
           if (!selectedFilePath && list.length > 0) {
-            const entryHtml = list.find((f: any) => f.name.toLowerCase() === "index.html") ||
-                              list.find((f: any) => f.name.toLowerCase().endsWith(".html") || f.name.toLowerCase().endsWith(".htm")) ||
-                              list[0];
+            const entryHtml =
+              list.find((f: any) => f.name.toLowerCase() === "index.html") ||
+              list.find((f: any) => f.name.toLowerCase().endsWith(".html") || f.name.toLowerCase().endsWith(".htm")) ||
+              list[0];
             handleSelectArtifact(entryHtml.name);
           }
         }
@@ -76,32 +84,35 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
   ];
 
   return (
-    <div className="flex flex-col h-full bg-[var(--color-surface-1)] border-l border-[var(--color-line)] font-mono">
+    <div className="flex flex-col h-full bg-background border-l border-border font-sans">
       {/* Primary Tab Navigation */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]">
+      <div className="h-12 flex items-center justify-between px-3 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-colors cursor-pointer ${
-                activeTab === tab.id
-                  ? "bg-[var(--color-surface-2)] text-cyan-400 border border-[var(--color-line)] shadow-sm"
-                  : "text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]/50"
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-manus-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Multi-Artifact Quick Switcher Bar with ZIP Export */}
       {jobFiles.length > 0 && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--color-surface-2)] border-b border-[var(--color-line)] overflow-x-auto text-[11px]">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-card/60 border-b border-border overflow-x-auto text-[11px] shrink-0">
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-[var(--color-ink-faint)] uppercase tracking-wider font-semibold mr-1">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mr-1">
               Artifacts:
             </span>
             {jobFiles.map((file) => {
@@ -112,13 +123,13 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
                   key={file.path}
                   type="button"
                   onClick={() => handleSelectArtifact(file.name)}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded transition-all cursor-pointer ${
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                     isSelected
-                      ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30"
-                      : "text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] hover:bg-[var(--color-surface-1)]"
+                      ? "bg-primary text-primary-foreground shadow-manus-xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
                   }`}
                 >
-                  {isWeb ? <Globe size={11} className="text-emerald-400" /> : <FileText size={11} />}
+                  {isWeb ? <Globe size={11} className={isSelected ? "text-primary-foreground" : "text-manus-success"} /> : <FileText size={11} />}
                   <span>{file.name}</span>
                 </button>
               );
@@ -129,7 +140,7 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
             <a
               href={`/api/run/jobs/${activeJobId}/download-zip`}
               download
-              className="flex items-center gap-1 px-2 py-0.5 ml-2 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono transition cursor-pointer flex-shrink-0"
+              className="flex items-center gap-1 px-2 py-0.5 ml-2 rounded-md bg-muted hover:bg-muted/80 text-foreground border border-border text-[10px] font-mono transition cursor-pointer flex-shrink-0 shadow-manus-xs"
               title="Download all generated files as a ZIP archive"
             >
               <Download size={11} />
@@ -140,7 +151,7 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
       )}
 
       {/* Tab Content Display */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden bg-background">
         {activeTab === "preview" && (
           <PreviewTab currentHtmlPath={selectedFilePath} activeJobId={activeJobId} />
         )}
@@ -154,3 +165,5 @@ export function WorkspacePanel({ activeJobId, overrideFile }: WorkspacePanelProp
     </div>
   );
 }
+
+export default WorkspacePanel;

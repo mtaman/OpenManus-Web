@@ -28,7 +28,6 @@ export function PreviewTab({
   const [loading, setLoading] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  // Auto-discover HTML deliverable if none is explicitly passed
   useEffect(() => {
     if (effectiveJobId && !explicitFile) {
       fetch(`/api/run/jobs/${effectiveJobId}/files`)
@@ -75,7 +74,6 @@ export function PreviewTab({
     fetchHtml();
   }, [fetchHtml]);
 
-  // Inject scoped base tag so relative assets resolve directly to this job's storage
   const sandboxedHtml = useMemo(() => {
     if (!rawHtml || !effectiveJobId) return "";
     const baseHref = `/api/run/jobs/${effectiveJobId}/raw/`;
@@ -89,20 +87,20 @@ export function PreviewTab({
 
   if (!effectiveJobId || !effectiveFile || !rawHtml) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full bg-slate-950 text-slate-400 p-8 select-none">
+      <div className="flex flex-col items-center justify-center h-full w-full bg-background text-muted-foreground p-8 select-none font-sans">
         <div className="flex flex-col items-center max-w-sm text-center space-y-4">
-          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative">
-            <Code2 className="w-10 h-10 text-emerald-400" />
-            <Sparkles className="w-4 h-4 text-cyan-400 absolute top-2 right-2 animate-pulse" />
+          <div className="p-4 rounded-2xl bg-card border border-border shadow-manus-md relative">
+            <Code2 className="w-10 h-10 text-manus-accent" />
+            <Sparkles className="w-4 h-4 text-manus-accent absolute top-2 right-2 animate-pulse" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-200">Sandbox Standby</h3>
-            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            <h3 className="text-sm font-semibold font-heading text-foreground">Sandbox Standby</h3>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
               Live web applications and HTML deliverables generated for this session will appear here in real time.
             </p>
           </div>
           {loading && (
-            <div className="flex items-center gap-2 text-xs text-emerald-400">
+            <div className="flex items-center gap-2 text-xs text-manus-accent font-medium">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
               <span>Loading deliverables...</span>
             </div>
@@ -115,21 +113,21 @@ export function PreviewTab({
   const rawUrl = `/api/run/jobs/${effectiveJobId}/raw/${effectiveFile}`;
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-950 overflow-hidden">
-      <div className="h-10 border-b border-slate-800 bg-slate-900/80 px-4 flex items-center justify-between shrink-0 text-xs">
-        <div className="flex items-center gap-2 text-slate-300">
-          <Monitor className="w-4 h-4 text-emerald-400" />
-          <span className="font-mono text-slate-200 truncate max-w-[200px]">{effectiveFile}</span>
-          <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+    <div className="flex flex-col h-full w-full bg-background overflow-hidden font-sans">
+      <div className="h-10 border-b border-border bg-card/60 backdrop-blur-sm px-4 flex items-center justify-between shrink-0 text-xs">
+        <div className="flex items-center gap-2 text-foreground">
+          <Monitor className="w-4 h-4 text-manus-accent" />
+          <span className="font-mono text-xs font-medium truncate max-w-[200px]">{effectiveFile}</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-manus-success/15 text-manus-success border border-manus-success/30 font-mono">
             Isolated
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setRefreshKey((k) => k + 1)}
             disabled={loading}
             title="Refresh Sandbox"
-            className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -138,7 +136,7 @@ export function PreviewTab({
             target="_blank"
             rel="noopener noreferrer"
             title="Open in new window"
-            className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition flex items-center gap-1 text-[11px]"
+            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition flex items-center gap-1 text-[11px] cursor-pointer"
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
