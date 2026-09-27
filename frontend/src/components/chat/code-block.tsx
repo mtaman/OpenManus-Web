@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
-import { Check, Copy, Download, FileCode, ChevronDown, ChevronUp, Terminal } from "lucide-react";
+import { Check, Copy, Download, FileCode, ChevronDown, ChevronUp, Terminal, PanelRightOpen } from "lucide-react";
 
 export interface CodeBlockProps {
   code: string;
@@ -101,6 +101,21 @@ export function CodeBlock({
     URL.revokeObjectURL(url);
   };
 
+  const handleOpenInSandbox = () => {
+    if (!cleanCode) return;
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("openmanus:open-in-sandbox", {
+          detail: {
+            code: cleanCode,
+            language: normalizedLang,
+            filename: defaultFilename,
+          },
+        })
+      );
+    }
+  };
+
   // Safe wrapper for React 19 JSX compatibility
   const HighlightComponent = Highlight as any;
 
@@ -126,6 +141,16 @@ export function CodeBlock({
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleOpenInSandbox}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all cursor-pointer"
+            title="Open snippet in Workspace Sandbox"
+          >
+            <PanelRightOpen size={12} className="text-primary" />
+            <span className="hidden sm:inline">Sandbox</span>
+          </button>
+
           <button
             type="button"
             onClick={handleDownload}

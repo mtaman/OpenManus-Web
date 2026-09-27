@@ -4,21 +4,28 @@ import React, { useEffect, useState } from "react";
 import { Save, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface EditorTabProps {
+export interface EditorTabProps {
   filePath?: string | null;
+  initialContent?: string | null;
 }
 
-export function EditorTab({ filePath }: EditorTabProps) {
-  const [content, setContent] = useState<string>("");
+export function EditorTab({ filePath, initialContent }: EditorTabProps) {
+  const [content, setContent] = useState<string>(initialContent || "");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialContent !== undefined && initialContent !== null) {
+      setContent(initialContent);
+      return;
+    }
+
     if (!filePath) {
       setContent("");
       return;
     }
+
     const loadFile = async () => {
       setLoading(true);
       setStatusMsg(null);
@@ -36,8 +43,9 @@ export function EditorTab({ filePath }: EditorTabProps) {
         setLoading(false);
       }
     };
+
     loadFile();
-  }, [filePath]);
+  }, [filePath, initialContent]);
 
   const handleSave = async () => {
     if (!filePath) return;
@@ -50,43 +58,50 @@ export function EditorTab({ filePath }: EditorTabProps) {
         body: JSON.stringify({ path: filePath, content }),
       });
       if (res.ok) {
-        setStatusMsg("Saved successfully!");
-        setTimeout(() => setStatusMsg(null), 2500);
+        setStatusMsg("Saved successfully");
+        setTimeout(() => setStatusMsg(null), 3000);
       } else {
-        setStatusMsg("Failed to save.");
+        setStatusMsg("Failed to save");
       }
-    } catch (err) {
-      setStatusMsg("Save error.");
+    } catch {
+      setStatusMsg("Save error");
     } finally {
       setSaving(false);
     }
   };
 
-  if (!filePath) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-xs text-muted-foreground font-sans p-4 text-center">
-        <FileCode size={28} className="mb-2 opacity-50 text-manus-accent" />
-        <p className="font-medium text-foreground">No file selected for editing.</p>
-        <p className="text-[11px] mt-1 text-muted-foreground">Click any file in the Files tab to inspect and edit.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-full bg-background text-foreground font-mono text-xs">
-      <div className="flex items-center justify-between p-2.5 border-b border-border bg-card/40">
-        <span className="truncate max-w-[200px] font-semibold text-xs text-primary">{filePath}</span>
+    <div className="flex flex-col h-full bg-background font-mono text-xs">
+      <div className="h-10 border-b border-border bg-card/60 px-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FileCode size={14} className="text-primary" />
+          <span className="font-semibold text-foreground truncate max-w-xs">
+            {filePath || "draft-snippet"}
+          </span>
+          {initialContent && !filePath && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/10 text-primary border border-primary/20">
+              Draft
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {statusMsg && (
-            <span className="text-[11px] text-manus-success">{statusMsg}</span>
+            <span className="text-[11px] text-muted-foreground mr-2">{statusMsg}</span>
           )}
-          <Button variant="primary" size="sm" onClick={handleSave} disabled={saving || loading} className="h-7 text-xs shadow-manus-xs">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSave}
+            disabled={saving || loading || !filePath}
+            className="h-7 text-xs shadow-manus-xs cursor-pointer"
+          >
             <Save size={12} className="mr-1" />
             {saving ? "Saving..." : "Save"}
           </Button>
         </div>
       </div>
-      <div className="flex-1 p-2">
+
+      <div className="flex-1 p-3 min-h-0 bg-background">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}

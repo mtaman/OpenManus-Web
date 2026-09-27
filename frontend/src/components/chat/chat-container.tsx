@@ -78,6 +78,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
   // Closed by default for fresh sessions to ensure a clean landing
   const [showRightPanel, setShowRightPanel] = useState<boolean>(Boolean(initialJobId));
+  const [sandboxDraft, setSandboxDraft] = useState<{ filename: string; content: string } | null>(null);
 
   const [tokensUsed, setTokensUsed] = useState({ input: 0, output: 0, total: 0 });
   const [humanQuery, setHumanQuery] = useState<string | null>(null);
@@ -87,6 +88,24 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+    useEffect(() => {
+    const handleSandboxEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ code: string; language: string; filename: string }>;
+      if (customEvent.detail) {
+        setShowRightPanel(true);
+        setSandboxDraft({
+          filename: customEvent.detail.filename,
+          content: customEvent.detail.code,
+        });
+      }
+    };
+
+    window.addEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
+    return () => {
+      window.removeEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
+    };
+  }, []);
 
   useEffect(() => {
     if (initialJobId) {
@@ -769,6 +788,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           <WorkspacePanel
             activeJobId={activeJobId}
             overrideFile={selectedFileForEditor}
+            overrideDraft={sandboxDraft}
           />
         </div>
       )}
