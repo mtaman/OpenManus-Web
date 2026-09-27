@@ -55,3 +55,11 @@ export interface SSEEnvelope {
   step: number;
   data: Record<string, any>;
 }
+
+export interface Step {
+  id: string;
+  step_number: number;
+  type: string;
+  content: string;
+  timestamp: string;
+}
