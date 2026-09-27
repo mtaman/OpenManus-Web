@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
   Send,
   Wrench,
@@ -27,11 +26,11 @@ import {
   Globe,
   Palette,
   Gamepad2,
-  Clock,
   ArrowUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkspacePanel } from "@/components/workspace/workspace-panel";
+import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 
 interface StepEvent {
   id: string;
@@ -77,7 +76,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [expandedSteps, setExpandedSteps] = useState<Record<number, boolean>>({});
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
-  // Closed by default for fresh sessions for a clean screen
+  // Closed by default for fresh sessions to ensure a clean landing
   const [showRightPanel, setShowRightPanel] = useState<boolean>(Boolean(initialJobId));
 
   const [tokensUsed, setTokensUsed] = useState({ input: 0, output: 0, total: 0 });
@@ -125,6 +124,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           setSteps(replayed);
           if (replayed.length > 0) setShowRightPanel(true);
         }
+
+        // Keep reasoning collapsed on completed runs
+        if (data.status === "completed") {
+          setExpandedSteps({});
+        }
+
         fetchJobFiles(jobId);
       }
     } catch (e) {
@@ -163,6 +168,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       const step = payload.step || 1;
       setCurrentStepNum(step);
 
+      // Keep active step open during execution
+      setExpandedSteps((prev) => ({ ...prev, [step]: true }));
+
       if (eventType === "thought") {
         const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
         appendStep("thought", raw, step);
@@ -190,6 +198,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         const resText = payload.data?.result ?? "Task completed successfully.";
         setFinalResult(safeRender(resText));
         setStatus("completed");
+        // Auto-collapse reasoning steps when completed to prioritize the final deliverable
+        setExpandedSteps({});
         fetchJobFiles(jobId);
         es.close();
       } else if (eventType === "error") {
@@ -335,7 +345,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     setCurrentStepNum(1);
     setProducedFiles([]);
     setSelectedFileForEditor(null);
-    setExpandedSteps({});
+    setExpandedSteps({ 1: true });
     setHumanQuery(null);
     setTokensUsed({ input: 0, output: 0, total: 0 });
     setSessionTimestamp(new Date().toLocaleString());
@@ -591,7 +601,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             )}
 
-            {/* Grouped Step Accordions */}
+            {/* Grouped Step Accordions (Auto-Collapsing Supported) */}
             {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
               const stepNum = parseInt(stepNumStr, 10);
               const isExpanded = expandedSteps[stepNum] === true;
@@ -628,8 +638,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                           {evt.type === "thought" && (
                             <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
                               <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
-                              <div className="whitespace-pre-wrap leading-relaxed font-sans text-xs">
-                                {evt.content}
+                              <div className="flex-1 min-w-0">
+                                <MarkdownRenderer content={evt.content} />
                               </div>
                             </div>
                           )}
@@ -647,7 +657,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                           {evt.type === "observation" && (
                             <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
                               <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
-                              <span className="whitespace-pre-wrap">{evt.content}</span>
+                              <div className="flex-1 min-w-0 overflow-x-auto">
+                                <MarkdownRenderer content={evt.content} />
+                              </div>
                             </div>
                           )}
 
@@ -664,9 +676,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               );
             })}
 
-            {/* Final Result Card */}
+            {/* Final Deliverable Card with Rich Markdown & CodeBlock support */}
             {finalResult && (
-              <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-2 shadow-manus-xs">
+              <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-manus-success font-semibold tracking-wide text-xs">
                     TASK DELIVERABLE COMPLETED
@@ -674,7 +686,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   <button
                     type="button"
                     onClick={() => copyText(finalResult, "final-result")}
-                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all"
+                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all border border-border/40"
                     title="Copy Final Result"
                   >
                     {copiedSection === "final-result" ? (
@@ -691,8 +703,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   </button>
                 </div>
 
-                <div className="text-foreground whitespace-pre-wrap font-sans text-xs leading-relaxed">
-                  {finalResult}
+                <div className="text-foreground leading-relaxed">
+                  <MarkdownRenderer content={finalResult} />
                 </div>
 
                 {producedFiles.length > 0 && (
