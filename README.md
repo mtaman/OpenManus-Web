@@ -1,8 +1,12 @@
-﻿# 👋 OpenManus Web — Professional Dashboard for the OpenManus AI Agent
+﻿<div align="center">
+
+<img src="assets/image/OpenManus-Web-logo-2.png" alt="OpenManus Web Logo" width="200">
+</div>
+
+# 👋 OpenManus Web — Professional Dashboard for the OpenManus AI Agent
 
 <div align="center">
 
-<img src="assets/image/OpenManus-Web-logo-2.png" alt="OpenManus Web Logo" width="200">
 
 **A complete web interface for full control of OpenManus — visual execution, live streaming, and complete file & settings management.**
 
