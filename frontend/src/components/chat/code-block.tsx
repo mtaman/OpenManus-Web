@@ -80,12 +80,28 @@ export function CodeBlock({
   const fileExt = extensionMap[normalizedLang] || "txt";
   const defaultFilename = filename || `snippet.${fileExt}`;
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!cleanCode) return;
-    navigator.clipboard.writeText(cleanCode).then(() => {
+    try {
+      if (typeof window !== "undefined" && navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(cleanCode);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = cleanCode;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        textArea.remove();
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
+    }
   };
 
   const handleDownload = () => {
@@ -116,7 +132,6 @@ export function CodeBlock({
     }
   };
 
-  // Safe wrapper for React 19 JSX compatibility
   const HighlightComponent = Highlight as any;
 
   return (
@@ -182,7 +197,7 @@ export function CodeBlock({
         </div>
       </div>
 
-      {/* Code Body with Syntax Highlighting */}
+      {/* Code Body */}
       <div className={`relative transition-all ${isLong && !isExpanded ? "max-h-72 overflow-hidden" : "overflow-x-auto"}`}>
         <HighlightComponent
           theme={themes.nightOwl}
@@ -210,7 +225,6 @@ export function CodeBlock({
           )}
         </HighlightComponent>
 
-        {/* Fading Gradient Overlay for Long Snippets */}
         {isLong && !isExpanded && (
           <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0d1117] via-[#0d1117]/80 to-transparent pointer-events-none" />
         )}

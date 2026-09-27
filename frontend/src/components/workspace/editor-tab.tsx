@@ -110,12 +110,28 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
     }
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!content) return;
-    navigator.clipboard.writeText(content).then(() => {
+    try {
+      if (typeof window !== "undefined" && navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = content;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        textArea.remove();
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
+    }
   };
 
   const handleSave = async () => {
