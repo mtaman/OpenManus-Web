@@ -1,0 +1,41 @@
+﻿# ============================================================
+# OpenManus-Web Unified Requirements (Web UI + Core Agent)
+# Python 3.12 Compatible
+# ============================================================
+
+# --- FastAPI Web Server & Async Streaming ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0,<3.0.0
+pydantic-settings>=2.2.0,<3.0.0
+tomlkit>=0.12.0
+sse-starlette>=2.1.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+
+# --- LLM Clients & Agent Reasoning Engine ---
+openai>=1.30.0,<2.0.0
+anthropic>=0.25.0,<1.0.0
+google-generativeai>=0.5.0,<1.0.0
+tiktoken>=0.7.0
+tenacity>=8.3.0,<10.0.0
+loguru>=0.7.2,<1.0.0
+structlog>=24.1.0
+
+# --- Network, Web Scraping & Browser Automation ---
+httpx>=0.27.0
+aiohttp>=3.9.0,<4.0.0
+beautifulsoup4>=4.12.0,<5.0.0
+html2text>=2024.2.26
+playwright>=1.44.0,<2.0.0
+duckduckgo-search>=6.1.0
+baidusearch>=1.0.0
+
+# --- Utilities, Sandbox Execution & File Tools ---
+pillow>=10.3.0,<12.0.0
+numpy>=1.26.0,<3.0.0
+unidiff>=0.7.5
+docker>=7.0.0
+boto3>=1.34.0
+botocore>=1.34.0
+tomli>=2.0.1;python_version<"3.11"
