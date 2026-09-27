@@ -1,45 +1,45 @@
-﻿"use client";
-
-import React from "react";
-import { clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+﻿import React from "react";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "glow" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "outline" | "glow" | "ghost" | "danger" | "destructive";
   size?: "sm" | "md" | "lg";
+  children?: React.ReactNode;
 }
 
-export function Button({
-  children,
-  className,
-  variant = "secondary",
-  size = "md",
-  disabled,
-  ...props
-}: ButtonProps) {
-  const base = "inline-flex items-center justify-center font-medium transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none active:translate-y-px";
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className = "", variant = "secondary", size = "md", children, ...props }, ref) => {
+    const base = "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none disabled:opacity-50 disabled:pointer-events-none rounded-md";
 
-  const sizeClasses = {
-    sm: "h-7 px-2.5 text-xs rounded-[var(--radius-sm)]",
-    md: "h-8 px-3.5 text-xs rounded-[var(--radius-md)]",
-    lg: "h-10 px-5 text-sm rounded-[var(--radius-lg)]",
-  };
+    const variants: Record<string, string> = {
+      primary: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-manus-xs",
+      secondary: "bg-muted text-foreground hover:bg-muted/80 border border-border shadow-manus-xs",
+      outline: "border border-border bg-background hover:bg-muted text-foreground shadow-manus-xs",
+      glow: "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(136,81,255,0.4)] hover:shadow-[0_0_20px_rgba(136,81,255,0.6)]",
+      ghost: "hover:bg-muted text-muted-foreground hover:text-foreground",
+      danger: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-manus-xs",
+      destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-manus-xs",
+    };
 
-  const variantClasses = {
-    primary: "bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-400)] active:bg-[var(--color-accent-600)] text-white shadow-sm",
-    glow: "bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-400)] text-white shadow-[0_0_20px_var(--color-accent-glow)]",
-    secondary: "bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-3)] border border-[var(--color-line)] text-[var(--color-ink)]",
-    ghost: "bg-transparent hover:bg-[var(--color-surface-2)] text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]",
-    danger: "bg-[var(--color-surface-2)] hover:bg-red-500/10 border border-red-500/30 text-red-400",
-  };
+    const sizes: Record<string, string> = {
+      sm: "h-7 px-2.5 text-xs",
+      md: "h-9 px-4 text-sm",
+      lg: "h-11 px-6 text-base",
+    };
 
-  return (
-    <button
-      className={twMerge(clsx(base, sizeClasses[size], variantClasses[variant], className))}
-      disabled={disabled}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
+    const variantClass = variants[variant] || variants.secondary;
+    const sizeClass = sizes[size] || sizes.md;
+
+    return (
+      <button
+        ref={ref}
+        className={`${base}${variantClass} ${sizeClass}${className}`}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+);
+
+Button.displayName = "Button";
+export default Button;
