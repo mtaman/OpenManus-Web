@@ -1,19 +1,40 @@
-﻿ 
+﻿# 🌐 OpenManus Web — Professional Dashboard for the OpenManus AI Agent
 
-```markdown
-# OpenManus Web Dashboard 🚀
+<div align="center">
 
-> **Autonomous Agent Web Interface for OpenManus** — featuring split-view execution telemetry, live Server-Sent Events (SSE) streaming for thoughts and tool calls, zero-config onboarding resolver, and an isolated sandbox workspace manager.
+**A complete web interface for full control of OpenManus — visual execution, live streaming, and complete file & settings management.**
+
+[![OpenManus](https://img.shields.io/badge/OpenManus-Core-blue?style=for-the-badge&logo=github)](https://github.com/FoundationAgents/OpenManus)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI%202.0-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-000000?style=for-the-badge&logo=next.js)](https://nextjs.org)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+</div>
 
 ---
 
-## 🌟 Key Architecture & Capabilities
+## 📖 Overview
 
-- **FastAPI 2.0 Backend (Port `8088`):** Fully instrumented asynchronous execution engine running in an isolated Python 3.12 virtual environment (`backend/.venv`). Injects the OpenManus core dynamically at runtime via single-point monkey patching on `Memory.add_message`.
-- **Next.js 15 PWA Client (Port `3088`):** Split-view reactive user interface built with Next.js 15 (App Router), React 19, TypeScript, and Tailwind CSS. Features dark-canvas aesthetics, real-time live steps telemetry, and bilingual Arabic/English (RTL/LTR) support.
-- **Dynamic Engine Resolver & Setup Wizard (`/setup`):** Eliminates hardcoded paths. Probes the host system automatically for existing OpenManus installations, supports custom external path validation, or installs an embedded engine inside `engine/openmanus` via one click.
-- **Secure Sandbox Workspace Explorer (`/files` & Workspace Panel):** Real-time directory tree visualization, in-browser code editor with instant saving, direct file downloads, and path-traversal protection with soft-deletion recovery (`.trash/`).
-- **Task History & State Replay (`/history`):** Atomic persistence of all runs inside `backend/jobs.json` with `.bak` safety fallbacks. Enables instant re-run capabilities and full retrospective execution inspection.
+**OpenManus Web** is a professional operating system and frontend designed specifically for full control of the **OpenManus** AI agent. It allows you to manage OpenManus entirely visually — from settings, to sending commands, to receiving results, with live streaming of operations and tool traces.
+
+Instead of dealing only with the terminal, **OpenManus Web** gives you a modern browser-based dashboard with full Arabic/English (RTL/LTR) support and a smooth user experience that makes controlling your AI agent feel like using a modern web app.
+
+> **OpenManus** is an open-source framework for building general AI agents, developed by **FoundationAgents**. You can view the official repository here: [https://github.com/FoundationAgents/OpenManus](https://github.com/FoundationAgents/OpenManus)
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|--------|-------------|
+| **🖥️ Split-View Interface** | Simultaneous display of chat and live telemetry on one screen |
+| **⚡ Live Streaming (SSE)** | Instant streaming of thoughts and tool calls via Server-Sent Events |
+| **🧙♂️ Zero-Config Setup Wizard** | Automatic detection of existing OpenManus installations, or one-click embedded installation |
+| **📂 Secure File Explorer** | Interactive file tree, built-in code editor, and direct file downloads with path-traversal protection |
+| **📜 Task History & Replay** | Persistent storage of all tasks with one-click re-run and full retrospective inspection |
+| **🌍 Bilingual Support** | Arabic and English interface with full RTL/LTR support |
+| **🔒 Advanced Security** | Path traversal guard, safe deletion (trash), and secret isolation |
+| **🚀 One-Click Launch** | Ready-to-use PowerShell scripts to start both frontend and backend together |
 
 ---
 
@@ -26,7 +47,7 @@
                             │  HTTP + SSE
                             ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│          FRONTEND — Next.js 15 (App Router) · React 19           │
+│          FRONTEND — Next.js 15 · React 19 · TypeScript           │
 │  ┌──────────┬──────────┬───────────┬──────────┬──────────────┐   │
 │  │  /chat   │ /history │  /files   │ /settings│    /setup    │   │
 │  └──────────┴──────────┴───────────┴──────────┴──────────────┘   │
@@ -54,7 +75,6 @@
 │        OpenManus Core Engine (External or Embedded)              │
 │                     (READ-ONLY ACCESS)                           │
 └──────────────────────────────────────────────────────────────────┘
-
 ```
 
 ---
@@ -68,12 +88,12 @@ D:\AI\OpenManus-Web\
 ├─ start-all.ps1
 ├─ start-backend.ps1
 ├─ start-frontend.ps1
-├─ engine\                             (Embedded engine directory - Git ignored)
+├─ engine\                             (Embedded engine directory — Git ignored)
 │  └─ openmanus\
 ├─ backend\
 │  ├─ .venv\                           (Python 3.12 virtual environment)
-│  ├─ engine_config.json               (Active engine configuration - Git ignored)
-│  ├─ jobs.json                        (Runtime job persistence - Git ignored)
+│  ├─ engine_config.json               (Active engine configuration — Git ignored)
+│  ├─ jobs.json                        (Runtime job persistence — Git ignored)
 │  ├─ jobs.json.bak
 │  └─ omweb\
 │     ├─ __init__.py
@@ -115,68 +135,229 @@ D:\AI\OpenManus-Web\
       ├─ lib\
       ├─ stores\
       └─ i18n\
-
 ```
 
 ---
 
-## 🛠️ Quick Launch Guide
+## 🛠️ Prerequisites
 
-### Option 1: Unified Launch (Recommended)
+Before you begin, ensure the following are installed on your system:
 
-Launch both backend and frontend servers in distinct windows with pre-flight checks:
+| Requirement | Recommended Version | Notes |
+|-------------|---------------------|-------|
+| **Python** | 3.12+ | Required for the backend and OpenManus engine |
+| **Node.js** | 18+ | Required for the Next.js frontend |
+| **Git** | Latest | For cloning repositories |
+| **PowerShell** | 5.1+ | To run the launch scripts (Windows) |
+| **OpenManus** | — | Can be installed embedded or linked from an existing installation |
 
-```powershell
-.\start-all.ps1
+> **Note:** If you don’t have OpenManus installed yet, don’t worry — **OpenManus Web** will automatically install an embedded copy via the setup wizard.
 
+---
+
+## 🚀 Complete Installation Guide
+
+### Step 1: Clone the OpenManus Web Repository
+
+```bash
+git clone https://github.com/mtaman/OpenManus-Web.git
+cd OpenManus-Web
 ```
 
-### Option 2: Individual Launch
+### Step 2: Backend Setup
 
-Run the services independently across two separate PowerShell terminals:
+#### 2.1 Create a Virtual Environment
+
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+#### 2.2 Install Dependencies
+
+```powershell
+pip install -r requirements.txt
+```
+
+#### 2.3 Install OpenManus Dependencies (if using embedded engine)
+
+The setup wizard will handle this automatically, but you can also install manually later.
+
+### Step 3: Frontend Setup
+
+```powershell
+cd ..\frontend
+npm install
+```
+
+### Step 4: Configure the OpenManus Engine
+
+You have two options:
+
+#### 🔹 Option A: Install Embedded Engine (Recommended for New Users)
+
+1. Start the backend and frontend (see Step 5).
+2. Open your browser and go to: `http://localhost:3088/setup`
+3. Click the **"Install Embedded Engine"** button.
+4. The system will automatically:
+   - Clone the OpenManus repository from [https://github.com/FoundationAgents/OpenManus](https://github.com/FoundationAgents/OpenManus) into `engine/openmanus`.
+   - Create default configuration files.
+   - Initialize the sandbox environment.
+
+#### 🔹 Option B: Link an Existing OpenManus Installation
+
+1. Open the `/setup` page in the web interface.
+2. The system will show a list of automatically detected paths on your machine.
+3. Select the correct path and click **"Use Path"**, or enter a custom path and click **"Validate & Link"**.
+4. Ensure the path points to a folder containing `config.toml` and that the engine is valid.
+
+> **Note:** You can always refer to the official OpenManus repository for the latest instructions: [https://github.com/FoundationAgents/OpenManus](https://github.com/FoundationAgents/OpenManus)
+
+### Step 5: Start the System
+
+#### Recommended: Unified One-Click Launch
+
+```powershell
+# From the project root
+.\start-all.ps1
+```
+
+This script launches both servers in separate windows with pre-flight checks.
+
+#### Alternative: Separate Launch
 
 **Terminal 1 — Backend:**
 
 ```powershell
 .\start-backend.ps1
-
 ```
 
-*Health check API:* `http://localhost:8088/api/status`
+- Health check API: `http://localhost:8088/api/status`
 
 **Terminal 2 — Frontend:**
 
 ```powershell
 .\start-frontend.ps1
-
 ```
 
-*Dashboard Surface:* `http://localhost:3088`
+- Dashboard: `http://localhost:3088`
+
+### Step 6: Verify Installation
+
+After starting both servers, open your browser and go to `http://localhost:3088`. You should see the main dashboard. Navigate to `/setup` and confirm the engine status shows **"READY & SYNCHRONIZED"**.
 
 ---
 
-## 🧭 First-Run Setup & Engine Resolution
+## ⚙️ Configuration & Settings
 
-1. Open your browser and navigate to: `http://localhost:3088/setup`
-2. **Scenario A (Existing OpenManus):** If OpenManus is already installed on your machine, select it from the detected candidate list or input the absolute path and click **Validate & Link**.
-3. **Scenario B (New Installation):** If you do not have OpenManus installed, click **Install Embedded Engine**. The system will automatically clone `FoundationAgents/OpenManus` into `engine/openmanus`, setup default configuration files, and initialize the sandbox environment.
+### API Key Configuration
+
+To enable OpenManus, you need to configure an LLM provider (e.g., OpenAI, DeepSeek, Ollama). You can do this via:
+
+1. **Integrated Settings UI** at `/settings`.
+2. **`config.toml` file** inside the OpenManus engine folder:
+
+```toml
+[llm]
+model = "gpt-4o"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-your-api-key-here"
+max_tokens = 4096
+temperature = 0.0
+```
+
+> For more details on configuring OpenManus, see the [official guide](https://github.com/FoundationAgents/OpenManus).
+
+### Port Configuration
+
+| Service | Default Port | Changeable |
+|---------|--------------|------------|
+| Frontend (Next.js) | 3088 | Yes — via `next.config.mjs` |
+| Backend (FastAPI) | 8088 | Yes — via environment variables |
+
+---
+
+## 🧭 Basic Usage
+
+### 1. Chat with the Agent (`/chat`)
+
+- Enter your commands in Arabic or English.
+- Watch live streaming of thoughts and tool calls during execution.
+- View final results on the same screen.
+
+### 2. File Management (`/files`)
+
+- Browse the workspace directory tree.
+- Open and edit files in the built-in editor.
+- Download files directly.
+- Delete files safely (moved to `.trash/`).
+
+### 3. Task History (`/history`)
+
+- View all previous tasks.
+- Re-run any task with one click.
+- Inspect full execution details.
+
+### 4. Settings (`/settings`)
+
+- Modify API keys and LLM models.
+- Adjust UI and language preferences.
 
 ---
 
 ## 🔒 Security Protocols
 
-* **Path Traversal Guard:** Every file operation inside the workspace is verified via `Path.resolve()` and `is_relative_to(WORKSPACE_ROOT)` to eliminate unauthorized directory traversal.
-* **Safe Deletion:** Deleting items from the UI moves them safely into a `.trash/` recovery folder rather than permanent unrecoverable removal.
-* **Secret Isolation:** Environment keys, model credentials, `engine_config.json`, and runtime databases are strictly untracked via `.gitignore`.
-* **Read-Only Core Protection:** The OpenManus engine directory is treated as an immutable external module injected into Python's `sys.path`.
+- **Path Traversal Guard:** Every file operation is verified via `Path.resolve()` and `is_relative_to(WORKSPACE_ROOT)`.
+- **Safe Deletion:** Deleted items are moved to a `.trash/` recovery folder instead of permanent removal.
+- **Secret Isolation:** Environment keys, credentials, `engine_config.json`, and runtime databases are strictly untracked via `.gitignore`.
+- **Read-Only Core Protection:** The OpenManus engine directory is treated as an immutable external module injected into `sys.path`.
+
+---
+
+## 🧪 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| **Backend not starting** | Ensure the `.venv` is activated and all dependencies are installed |
+| **Frontend not loading** | Run `npm install` and check that port 3088 is free |
+| **OpenManus not found** | Use the `/setup` wizard to install embedded or link an existing path |
+| **Invalid API key** | Check `config.toml` or the `/settings` page |
+| **SSE streaming issues** | Ensure no firewall is blocking connections on port 8088 |
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'Add some amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
 
 ---
 
 ## 📜 License
 
-Developed under the OpenManus Web Dashboard initiative. Licensed under the MIT License.
-
-```
+This project is licensed under the **MIT License**. See the `LICENSE` file for details.
 
 ---
 
+## 🔗 Important Links
+
+| Resource | Link |
+|----------|------|
+| **OpenManus Official Repository** | [https://github.com/FoundationAgents/OpenManus](https://github.com/FoundationAgents/OpenManus) |
+| **OpenManus Web Repository** | [https://github.com/mtaman/OpenManus-Web](https://github.com/mtaman/OpenManus-Web) |
+| **FoundationAgents Organization** | [https://github.com/FoundationAgents](https://github.com/FoundationAgents) |
+| **OpenManus Quick Start Guide** | [Quick Start Guide](https://deepwiki.com/sxhxliang/OpenManus/1.1-quick-start) |
+
+---
+
+<div align="center">
+
+**Made with ❤️ for the OpenManus community worldwide**
+
+</div>
