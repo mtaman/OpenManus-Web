@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import ChatPage from "./chat/page";
+import React from "react";
+import { ChatContainer } from "@/components/chat/chat-container";
 
 export default function RootPage() {
-  return <ChatPage />;
+  return <ChatContainer />;
 }
