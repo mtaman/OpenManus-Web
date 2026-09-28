@@ -604,9 +604,47 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         {/* Dynamic Body: Fresh Landing or Active Multi-Turn Thread */}
         {isFreshSession ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full">
-            <h1 className="font-serif text-3xl sm:text-4xl font-normal text-foreground tracking-tight mb-8">
+            <h1 className="font-serif text-3xl sm:text-4xl font-normal text-foreground tracking-tight mb-4">
               What can I do for you?
             </h1>
+
+            {/* Centered Glowing Mode Switcher */}
+            <div className="flex items-center justify-center mb-6">
+              <div className="inline-flex items-center bg-card/80 p-1.5 rounded-full border border-border/80 shadow-md backdrop-blur-md gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("agent")}
+                  className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs transition-all duration-300 cursor-pointer ${
+                    execMode === "agent"
+                      ? "bg-card text-emerald-500 border border-emerald-500/50 shadow-[0_0_16px_rgba(16,185,129,0.38)] font-semibold ring-1 ring-emerald-500/30"
+                      : "text-muted-foreground hover:text-foreground border border-transparent"
+                  }`}
+                  title="Autonomous Agent: multi-step planning, tools & execution"
+                >
+                  <Bot size={14} className={execMode === "agent" ? "text-emerald-500 animate-pulse" : ""} />
+                  <span>Agent</span>
+                  {execMode === "agent" && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("chat")}
+                  className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs transition-all duration-300 cursor-pointer ${
+                    execMode === "chat"
+                      ? "bg-card text-sky-500 border border-sky-500/50 shadow-[0_0_16px_rgba(14,165,233,0.38)] font-semibold ring-1 ring-sky-500/30"
+                      : "text-muted-foreground hover:text-foreground border border-transparent"
+                  }`}
+                  title="Direct Chat: fast response, no tools or execution steps"
+                >
+                  <MessageSquare size={14} className={execMode === "chat" ? "text-sky-500 animate-pulse" : ""} />
+                  <span>Chat</span>
+                  {execMode === "chat" && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-[0_0_8px_#0ea5e9] animate-pulse" />
+                  )}
+                </button>
+              </div>
+            </div>
 
             <div className="w-full bg-card rounded-2xl border border-border shadow-manus-md p-3.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all text-left">
               <textarea
@@ -620,34 +658,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               />
               <div className="flex items-center justify-between pt-2 border-t border-border/50 mt-1">
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center bg-muted/80 p-0.5 rounded-lg border border-border/70 text-xs shadow-xs">
-                    <button
-                      type="button"
-                      onClick={() => handleModeChange("agent")}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
-                        execMode === "agent"
-                          ? "bg-card text-foreground shadow-xs font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                      title="Autonomous Agent: multi-step planning, tools & execution"
-                    >
-                      <Bot size={13} className={execMode === "agent" ? "text-primary" : ""} />
-                      <span>Agent</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleModeChange("chat")}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
-                        execMode === "chat"
-                          ? "bg-card text-foreground shadow-xs font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                      title="Direct Chat: fast response, no tools or steps"
-                    >
-                      <MessageSquare size={13} className={execMode === "chat" ? "text-primary" : ""} />
-                      <span>Chat</span>
-                    </button>
-                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-muted/60 text-muted-foreground border border-border">
+                    <Sparkles size={12} className={execMode === "agent" ? "text-emerald-500" : "text-sky-500"} />
+                    <span className="font-mono text-[11px] font-semibold text-foreground">
+                      {execMode === "agent" ? "Agent Autonomous Mode" : "Direct Fast Chat"}
+                    </span>
+                  </span>
                 </div>
                 <button
                   type="button"
