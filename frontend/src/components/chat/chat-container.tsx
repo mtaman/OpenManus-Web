@@ -102,7 +102,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [humanQuery, setHumanQuery] = useState<string | null>(null);
   const [humanAnswer, setHumanAnswer] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-    const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
+  const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
   const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
 
   useEffect(() => {
@@ -277,10 +277,10 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           const fullPath = match[1].trim();
           const fileName = fullPath.split(/[\/\\]/).pop() || fullPath;
           setSelectedFileForEditor(fileName);
-        setShowRightPanel(true);
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("openmanus:file-saved", { detail: { path: fileName } }));
-        }
+          setShowRightPanel(true);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("openmanus:file-saved", { detail: { path: fileName } }));
+          }
         }
         fetchJobFiles(jobId);
       } else if (eventType === "final" || eventType === "done") {
@@ -462,11 +462,13 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: textToSend,
+        body: JSON.stringify({
+          prompt: textToSend,
           max_steps: 20,
           chat_id: activeChatId || undefined,
-          mode: execMode
-        , ...(typeof window !== "undefined" ? JSON.parse(localStorage.getItem("omweb_active_llm_override") || "{}") : {}) }),
+          mode: execMode,
+          ...(typeof window !== "undefined" ? JSON.parse(localStorage.getItem("omweb_active_llm_override") || "{}") : {})
+        }),
       });
 
       if (!res.ok) {
@@ -601,7 +603,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           </div>
         </div>
 
-        {/* Dynamic Body: Fresh Landing or Active Multi-Turn Thread */}
+        {/* Dynamic Body: Fresh Landing or Centered Multi-Turn Thread */}
         {isFreshSession ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full">
             <h1 className="font-serif text-3xl sm:text-4xl font-normal text-foreground tracking-tight mb-4">
@@ -692,385 +694,389 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {/* 1. Render Historical Completed Turns */}
-            {historyTurns.map((turn, tIdx) => {
-              const isTurnRawTrace = Boolean(
-                turn.finalResult &&
-                (turn.finalResult.includes("Observed output of cmd") || turn.finalResult.startsWith("Step 1:"))
-              );
-              const turnLastThought = [...turn.steps]
-                .reverse()
-                .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step "));
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+            <div className="w-full max-w-[1000px] mx-auto space-y-4">
+              {/* 1. Render Historical Completed Turns */}
+              {historyTurns.map((turn, tIdx) => {
+                const isTurnRawTrace = Boolean(
+                  turn.finalResult &&
+                  (turn.finalResult.includes("Observed output of cmd") || turn.finalResult.startsWith("Step 1:"))
+                );
+                const turnLastThought = [...turn.steps]
+                  .reverse()
+                  .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step "));
 
-              return (
-                <div key={turn.id || tIdx} className="space-y-3 pb-3 border-b border-border/60">
-                  <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
-                    <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-                      <span className="flex items-center gap-1.5 font-medium text-foreground">
-                        <User size={13} className="text-primary" />
-                        <span>User Request #{tIdx + 1}</span>
-                        {turn.timestamp && <span className="text-[10px] text-muted-foreground font-normal">({turn.timestamp})</span>}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => copyText(turn.prompt, `turn-prompt-${tIdx}`)}
-                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                      >
-                        {copiedSection === `turn-prompt-${tIdx}` ? (
-                          <>
-                            <Check size={11} className="text-manus-success" />
-                            <span className="text-manus-success">Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={11} />
-                            <span>Copy</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
-                      {turn.prompt}
-                    </div>
-                  </div>
-
-                  {turn.finalResult && (
-                    <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-manus-success font-semibold tracking-wide text-xs">
-                          DELIVERABLE COMPLETED #{tIdx + 1}
+                return (
+                  <div key={turn.id || tIdx} className="space-y-3 pb-3 border-b border-border/60">
+                    <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+                      <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                        <span className="flex items-center gap-1.5 font-medium text-foreground">
+                          <User size={13} className="text-primary" />
+                          <span>User Request #{tIdx + 1}</span>
+                          {turn.timestamp && <span className="text-[10px] text-muted-foreground font-normal">({turn.timestamp})</span>}
                         </span>
                         <button
                           type="button"
-                          onClick={() => copyText(turn.finalResult || "", `turn-res-${tIdx}`)}
-                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all border border-border/40"
+                          onClick={() => copyText(turn.prompt, `turn-prompt-${tIdx}`)}
+                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
                         >
-                          {copiedSection === `turn-res-${tIdx}` ? (
+                          {copiedSection === `turn-prompt-${tIdx}` ? (
                             <>
-                              <Check size={12} className="text-manus-success" />
+                              <Check size={11} className="text-manus-success" />
                               <span className="text-manus-success">Copied</span>
                             </>
                           ) : (
                             <>
-                              <Copy size={12} />
-                              <span>Copy Result</span>
+                              <Copy size={11} />
+                              <span>Copy</span>
                             </>
                           )}
                         </button>
                       </div>
-
-                      {isTurnRawTrace ? (
-                        <div className="bg-background/60 p-3 rounded-lg border border-border/50 text-foreground leading-relaxed">
-                          <MarkdownRenderer content={turnLastThought ? turnLastThought.content : turn.finalResult} />
-                        </div>
-                      ) : (
-                        <div className="text-foreground leading-relaxed">
-                          <MarkdownRenderer content={turn.finalResult} />
-                        </div>
-                      )}
-
-                      {turn.producedFiles && turn.producedFiles.length > 0 && (
-                        <div className="pt-2.5 border-t border-manus-success/20">
-                          <span className="text-[11px] font-semibold text-foreground block mb-1.5">
-                            Generated Files:
-                          </span>
-                          <div className="flex flex-wrap gap-2">
-                            {turn.producedFiles.map((f) => (
-                              <button
-                                key={f.path}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedFileForEditor(f.name);
-                                  setShowRightPanel(true);
-                                }}
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
-                              >
-                                <FileText size={12} className="text-manus-accent" />
-                                <span>{f.name}</span>
-                                <ExternalLink size={10} className="opacity-60" />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* 2. Active Turn Prompt */}
-            {submittedPrompt && (
-              <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
-                <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-                  <span className="flex items-center gap-1.5 font-medium text-foreground">
-                    <User size={13} className="text-primary" />
-                    <span>User Request {historyTurns.length > 0 ? `#${historyTurns.length + 1}` : ""}</span>
-                    {sessionTimestamp && <span className="text-[10px] text-muted-foreground font-normal">({sessionTimestamp})</span>}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => copyText(submittedPrompt, "user-prompt")}
-                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                    title="Copy Task Prompt"
-                  >
-                    {copiedSection === "user-prompt" ? (
-                      <>
-                        <Check size={11} className="text-manus-success" />
-                        <span className="text-manus-success">Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={11} />
-                        <span>Copy</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
-                  {submittedPrompt}
-                </div>
-              </div>
-            )}
-
-            {/* Human Intervention Required */}
-            {humanQuery && (
-              <div className="p-4 rounded-sm bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
-                <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
-                  <HelpCircle size={14} />
-                  <span>Agent Requires Human Input:</span>
-                </div>
-                <div className="p-2.5 rounded-md bg-background border border-border text-foreground">
-                  {humanQuery}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={humanAnswer}
-                    onChange={(e) => setHumanAnswer(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSendHumanAnswer()}
-                    placeholder="Type your response to the agent..."
-                    className="flex-1 bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <Button
-                    variant="primary"
-                    onClick={handleSendHumanAnswer}
-                    className="text-xs px-3 h-8 rounded-md cursor-pointer"
-                  >
-                    Submit Answer
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Running Status Indicator */}
-            {status === "running" && (
-              <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
-                <div className="flex items-center gap-2 text-xs">
-                  <Loader2 size={13} className="animate-spin text-manus-accent" />
-                  <span>{execMode === "chat" ? "Generating direct response..." : "Agent reasoning & executing autonomously..."}</span>
-                </div>
-                <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
-                  {elapsedSeconds}s
-                </span>
-              </div>
-            )}
-
-            {/* Active Turn Step Accordions */}
-            {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
-              const stepNum = parseInt(stepNumStr, 10);
-              const isExpanded = expandedSteps[stepNum] === true;
-
-              return (
-                <div key={stepNum} className="border border-border rounded-sm bg-card/60 overflow-hidden shadow-manus-xs transition-all">
-                  <button
-                    type="button"
-                    onClick={() => toggleStep(stepNum)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      {isExpanded ? (
-                        <ChevronDown size={14} className="text-manus-accent" />
-                      ) : (
-                        <ChevronRight size={14} className="text-muted-foreground" />
-                      )}
-                      <span className="text-xs font-semibold text-foreground">
-                        Execution Step {stepNum}
-                      </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground">
-                        {stepEvents.length} events
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-muted-foreground">
-                      {isExpanded ? "Collapse" : "View reasoning"}
-                    </span>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="p-3.5 pt-1 border-t border-border/60 space-y-2 bg-background/50">
-                      {stepEvents.map((evt) => (
-                        <div key={evt.id} className="text-xs space-y-1">
-                          {evt.type === "thought" && (
-                            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
-                              <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <MarkdownRenderer content={evt.content} />
-                              </div>
-                            </div>
-                          )}
-
-                          {evt.type === "tool_call" && evt.toolName && (
-                            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted border border-border text-foreground font-mono text-xs">
-                              <Wrench size={13} className="text-manus-info mt-0.5 flex-shrink-0" />
-                              <div className="truncate">
-                                <span className="font-semibold text-primary mr-1">{evt.toolName}:</span>
-                                <span>{evt.content}</span>
-                              </div>
-                            </div>
-                          )}
-
-                          {evt.type === "observation" && (
-                            <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
-                              <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
-                              <div className="flex-1 min-w-0 overflow-x-auto">
-                                <MarkdownRenderer content={evt.content} />
-                              </div>
-                            </div>
-                          )}
-
-                          {evt.type === "error" && (
-                            <div className="p-2.5 text-xs text-manus-error bg-manus-error/10 rounded-lg border border-manus-error/20 flex items-start gap-2">
-                              <span className="whitespace-pre-wrap">{evt.content}</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Active Turn Deliverable Completed Card */}
-            {finalResult && (
-              <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-manus-success font-semibold tracking-wide text-xs flex items-center gap-1.5">
-                    <span>{execMode === "chat" ? "RESPONSE" : "TASK DELIVERABLE COMPLETED"}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => copyText(finalResult, "final-result")}
-                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all border border-border/40"
-                    title="Copy Final Result"
-                  >
-                    {copiedSection === "final-result" ? (
-                      <>
-                        <Check size={12} className="text-manus-success" />
-                        <span className="text-manus-success">Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={12} />
-                        <span>Copy Result</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {isRawTraceOutput ? (
-                  <div className="space-y-3">
-                    {lastInformativeThought ? (
-                      <div className="bg-background/60 p-3 rounded-lg border border-border/50 text-foreground leading-relaxed">
-                        <MarkdownRenderer content={lastInformativeThought.content} />
+                      <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
+                        {turn.prompt}
                       </div>
-                    ) : (
-                      <p className="text-foreground/90 font-medium">
-                        Autonomous execution completed successfully. All artifacts and output files are prepared below.
-                      </p>
-                    )}
+                    </div>
 
-                    <div className="border border-border/60 rounded-lg overflow-hidden bg-background/40">
-                      <button
-                        type="button"
-                        onClick={() => setShowRawTrace(!showRawTrace)}
-                        className="w-full flex items-center justify-between px-3 py-1.5 text-muted-foreground hover:text-foreground text-[11px] font-mono cursor-pointer"
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <Activity size={12} />
-                          <span>Execution Trace & Observations</span>
-                        </span>
-                        <span>{showRawTrace ? "Hide trace" : "View diagnostic trace"}</span>
-                      </button>
-                      {showRawTrace && (
-                        <div className="p-2.5 border-t border-border/40 font-mono text-[11px] text-muted-foreground bg-muted/30 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                          {finalResult}
+                    {turn.finalResult && (
+                      <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-manus-success font-semibold tracking-wide text-xs">
+                            DELIVERABLE COMPLETED #{tIdx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyText(turn.finalResult || "", `turn-res-${tIdx}`)}
+                            className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all border border-border/40"
+                          >
+                            {copiedSection === `turn-res-${tIdx}` ? (
+                              <>
+                                <Check size={12} className="text-manus-success" />
+                                <span className="text-manus-success">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={12} />
+                                <span>Copy Result</span>
+                              </>
+                            )}
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-foreground leading-relaxed">
-                    <MarkdownRenderer content={finalResult} />
-                  </div>
-                )}
 
-                {producedFiles.length > 0 && (
-                  <div className="pt-2.5 border-t border-manus-success/20">
-                    <span className="text-[11px] font-semibold text-foreground block mb-1.5">
-                      Generated Files:
+                        {isTurnRawTrace ? (
+                          <div className="bg-background/60 p-3 rounded-lg border border-border/50 text-foreground leading-relaxed">
+                            <MarkdownRenderer content={turnLastThought ? turnLastThought.content : turn.finalResult} />
+                          </div>
+                        ) : (
+                          <div className="text-foreground leading-relaxed">
+                            <MarkdownRenderer content={turn.finalResult} />
+                          </div>
+                        )}
+
+                        {turn.producedFiles && turn.producedFiles.length > 0 && (
+                          <div className="pt-2.5 border-t border-manus-success/20">
+                            <span className="text-[11px] font-semibold text-foreground block mb-1.5">
+                              Generated Files:
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {turn.producedFiles.map((f) => (
+                                <button
+                                  key={f.path}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedFileForEditor(f.name);
+                                    setShowRightPanel(true);
+                                  }}
+                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
+                                >
+                                  <FileText size={12} className="text-manus-accent" />
+                                  <span>{f.name}</span>
+                                  <ExternalLink size={10} className="opacity-60" />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* 2. Active Turn Prompt */}
+              {submittedPrompt && (
+                <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+                  <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                    <span className="flex items-center gap-1.5 font-medium text-foreground">
+                      <User size={13} className="text-primary" />
+                      <span>User Request {historyTurns.length > 0 ? `#${historyTurns.length + 1}` : ""}</span>
+                      {sessionTimestamp && <span className="text-[10px] text-muted-foreground font-normal">({sessionTimestamp})</span>}
                     </span>
-                    <div className="flex flex-wrap gap-2">
-                      {producedFiles.map((f) => (
-                        <button
-                          key={f.path}
-                          type="button"
-                          onClick={() => {
-                            setSelectedFileForEditor(f.name);
-                            setShowRightPanel(true);
-                          }}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
-                        >
-                          <FileText size={12} className="text-manus-accent" />
-                          <span>{f.name}</span>
-                          <ExternalLink size={10} className="opacity-60" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
-            <div ref={chatScrollBottomRef} />
+                    <button
+                      type="button"
+                      onClick={() => copyText(submittedPrompt, "user-prompt")}
+                      className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                      title="Copy Task Prompt"
+                    >
+                      {copiedSection === "user-prompt" ? (
+                        <>
+                          <Check size={11} className="text-manus-success" />
+                          <span className="text-manus-success">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={11} />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
+                    {submittedPrompt}
+                  </div>
+                </div>
+              )}
+
+              {/* Human Intervention Required */}
+              {humanQuery && (
+                <div className="p-4 rounded-sm bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
+                  <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
+                    <HelpCircle size={14} />
+                    <span>Agent Requires Human Input:</span>
+                  </div>
+                  <div className="p-2.5 rounded-md bg-background border border-border text-foreground">
+                    {humanQuery}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={humanAnswer}
+                      onChange={(e) => setHumanAnswer(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSendHumanAnswer()}
+                      placeholder="Type your response to the agent..."
+                      className="flex-1 bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <Button
+                      variant="primary"
+                      onClick={handleSendHumanAnswer}
+                      className="text-xs px-3 h-8 rounded-md cursor-pointer"
+                    >
+                      Submit Answer
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Running Status Indicator */}
+              {status === "running" && (
+                <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Loader2 size={13} className="animate-spin text-manus-accent" />
+                    <span>{execMode === "chat" ? "Generating direct response..." : "Agent reasoning & executing autonomously..."}</span>
+                  </div>
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
+                    {elapsedSeconds}s
+                  </span>
+                </div>
+              )}
+
+              {/* Active Turn Step Accordions */}
+              {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
+                const stepNum = parseInt(stepNumStr, 10);
+                const isExpanded = expandedSteps[stepNum] === true;
+
+                return (
+                  <div key={stepNum} className="border border-border rounded-sm bg-card/60 overflow-hidden shadow-manus-xs transition-all">
+                    <button
+                      type="button"
+                      onClick={() => toggleStep(stepNum)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? (
+                          <ChevronDown size={14} className="text-manus-accent" />
+                        ) : (
+                          <ChevronRight size={14} className="text-muted-foreground" />
+                        )}
+                        <span className="text-xs font-semibold text-foreground">
+                          Execution Step {stepNum}
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground">
+                          {stepEvents.length} events
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground">
+                        {isExpanded ? "Collapse" : "View reasoning"}
+                      </span>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="p-3.5 pt-1 border-t border-border/60 space-y-2 bg-background/50">
+                        {stepEvents.map((evt) => (
+                          <div key={evt.id} className="text-xs space-y-1">
+                            {evt.type === "thought" && (
+                              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
+                                <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <MarkdownRenderer content={evt.content} />
+                                </div>
+                              </div>
+                            )}
+
+                            {evt.type === "tool_call" && evt.toolName && (
+                              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted border border-border text-foreground font-mono text-xs">
+                                <Wrench size={13} className="text-manus-info mt-0.5 flex-shrink-0" />
+                                <div className="truncate">
+                                  <span className="font-semibold text-primary mr-1">{evt.toolName}:</span>
+                                  <span>{evt.content}</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {evt.type === "observation" && (
+                              <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
+                                <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
+                                <div className="flex-1 min-w-0 overflow-x-auto">
+                                  <MarkdownRenderer content={evt.content} />
+                                </div>
+                              </div>
+                            )}
+
+                            {evt.type === "error" && (
+                              <div className="p-2.5 text-xs text-manus-error bg-manus-error/10 rounded-lg border border-manus-error/20 flex items-start gap-2">
+                                <span className="whitespace-pre-wrap">{evt.content}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Active Turn Deliverable Completed Card */}
+              {finalResult && (
+                <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-manus-success font-semibold tracking-wide text-xs flex items-center gap-1.5">
+                      <span>{execMode === "chat" ? "RESPONSE" : "TASK DELIVERABLE COMPLETED"}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyText(finalResult, "final-result")}
+                      className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all border border-border/40"
+                      title="Copy Final Result"
+                    >
+                      {copiedSection === "final-result" ? (
+                        <>
+                          <Check size={12} className="text-manus-success" />
+                          <span className="text-manus-success">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          <span>Copy Result</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {isRawTraceOutput ? (
+                    <div className="space-y-3">
+                      {lastInformativeThought ? (
+                        <div className="bg-background/60 p-3 rounded-lg border border-border/50 text-foreground leading-relaxed">
+                          <MarkdownRenderer content={lastInformativeThought.content} />
+                        </div>
+                      ) : (
+                        <p className="text-foreground/90 font-medium">
+                          Autonomous execution completed successfully. All artifacts and output files are prepared below.
+                        </p>
+                      )}
+
+                      <div className="border border-border/60 rounded-lg overflow-hidden bg-background/40">
+                        <button
+                          type="button"
+                          onClick={() => setShowRawTrace(!showRawTrace)}
+                          className="w-full flex items-center justify-between px-3 py-1.5 text-muted-foreground hover:text-foreground text-[11px] font-mono cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Activity size={12} />
+                            <span>Execution Trace & Observations</span>
+                          </span>
+                          <span>{showRawTrace ? "Hide trace" : "View diagnostic trace"}</span>
+                        </button>
+                        {showRawTrace && (
+                          <div className="p-2.5 border-t border-border/40 font-mono text-[11px] text-muted-foreground bg-muted/30 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                            {finalResult}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-foreground leading-relaxed">
+                      <MarkdownRenderer content={finalResult} />
+                    </div>
+                  )}
+
+                  {producedFiles.length > 0 && (
+                    <div className="pt-2.5 border-t border-manus-success/20">
+                      <span className="text-[11px] font-semibold text-foreground block mb-1.5">
+                        Generated Files:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {producedFiles.map((f) => (
+                          <button
+                            key={f.path}
+                            type="button"
+                            onClick={() => {
+                              setSelectedFileForEditor(f.name);
+                              setShowRightPanel(true);
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
+                          >
+                            <FileText size={12} className="text-manus-accent" />
+                            <span>{f.name}</span>
+                            <ExternalLink size={10} className="opacity-60" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div ref={chatScrollBottomRef} />
+            </div>
           </div>
         )}
 
-        {/* Bottom Composer */}
+        {/* Bottom Composer — Centered & Max 1000px */}
         {!isFreshSession && (
-          <div className="p-4 border-t border-border bg-card/40 space-y-2 shrink-0">
-            <div className="relative flex items-center rounded-sm border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : execMode === "chat" ? "Chat directly with AI (fast response, no steps)..." : "Assign a follow-up task in this chat (Shift+Enter for newline)..."}
-                disabled={status === "running"}
-                className="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground disabled:opacity-50 resize-none max-h-24 py-1"
-              />
-              <Button
-                type="button"
-                onClick={() => handleStartTask()}
-                size="sm"
-                disabled={status === "running" || !inputValue.trim()}
-                className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs"
-              >
-                <Send size={12} />
-              </Button>
+          <div className="p-4 border-t border-border bg-card/40 shrink-0">
+            <div className="w-full max-w-[1000px] mx-auto space-y-2">
+              <div className="relative flex items-center rounded-sm border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
+                <textarea
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : execMode === "chat" ? "Chat directly with AI (fast response, no steps)..." : "Assign a follow-up task in this chat (Shift+Enter for newline)..."}
+                  disabled={status === "running"}
+                  className="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground disabled:opacity-50 resize-none max-h-24 py-1"
+                />
+                <Button
+                  type="button"
+                  onClick={() => handleStartTask()}
+                  size="sm"
+                  disabled={status === "running" || !inputValue.trim()}
+                  className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs"
+                >
+                  <Send size={12} />
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -1091,5 +1097,3 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 }
 
 export default ChatContainer;
-
-
