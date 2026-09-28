@@ -1,15 +1,57 @@
 ﻿import sys
+import os
+import json
 import asyncio
 import traceback
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
 from omweb.job_manager import job_manager
 from omweb.project_manager import project_manager
+from omweb.engine_resolver import resolve_active_engine_path
 
 human_answers: Dict[str, asyncio.Event] = {}
 human_data: Dict[str, str] = {}
 active_tasks: Dict[str, asyncio.Task] = {}
 current_active_job_id: Dict[str, str] = {}
+
+def read_active_toml_config() -> Dict[str, Any]:
+    """Read active config.toml from engine path directly from disk."""
+    engine_path = resolve_active_engine_path()
+    candidates = [
+        engine_path / "config" / "config.toml",
+        engine_path / "config.toml",
+        Path(__file__).resolve().parent.parent / "config.toml",
+        Path(r"D:\AI\OpenManus\config\config.toml")
+    ]
+    
+    target_file = None
+    for cand in candidates:
+        if cand.is_file():
+            target_file = cand
+            break
+            
+    if not target_file:
+        return {}
+
+    try:
+        try:
+            import tomllib
+            with open(target_file, "rb") as f:
+                return tomllib.load(f)
+        except ImportError:
+            try:
+                import tomli
+                with open(target_file, "rb") as f:
+                    return tomli.load(f)
+            except ImportError:
+                import toml
+                with open(target_file, "r", encoding="utf-8") as f:
+                    return toml.load(f)
+    except Exception as e:
+        print(f"[BRIDGE WARNING] Could not parse config.toml: {e}")
+        return {}
 
 def apply_global_ask_human_patch():
     """Intercept AskHuman.execute globally in memory to prevent terminal blocking."""
@@ -56,9 +98,66 @@ def apply_global_ask_human_patch():
 # Apply patch immediately on module load
 apply_global_ask_human_patch()
 
-async def run_instrumented(job_id: str, prompt: str) -> None:
+def inject_runtime_llm(agent: Any, active_llm: Dict[str, Any]):
+    """Dynamically inject runtime LLM configuration into the agent instance."""
+    model = active_llm.get("model")
+    base_url = active_llm.get("base_url")
+    api_key = active_llm.get("api_key") or "EMPTY"
+    api_type = active_llm.get("api_type", "")
+    
+    # 1. Update global app.config in memory if available
+    try:
+        import app.config as app_config_mod
+        if hasattr(app_config_mod, "config"):
+            cfg = getattr(app_config_mod, "config")
+            if hasattr(cfg, "llm"):
+                llm_attr = getattr(cfg, "llm")
+                if isinstance(llm_attr, dict):
+                    llm_attr.update(active_llm)
+                else:
+                    for k, v in active_llm.items():
+                        if hasattr(llm_attr, k):
+                            setattr(llm_attr, k, v)
+    except Exception as ex:
+        print(f"[BRIDGE] Notice: could not patch app.config directly: {ex}")
+
+    # 2. Update agent instance attributes directly
+    if hasattr(agent, "llm"):
+        if model and hasattr(agent.llm, "model"):
+            agent.llm.model = model
+            
+        if base_url:
+            try:
+                from openai import AsyncOpenAI
+                agent.llm.client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url=base_url
+                )
+                print(f"[BRIDGE] Successfully injected runtime AsyncOpenAI client (model={model}, base_url={base_url})")
+            except Exception as client_err:
+                print(f"[BRIDGE WARNING] Could not rebuild AsyncOpenAI client: {client_err}")
+
+async def run_instrumented(
+    job_id: str, 
+    prompt: str, 
+    llm_override: Optional[Dict[str, Any]] = None
+) -> None:
     print(f"\n[BRIDGE] Initializing agent for job: {job_id}")
     current_active_job_id["current"] = job_id
+    
+    # Resolve active LLM parameters: merge disk config with request override
+    toml_cfg = read_active_toml_config()
+    active_llm = dict(toml_cfg.get("llm", {}))
+    if llm_override:
+        for k, v in llm_override.items():
+            if v:
+                active_llm[k] = v
+
+    provider_name = active_llm.get("provider_name") or active_llm.get("provider") or "Active Primary"
+    model_name = active_llm.get("model") or "default"
+    base_url = active_llm.get("base_url") or "http://127.0.0.1:1234/v1"
+    
+    print(f"[BRIDGE] Target LLM: [{provider_name}] Model: '{model_name}' | URL: '{base_url}'")
     
     try:
         from app.agent.manus import Manus
@@ -68,9 +167,23 @@ async def run_instrumented(job_id: str, prompt: str) -> None:
         return
 
     await asyncio.sleep(0.3)
-    await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=1, data={"status": "running"}))
+    await dispatch_event(
+        job_id, 
+        SSEEvent(
+            type=SSEEventType.STEP_START, 
+            step=1, 
+            data={
+                "status": "running",
+                "model": model_name,
+                "provider": provider_name
+            }
+        )
+    )
 
     agent = Manus()
+    
+    # Inject active LLM configuration into the agent
+    inject_runtime_llm(agent, active_llm)
 
     original_step = agent.step
     async def instrumented_step():

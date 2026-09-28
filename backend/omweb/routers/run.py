@@ -26,6 +26,11 @@ class RunRequest(BaseModel):
     project_id: Optional[str] = "default_project"
     max_steps: Optional[int] = 30
     chat_id: Optional[str] = None
+    model: Optional[str] = None
+    provider: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    api_type: Optional[str] = None
 
 class FileContentPayload(BaseModel):
     path: str
@@ -73,6 +78,19 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
             job.prompt = prompt
 
     actual_job_id = getattr(job, "id", generated_job_id)
+
+    # Build dynamic LLM override payload if provided from chat request
+    llm_override: Dict[str, Any] = {}
+    if req.model:
+        llm_override["model"] = req.model.strip()
+    if req.provider:
+        llm_override["provider"] = req.provider.strip()
+    if req.base_url:
+        llm_override["base_url"] = req.base_url.strip()
+    if req.api_key is not None:
+        llm_override["api_key"] = req.api_key.strip()
+    if req.api_type:
+        llm_override["api_type"] = req.api_type.strip()
 
     existing_chat = None
     if req.chat_id:
@@ -132,12 +150,21 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         if session_file.exists():
             s_data = json.loads(session_file.read_text(encoding="utf-8"))
             s_data["turns"] = turns
+            if llm_override:
+                s_data["model"] = llm_override.get("model")
+                s_data["provider"] = llm_override.get("provider")
             session_file.write_text(json.dumps(s_data, indent=2, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
 
-    background_tasks.add_task(run_instrumented, actual_job_id, agent_prompt)
-    return {"job_id": actual_job_id, "status": "running", "chat_id": chat_id}
+    background_tasks.add_task(run_instrumented, actual_job_id, agent_prompt, llm_override)
+    return {
+        "job_id": actual_job_id,
+        "status": "running",
+        "chat_id": chat_id,
+        "model": llm_override.get("model"),
+        "provider": llm_override.get("provider")
+    }
 
 @router.get("/jobs")
 @router.get("/jobs/")

@@ -443,11 +443,10 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: textToSend,
+        body: JSON.stringify({ prompt: textToSend,
           max_steps: 20,
           chat_id: activeChatId || undefined
-        }),
+        , ...(typeof window !== "undefined" ? JSON.parse(localStorage.getItem("omweb_active_llm_override") || "{}") : {}) }),
       });
 
       if (!res.ok) {
@@ -1032,4 +1031,5 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 }
 
 export default ChatContainer;
+
 

@@ -5,7 +5,7 @@ import { Send, Paperclip, StopCircle, ChevronDown, Check, Server, Terminal, Cpu,
 import { Button } from "@/components/ui/button";
 
 interface ComposerProps {
-  onSend: (text: string, files?: File[]) => void;
+  onSend: (text: string, files?: File[], llmOverride?: any) => void;
   onStop?: () => void;
   isRunning?: boolean;
   disabled?: boolean;
@@ -18,6 +18,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   const [activeProvider, setActiveProvider] = useState<string>("LM Studio (Local)");
   const [customList, setCustomList] = useState<any[]>([]);
   const [cloudList, setCloudList] = useState<any[]>([]);
+  const [lmStudioItem, setLmStudioItem] = useState<any>(null);
   const [showModelMenu, setShowModelMenu] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -29,25 +30,58 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
       if (savedProvider) setActiveProvider(savedProvider);
 
       try {
-        const storedCustom = JSON.parse(localStorage.getItem("omweb_custom_endpoints") || "[]");
-        if (Array.isArray(storedCustom)) setCustomList(storedCustom);
+        const storedLM = JSON.parse(localStorage.getItem("omweb_lmstudio_vault") || "null");
+        if (storedLM) setLmStudioItem(storedLM);
       } catch (e) {}
 
       try {
         const storedCloud = JSON.parse(localStorage.getItem("omweb_cloud_vault") || "[]");
         if (Array.isArray(storedCloud)) setCloudList(storedCloud);
       } catch (e) {}
+
+      try {
+        const storedCustom = JSON.parse(localStorage.getItem("omweb_custom_endpoints") || "[]");
+        if (Array.isArray(storedCustom)) setCustomList(storedCustom);
+      } catch (e) {}
     }
   }, []);
 
-  const handleSelectProvider = (providerTitle: string, modelName: string) => {
-    setActiveModel(modelName);
-    setActiveProvider(providerTitle);
+  const handleSelectEngine = (payload: {
+    model: string;
+    provider: string;
+    provider_name: string;
+    base_url: string;
+    api_key: string;
+    api_type: string;
+  }) => {
+    setActiveModel(payload.model);
+    setActiveProvider(payload.provider_name);
+
     if (typeof window !== "undefined") {
-      localStorage.setItem("omweb_active_model", modelName);
-      localStorage.setItem("omweb_active_provider", providerTitle);
+      localStorage.setItem("omweb_active_model", payload.model);
+      localStorage.setItem("omweb_active_provider", payload.provider_name);
+      localStorage.setItem("omweb_active_llm_override", JSON.stringify(payload));
     }
     setShowModelMenu(false);
+  };
+
+  const getActivePayload = () => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("omweb_active_llm_override");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {}
+      }
+    }
+    return {
+      model: activeModel,
+      provider: activeProvider.toLowerCase().replace(/[^a-z0-9]/g, ""),
+      provider_name: activeProvider,
+      base_url: lmStudioItem?.baseUrl || "http://127.0.0.1:1234/v1",
+      api_key: lmStudioItem?.apiKey || "",
+      api_type: ""
+    };
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -59,7 +93,8 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
 
   const handleSend = () => {
     if (!text.trim() || isRunning || disabled) return;
-    onSend(text.trim());
+    const currentPayload = getActivePayload();
+    onSend(text.trim(), undefined, currentPayload);
     setText("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -88,21 +123,32 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
           {showModelMenu && (
             <div className="absolute bottom-full mb-1.5 left-0 w-80 bg-card border border-border rounded-lg shadow-xl p-2 z-50 space-y-2 max-h-80 overflow-y-auto">
               <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/60 flex items-center justify-between">
-                <span>Select Chat Engine & Provider</span>
+                <span>Select AI Provider</span>
                 <Server size={11} />
               </div>
 
               {/* Local LM Studio Option */}
               <button
                 type="button"
-                onClick={() => handleSelectProvider("LM Studio (Local)", "qwen3-vl-8b-instruct")}
-                className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
+                onClick={() =>
+                  handleSelectEngine({
+                    model: lmStudioItem?.model || "qwen3-vl-8b-instruct",
+                    provider: "lmstudio",
+                    provider_name: "LM Studio (Local)",
+                    base_url: lmStudioItem?.baseUrl || "http://127.0.0.1:1234/v1",
+                    api_key: lmStudioItem?.apiKey || "",
+                    api_type: ""
+                  })
+                }
+                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
               >
                 <div>
                   <span className="font-semibold flex items-center gap-1.5">
                     <Cpu size={12} className="text-primary" /> LM Studio (Local GPU)
                   </span>
-                  <span className="text-[10px] text-muted-foreground font-mono block pl-4">qwen3-vl-8b-instruct</span>
+                  <span className="text-[10px] text-muted-foreground font-mono block pl-4">
+                    {lmStudioItem?.model || "qwen3-vl-8b-instruct"}
+                  </span>
                 </div>
                 {activeProvider.includes("LM Studio") && <Check size={13} className="text-emerald-500 shrink-0" />}
               </button>
@@ -117,8 +163,17 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
                     <button
                       key={cp.id}
                       type="button"
-                      onClick={() => handleSelectProvider(cp.name, cp.model)}
-                      className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
+                      onClick={() =>
+                        handleSelectEngine({
+                          model: cp.model,
+                          provider: cp.id,
+                          provider_name: cp.name,
+                          base_url: cp.baseUrl,
+                          api_key: cp.apiKey,
+                          api_type: cp.type || ""
+                        })
+                      }
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
                     >
                       <div>
                         <span className="font-medium flex items-center gap-1.5">
@@ -132,7 +187,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
                 </div>
               )}
 
-              {/* Custom Endpoints List (image_be6941.png) */}
+              {/* Custom Endpoints List */}
               {customList.length > 0 && (
                 <div className="pt-1 border-t border-border/40">
                   <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
@@ -142,8 +197,17 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
                     <button
                       key={ce.id}
                       type="button"
-                      onClick={() => handleSelectProvider(ce.name, ce.defaultModel)}
-                      className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
+                      onClick={() =>
+                        handleSelectEngine({
+                          model: ce.defaultModel,
+                          provider: ce.providerId,
+                          provider_name: ce.name,
+                          base_url: ce.endpointUrl,
+                          api_key: ce.apiKey || "",
+                          api_type: ""
+                        })
+                      }
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
                     >
                       <div>
                         <span className="font-medium flex items-center gap-1.5">
