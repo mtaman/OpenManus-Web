@@ -91,7 +91,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [currentStepNum, setCurrentStepNum] = useState(0);
   const [producedFiles, setProducedFiles] = useState<{ name: string; path: string }[]>([]);
   const [selectedFileForEditor, setSelectedFileForEditor] = useState<string | null>(null);
-  const [expandedSteps, setExpandedSteps] = useState<Record<number, boolean>>({});
+  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [showRawTrace, setShowRawTrace] = useState(false);
 
@@ -170,14 +170,17 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
         if (data.turns && Array.isArray(data.turns)) {
           const loadedTurns: ChatTurn[] = data.turns.map((t: any, idx: number) => {
-            const replayedSteps: StepEvent[] = (t.events || []).map((ev: any, evIdx: number) => ({
-              id: `hist-${idx}-step-${evIdx}`,
-              step: ev.step || 1,
-              type: ev.type || "thought",
-              content: safeRender(ev.data?.thought || ev.data?.output || ev.data?.content || ev.data || JSON.stringify(ev)),
-              toolName: ev.data?.name,
-              timestamp: ev.timestamp || "",
-            }));
+            const replayedSteps: StepEvent[] = (t.events || [])
+              .map((ev: any, evIdx: number) => ({
+                id: `hist-${idx}-step-${evIdx}`,
+                step: ev.step || 1,
+                type: ev.type || "thought",
+                content: safeRender(ev.data?.thought || ev.data?.output || ev.data?.content || ev.data || JSON.stringify(ev)),
+                toolName: ev.data?.name,
+                timestamp: ev.timestamp || "",
+              }))
+              .filter((ev: StepEvent) => ev.content.trim() !== "" || Boolean(ev.toolName));
+
             return {
               id: t.job_id || `turn-${idx}`,
               jobId: t.job_id || "",
@@ -196,14 +199,18 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           data.events.forEach((ev: any, idx: number) => {
             const evType = ev.type || "thought";
             const evContent = ev.data?.thought || ev.data?.output || ev.data?.content || ev.data || JSON.stringify(ev);
-            replayed.push({
-              id: `replay-${idx}-${Math.random()}`,
-              step: ev.step || 1,
-              type: evType,
-              content: safeRender(evContent),
-              toolName: ev.data?.name,
-              timestamp: ev.timestamp || new Date().toLocaleTimeString(),
-            });
+            const rendered = safeRender(evContent);
+            const tool = ev.data?.name;
+            if (rendered.trim() !== "" || Boolean(tool)) {
+              replayed.push({
+                id: `replay-${idx}-${Math.random()}`,
+                step: ev.step || 1,
+                type: evType,
+                content: rendered,
+                toolName: tool,
+                timestamp: ev.timestamp || new Date().toLocaleTimeString(),
+              });
+            }
           });
           setSteps(replayed);
           const maxStep = replayed.reduce((max, s) => Math.max(max, s.step), 0);
@@ -239,6 +246,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         if (!cleanTool || cleanTool === "{}") return;
         if (!cleanContent && !cleanTool) return;
       }
+      if (!cleanContent && !cleanTool) return;
+
       setSteps((prev) => [
         ...prev,
         {
@@ -255,11 +264,13 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     const handleEventPayload = (eventType: string, payload: any) => {
       const step = payload.step || payload.data?.step || currentStepNum || 1;
       setCurrentStepNum(step);
-      setExpandedSteps((prev) => ({ ...prev, [step]: true }));
 
       if (eventType === "thought") {
         const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
-        appendStep("thought", raw, step);
+        if (safeRender(raw).trim() !== "") {
+          appendStep("thought", raw, step);
+          setExpandedSteps((prev) => ({ ...prev, [`active-${step}`]: true }));
+        }
         if (payload.data?.tokens) setTokensUsed(payload.data.tokens);
       } else if (eventType === "tool_call") {
         const name = payload.data?.name;
@@ -268,6 +279,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           setHumanQuery(typeof args === "string" ? args : JSON.stringify(args));
         }
         appendStep("tool_call", args, step, name);
+        setExpandedSteps((prev) => ({ ...prev, [`active-${step}`]: true }));
       } else if (eventType === "observation") {
         const raw = payload.data?.output ?? "Execution completed.";
         appendStep("observation", raw, step);
@@ -339,10 +351,10 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     return () => clearInterval(timer);
   }, [status]);
 
-  const toggleStep = (stepNum: number) => {
+  const toggleStep = (key: string) => {
     setExpandedSteps((prev) => ({
       ...prev,
-      [stepNum]: !prev[stepNum],
+      [key]: !prev[key],
     }));
   };
 
@@ -453,7 +465,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     setCurrentStepNum(1);
     setProducedFiles([]);
     setSelectedFileForEditor(null);
-    setExpandedSteps({ 1: true });
+    setExpandedSteps({ "active-1": true });
     setHumanQuery(null);
     setTokensUsed({ input: 0, output: 0, total: 0 });
     setSessionTimestamp(new Date().toLocaleString());
@@ -500,13 +512,20 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     }
   };
 
-  const groupedSteps = steps.reduce((acc, s) => {
-    if (!acc[s.step]) {
-      acc[s.step] = [];
-    }
-    acc[s.step].push(s);
-    return acc;
-  }, {} as Record<number, StepEvent[]>);
+  // Group steps helper (filters out empty steps)
+  const groupStepEvents = (evts: StepEvent[]) => {
+    return evts.reduce((acc, s) => {
+      const isVisible = (s.content && s.content.trim() !== "") || Boolean(s.toolName);
+      if (!isVisible) return acc;
+      if (!acc[s.step]) {
+        acc[s.step] = [];
+      }
+      acc[s.step].push(s);
+      return acc;
+    }, {} as Record<number, StepEvent[]>);
+  };
+
+  const activeGroupedSteps = groupStepEvents(steps);
 
   const quickPills = [
     { label: "Create slides", icon: <Layout size={13} />, prompt: "Create an interactive presentation in HTML with modern slide navigation and CSS styling, then terminate." },
@@ -525,6 +544,101 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const lastInformativeThought = [...steps]
     .reverse()
     .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step "));
+
+  const getLiveStatusMessage = () => {
+    if (execMode === "chat") {
+      return "Synthesizing conversational response...";
+    }
+    if (steps.length === 0) {
+      return "Analyzing request and formulating execution plan...";
+    }
+    const lastEvt = steps[steps.length - 1];
+    if (lastEvt.type === "tool_call") {
+      return `Executing tool: ${lastEvt.toolName || "external tool"}...`;
+    }
+    if (lastEvt.type === "observation") {
+      return "Processing tool observation & planning next action...";
+    }
+    if (lastEvt.type === "thought") {
+      return "Deep reasoning and verifying solution...";
+    }
+    return "Agent reasoning & executing autonomously...";
+  };
+
+  // Reusable Step Accordion Renderer
+  const renderStepAccordion = (prefix: string, stepNum: number, stepEvents: StepEvent[]) => {
+    const key = `${prefix}-${stepNum}`;
+    const isExpanded = expandedSteps[key] === true;
+
+    return (
+      <div key={key} className="border border-border rounded-sm bg-card/60 overflow-hidden shadow-manus-xs transition-all my-2">
+        <button
+          type="button"
+          onClick={() => toggleStep(key)}
+          className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            {isExpanded ? (
+              <ChevronDown size={14} className="text-manus-accent" />
+            ) : (
+              <ChevronRight size={14} className="text-muted-foreground" />
+            )}
+            <span className="text-xs font-semibold text-foreground">
+              Execution Step {stepNum}
+            </span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground">
+              {stepEvents.length} events
+            </span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            {isExpanded ? "Collapse" : "View reasoning"}
+          </span>
+        </button>
+
+        {isExpanded && (
+          <div className="p-3.5 pt-1 border-t border-border/60 space-y-2 bg-background/50">
+            {stepEvents.map((evt) => (
+              <div key={evt.id} className="text-xs space-y-1">
+                {evt.type === "thought" && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
+                    <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <MarkdownRenderer content={evt.content} />
+                    </div>
+                  </div>
+                )}
+
+                {evt.type === "tool_call" && evt.toolName && (
+                  <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted border border-border text-foreground font-mono text-xs">
+                    <Wrench size={13} className="text-manus-info mt-0.5 flex-shrink-0" />
+                    <div className="truncate">
+                      <span className="font-semibold text-primary mr-1">{evt.toolName}:</span>
+                      <span>{evt.content}</span>
+                    </div>
+                  </div>
+                )}
+
+                {evt.type === "observation" && (
+                  <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
+                    <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
+                    <div className="flex-1 min-w-0 overflow-x-auto">
+                      <MarkdownRenderer content={evt.content} />
+                    </div>
+                  </div>
+                )}
+
+                {evt.type === "error" && (
+                  <div className="p-2.5 text-xs text-manus-error bg-manus-error/10 rounded-lg border border-manus-error/20 flex items-start gap-2">
+                    <span className="whitespace-pre-wrap">{evt.content}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex h-full w-full bg-background text-foreground overflow-hidden font-sans">
@@ -574,7 +688,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </span>
             )}
 
-            {currentStepNum > 0 && (
+            {currentStepNum > 0 && execMode === "agent" && (
               <span className="text-xs font-mono text-foreground font-semibold px-2 py-0.5 bg-muted rounded-md border border-border/60">
                 Step {currentStepNum} / 20
               </span>
@@ -695,7 +809,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-            <div className="w-full max-w-[1000px] mx-auto space-y-4">
+            <div className="w-full max-w-[1000px] mx-auto space-y-6">
               {/* 1. Render Historical Completed Turns */}
               {historyTurns.map((turn, tIdx) => {
                 const isTurnRawTrace = Boolean(
@@ -706,9 +820,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   .reverse()
                   .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step "));
 
+                const turnGroupedSteps = groupStepEvents(turn.steps);
+
                 return (
-                  <div key={turn.id || tIdx} className="space-y-3 pb-3 border-b border-border/60">
-                    <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+                  <div key={turn.id || tIdx} className="space-y-3 pb-4 border-b border-border/40">
+                    {/* User Message — Clean & Borderless */}
+                    <div className="py-2 px-1 space-y-1.5">
                       <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                         <span className="flex items-center gap-1.5 font-medium text-foreground">
                           <User size={13} className="text-primary" />
@@ -733,16 +850,26 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                           )}
                         </button>
                       </div>
-                      <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
+                      <div className="text-foreground text-sm sm:text-base font-normal leading-relaxed whitespace-pre-wrap font-sans">
                         {turn.prompt}
                       </div>
                     </div>
 
+                    {/* Historical Step Accordions (Shown only if has real steps) */}
+                    {Object.keys(turnGroupedSteps).length > 0 && (
+                      <div className="space-y-1.5">
+                        {Object.entries(turnGroupedSteps).map(([sNum, sEvts]) =>
+                          renderStepAccordion(`turn-${tIdx}`, parseInt(sNum, 10), sEvts)
+                        )}
+                      </div>
+                    )}
+
+                    {/* Deliverable / Result */}
                     {turn.finalResult && (
                       <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-manus-success font-semibold tracking-wide text-xs">
-                            DELIVERABLE COMPLETED #{tIdx + 1}
+                            {turn.status === "failed" ? "EXECUTION STATUS" : `DELIVERABLE COMPLETED #${tIdx + 1}`}
                           </span>
                           <button
                             type="button"
@@ -803,9 +930,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 );
               })}
 
-              {/* 2. Active Turn Prompt */}
+              {/* 2. Active Turn Prompt — Clean & Borderless */}
               {submittedPrompt && (
-                <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+                <div className="py-2 px-1 space-y-1.5">
                   <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                     <span className="flex items-center gap-1.5 font-medium text-foreground">
                       <User size={13} className="text-primary" />
@@ -833,7 +960,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                     </button>
                   </div>
 
-                  <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
+                  <div className="text-foreground text-sm sm:text-base font-normal leading-relaxed whitespace-pre-wrap font-sans">
                     {submittedPrompt}
                   </div>
                 </div>
@@ -869,12 +996,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 </div>
               )}
 
-              {/* Running Status Indicator */}
+              {/* Live Contextual Running Status Indicator */}
               {status === "running" && (
-                <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
-                  <div className="flex items-center gap-2 text-xs">
-                    <Loader2 size={13} className="animate-spin text-manus-accent" />
-                    <span>{execMode === "chat" ? "Generating direct response..." : "Agent reasoning & executing autonomously..."}</span>
+                <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-primary/20 bg-muted/40 text-foreground transition-all">
+                  <div className="flex items-center gap-2.5 text-xs">
+                    <Loader2 size={14} className="animate-spin text-manus-accent" />
+                    <span className="font-medium">{getLiveStatusMessage()}</span>
                   </div>
                   <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
                     {elapsedSeconds}s
@@ -882,82 +1009,16 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 </div>
               )}
 
-              {/* Active Turn Step Accordions */}
-              {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
-                const stepNum = parseInt(stepNumStr, 10);
-                const isExpanded = expandedSteps[stepNum] === true;
+              {/* Active Turn Step Accordions (Only in Agent Mode and when valid events exist) */}
+              {execMode === "agent" && Object.keys(activeGroupedSteps).length > 0 && (
+                <div className="space-y-1.5">
+                  {Object.entries(activeGroupedSteps).map(([stepNumStr, stepEvents]) =>
+                    renderStepAccordion("active", parseInt(stepNumStr, 10), stepEvents)
+                  )}
+                </div>
+              )}
 
-                return (
-                  <div key={stepNum} className="border border-border rounded-sm bg-card/60 overflow-hidden shadow-manus-xs transition-all">
-                    <button
-                      type="button"
-                      onClick={() => toggleStep(stepNum)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/50 transition-colors text-left cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        {isExpanded ? (
-                          <ChevronDown size={14} className="text-manus-accent" />
-                        ) : (
-                          <ChevronRight size={14} className="text-muted-foreground" />
-                        )}
-                        <span className="text-xs font-semibold text-foreground">
-                          Execution Step {stepNum}
-                        </span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground">
-                          {stepEvents.length} events
-                        </span>
-                      </div>
-                      <span className="text-[11px] text-muted-foreground">
-                        {isExpanded ? "Collapse" : "View reasoning"}
-                      </span>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="p-3.5 pt-1 border-t border-border/60 space-y-2 bg-background/50">
-                        {stepEvents.map((evt) => (
-                          <div key={evt.id} className="text-xs space-y-1">
-                            {evt.type === "thought" && (
-                              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
-                                <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <MarkdownRenderer content={evt.content} />
-                                </div>
-                              </div>
-                            )}
-
-                            {evt.type === "tool_call" && evt.toolName && (
-                              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted border border-border text-foreground font-mono text-xs">
-                                <Wrench size={13} className="text-manus-info mt-0.5 flex-shrink-0" />
-                                <div className="truncate">
-                                  <span className="font-semibold text-primary mr-1">{evt.toolName}:</span>
-                                  <span>{evt.content}</span>
-                                </div>
-                              </div>
-                            )}
-
-                            {evt.type === "observation" && (
-                              <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
-                                <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
-                                <div className="flex-1 min-w-0 overflow-x-auto">
-                                  <MarkdownRenderer content={evt.content} />
-                                </div>
-                              </div>
-                            )}
-
-                            {evt.type === "error" && (
-                              <div className="p-2.5 text-xs text-manus-error bg-manus-error/10 rounded-lg border border-manus-error/20 flex items-start gap-2">
-                                <span className="whitespace-pre-wrap">{evt.content}</span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Active Turn Deliverable Completed Card */}
+              {/* Active Turn Deliverable / Response Card */}
               {finalResult && (
                 <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
                   <div className="flex items-center justify-between">
