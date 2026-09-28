@@ -646,7 +646,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
               return (
                 <div key={turn.id || tIdx} className="space-y-3 pb-3 border-b border-border/60">
-                  <div className="p-3.5 rounded-xl bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+                  <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
                     <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                       <span className="flex items-center gap-1.5 font-medium text-foreground">
                         <User size={13} className="text-primary" />
@@ -677,7 +677,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   </div>
 
                   {turn.finalResult && (
-                    <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
+                    <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
                       <div className="flex items-center justify-between">
                         <span className="text-manus-success font-semibold tracking-wide text-xs">
                           DELIVERABLE COMPLETED #{tIdx + 1}
@@ -743,7 +743,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
             {/* 2. Active Turn Prompt */}
             {submittedPrompt && (
-              <div className="p-3.5 rounded-xl bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+              <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
                 <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                   <span className="flex items-center gap-1.5 font-medium text-foreground">
                     <User size={13} className="text-primary" />
@@ -779,7 +779,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
             {/* Human Intervention Required */}
             {humanQuery && (
-              <div className="p-4 rounded-xl bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
+              <div className="p-4 rounded-sm bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
                 <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
                   <HelpCircle size={14} />
                   <span>Agent Requires Human Input:</span>
@@ -826,7 +826,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               const isExpanded = expandedSteps[stepNum] === true;
 
               return (
-                <div key={stepNum} className="border border-border rounded-xl bg-card/60 overflow-hidden shadow-manus-xs transition-all">
+                <div key={stepNum} className="border border-border rounded-sm bg-card/60 overflow-hidden shadow-manus-xs transition-all">
                   <button
                     type="button"
                     onClick={() => toggleStep(stepNum)}
@@ -897,7 +897,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
             {/* Active Turn Deliverable Completed Card */}
             {finalResult && (
-              <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
+              <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-manus-success font-semibold tracking-wide text-xs flex items-center gap-1.5">
                     <span>TASK DELIVERABLE COMPLETED</span>
@@ -993,7 +993,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         {/* Bottom Composer */}
         {!isFreshSession && (
           <div className="p-4 border-t border-border bg-card/40 space-y-2 shrink-0">
-            <div className="relative flex items-center rounded-xl border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
+            <div className="relative flex items-center rounded-sm border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
               <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}

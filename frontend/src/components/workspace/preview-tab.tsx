@@ -203,7 +203,7 @@ export function PreviewTab({
       <div className="flex-1 w-full h-full relative overflow-hidden bg-background">
         {isMarkdown && (
           <div className="w-full h-full overflow-y-auto p-6 md:p-8 bg-card/40">
-            <div className="max-w-3xl mx-auto rounded-xl border border-border/80 bg-card p-6 shadow-manus-sm">
+            <div className="max-w-3xl mx-auto rounded-sm border border-border/80 bg-card p-6 shadow-manus-sm">
               <MarkdownRenderer content={rawContent} />
             </div>
           </div>
@@ -212,7 +212,7 @@ export function PreviewTab({
         {isSvg && (
           <div className="w-full h-full flex items-center justify-center p-8 bg-slate-950/40 overflow-auto">
             <div
-              className="max-w-full max-h-full flex items-center justify-center p-4 rounded-xl border border-border/60 bg-card shadow-manus-md"
+              className="max-w-full max-h-full flex items-center justify-center p-4 rounded-sm border border-border/60 bg-card shadow-manus-md"
               dangerouslySetInnerHTML={{ __html: rawContent }}
             />
           </div>

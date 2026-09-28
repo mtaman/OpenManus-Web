@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center gap-4">
           <Link
             href="/chat"
-            className="w-10 h-10 rounded-xl bg-card border border-border/80 flex items-center justify-center p-1.5 shadow-manus-xs hover:border-primary/50 transition-all group"
+            className="w-10 h-10 rounded-sm bg-card border border-border/80 flex items-center justify-center p-1.5 shadow-manus-xs hover:border-primary/50 transition-all group"
             title="OpenManus Web"
           >
             <img

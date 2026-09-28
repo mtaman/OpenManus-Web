@@ -97,7 +97,7 @@ export default function HistoryPage() {
               return (
                 <div
                   key={job.id}
-                  className="flex flex-col justify-between p-4 rounded-xl border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
+                  className="flex flex-col justify-between p-4 rounded-sm border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">

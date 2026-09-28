@@ -48,7 +48,7 @@ export function ChatComposer({
 
   return (
     <form onSubmit={handleSubmit} className="relative flex flex-col w-full">
-      <div className="flex items-end gap-2 bg-card border border-border rounded-xl p-2 shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all">
+      <div className="flex items-end gap-2 bg-card border border-border rounded-sm p-2 shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all">
         <textarea
           ref={textareaRef}
           value={input}

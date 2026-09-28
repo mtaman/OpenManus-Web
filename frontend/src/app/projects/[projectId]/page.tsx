@@ -224,7 +224,7 @@ export default function ProjectWorkspacePage() {
                 return (
                   <div
                     key={chat.id}
-                    className="flex flex-col justify-between p-4 rounded-xl border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
+                    className="flex flex-col justify-between p-4 rounded-sm border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2">
@@ -307,7 +307,7 @@ export default function ProjectWorkspacePage() {
       </div>
 
       <div className="p-4 border-t border-border bg-card/60 backdrop-blur-sm shrink-0">
-        <form onSubmit={handleStartProjectChat} className="flex items-center gap-2 p-1.5 pl-3.5 rounded-xl border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all">
+        <form onSubmit={handleStartProjectChat} className="flex items-center gap-2 p-1.5 pl-3.5 rounded-sm border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all">
           <input
             type="text"
             value={promptInput}

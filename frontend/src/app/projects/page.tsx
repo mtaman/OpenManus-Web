@@ -109,7 +109,7 @@ export default function ProjectsPage() {
             {projects.map((proj) => (
               <div
                 key={proj.id}
-                className="flex flex-col justify-between p-5 rounded-xl border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
+                className="flex flex-col justify-between p-5 rounded-sm border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">

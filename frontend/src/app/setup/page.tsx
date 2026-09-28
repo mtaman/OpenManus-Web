@@ -232,7 +232,7 @@ export default function SetupPage() {
         {/* Global Notifications */}
         {message && (
           <div
-            className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 transition-all shadow-manus-xs ${
+            className={`p-3.5 rounded-sm border text-xs flex items-center gap-2.5 transition-all shadow-manus-xs ${
               message.type === "success"
                 ? "bg-manus-success/10 border-manus-success/30 text-manus-success"
                 : message.type === "error"
@@ -246,7 +246,7 @@ export default function SetupPage() {
         )}
 
         {/* Diagnostic Radar Card */}
-        <Card className="p-5 md:p-6 bg-card border-border shadow-manus-sm rounded-xl space-y-4">
+        <Card className="p-5 md:p-6 bg-card border-border shadow-manus-sm rounded-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-border/70">
             <div className="flex items-center gap-2.5">
               <Cpu size={17} className="text-primary" />
@@ -330,7 +330,7 @@ export default function SetupPage() {
         {/* Two Setup Pathways (Grid) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Pathway A: Zero-Config Embedded */}
-          <Card className="p-6 bg-card border-border shadow-manus-sm rounded-xl flex flex-col justify-between space-y-5 relative overflow-hidden group hover:border-primary/40 transition-all">
+          <Card className="p-6 bg-card border-border shadow-manus-sm rounded-sm flex flex-col justify-between space-y-5 relative overflow-hidden group hover:border-primary/40 transition-all">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary w-fit">
@@ -385,7 +385,7 @@ export default function SetupPage() {
           </Card>
 
           {/* Pathway B: Link Existing / Detected Engine */}
-          <Card className="p-6 bg-card border-border shadow-manus-sm rounded-xl flex flex-col justify-between space-y-5 hover:border-primary/40 transition-all">
+          <Card className="p-6 bg-card border-border shadow-manus-sm rounded-sm flex flex-col justify-between space-y-5 hover:border-primary/40 transition-all">
             <div className="space-y-4">
               <div className="p-2.5 rounded-lg bg-manus-accent/10 border border-manus-accent/20 text-manus-accent w-fit">
                 <FolderSearch size={20} />
@@ -473,7 +473,7 @@ export default function SetupPage() {
 
         {/* Launch Gate & Next Steps */}
         {isEngineReady && (
-          <Card className="p-6 bg-manus-success/5 border-manus-success/30 rounded-xl shadow-manus-md flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <Card className="p-6 bg-manus-success/5 border-manus-success/30 rounded-sm shadow-manus-md flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="space-y-1 text-center md:text-left">
               <div className="flex items-center justify-center md:justify-start gap-2">
                 <CheckCircle2 size={18} className="text-manus-success" />

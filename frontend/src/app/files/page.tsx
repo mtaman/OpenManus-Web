@@ -93,7 +93,7 @@ export default function FilesPage() {
             {files.map((file) => (
               <div
                 key={file.path}
-                className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 transition-all shadow-manus-xs group"
+                className="flex items-center justify-between p-3.5 rounded-sm border border-border bg-card hover:border-primary/40 transition-all shadow-manus-xs group"
               >
                 <div className="flex items-center gap-2.5 min-w-0 pr-2">
                   {file.is_dir ? (

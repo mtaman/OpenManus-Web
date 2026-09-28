@@ -46,7 +46,7 @@ export function FilePreviewModal({ filePath, onClose }: FilePreviewModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="flex flex-col w-full max-w-4xl h-[80vh] rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+      <div className="flex flex-col w-full max-w-4xl h-[80vh] rounded-sm border border-border bg-card shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
           <div className="flex items-center gap-2.5 min-w-0">

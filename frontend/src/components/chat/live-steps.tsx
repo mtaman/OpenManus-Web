@@ -40,7 +40,7 @@ export function LiveSteps({ steps, isRunning }: LiveStepsProps) {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card/60 backdrop-blur-sm overflow-hidden my-3 shadow-sm">
+    <div className="rounded-sm border border-border bg-card/60 backdrop-blur-sm overflow-hidden my-3 shadow-sm">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}

@@ -15,7 +15,7 @@ export function ThoughtCard({ thought, isStreaming }: ThoughtCardProps) {
   if (!thought && !isStreaming) return null;
 
   return (
-    <div className="my-1.5 rounded-xl border border-border bg-card/60 text-xs overflow-hidden shadow-manus-xs transition-all">
+    <div className="my-1.5 rounded-sm border border-border bg-card/60 text-xs overflow-hidden shadow-manus-xs transition-all">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between px-3.5 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer select-none font-sans"

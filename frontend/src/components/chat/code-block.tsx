@@ -134,7 +134,7 @@ export function CodeBlock({
   const HighlightComponent = Highlight as any;
 
   return (
-    <div className={`my-3 overflow-hidden rounded-xl border border-border bg-[#0d1117] text-slate-100 shadow-manus-sm font-sans ${className}`}>
+    <div className={`my-3 overflow-hidden rounded-sm border border-border bg-[#0d1117] text-slate-100 shadow-manus-sm font-sans ${className}`}>
       <div className="flex items-center justify-between px-3.5 py-2 border-b border-border/60 bg-[#161b22]">
         <div className="flex items-center gap-2 truncate">
           {normalizedLang === "bash" ? (

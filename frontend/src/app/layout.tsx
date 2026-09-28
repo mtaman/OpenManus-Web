@@ -25,7 +25,7 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "Manus - Open Autonomous Agent",
+  title: "Open Manus - Open Autonomous Agent",
   description: "Next-generation Web Interface for Autonomous AI Agents",
   icons: {
     icon: [
