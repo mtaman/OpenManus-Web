@@ -1,22 +1,193 @@
-﻿// settings/setup/types.ts
-export type SettingsTab = "llm" | "browser" | "search" | "sandbox" | "mcp" | "system";
+﻿export type SettingsTab = "llm" | "browser" | "search" | "sandbox" | "mcp" | "system";
 
-export interface ProviderPreset {
+export type HubSubTab = "overview" | "lmstudio" | "cloud" | "custom";
+
+export type ProviderConnectionStatus = "online" | "offline" | "untested" | "testing";
+
+export type ApiModeType = "Auto-detect" | "Chat Completions" | "Responses API" | "Anthropic Messages";
+
+export interface CustomEndpoint {
+  id: string;
+  name: string;
+  providerId: string;
+  endpointUrl: string;
+  apiMode: ApiModeType;
+  defaultModel: string;
+  contextWindow: number | string;
+  apiKey: string;
+  status: ProviderConnectionStatus;
+  latency?: number;
+  lastError?: string;
+  useForNewChats?: boolean;
+}
+
+export interface CloudProviderVaultItem {
   id: string;
   name: string;
   type: string;
-  defaultBaseUrl: string;
-  defaultModel: string;
-  badge: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  badge: "Cloud" | "Enterprise";
+  keyPrefixHint: string;
+  status: ProviderConnectionStatus;
+  latency?: number;
+  lastError?: string;
 }
 
-export const PROVIDER_PRESETS: ProviderPreset[] = [
-  { id: "lmstudio", name: "LM Studio (Local)", type: "", defaultBaseUrl: "http://127.0.0.1:1234/v1", defaultModel: "qwen3-vl-8b-instruct", badge: "Local GPU" },
-  { id: "ollama", name: "Ollama (Local)", type: "ollama", defaultBaseUrl: "http://localhost:11434/v1", defaultModel: "llama3.2", badge: "Local" },
-  { id: "anthropic", name: "Anthropic Claude", type: "", defaultBaseUrl: "https://api.anthropic.com/v1/", defaultModel: "claude-3-7-sonnet-20250219", badge: "Cloud" },
-  { id: "openai", name: "OpenAI", type: "", defaultBaseUrl: "https://api.openai.com/v1", defaultModel: "gpt-4o", badge: "Cloud" },
-  { id: "google", name: "Google Gemini", type: "", defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/", defaultModel: "gemini-2.0-flash", badge: "Cloud" },
-  { id: "ppio", name: "DeepSeek / PPIO", type: "ppio", defaultBaseUrl: "https://api.ppinfra.com/v3/openai", defaultModel: "deepseek/deepseek-v3-0324", badge: "Cloud" },
-  { id: "jiekou", name: "Jiekou.AI", type: "jiekou", defaultBaseUrl: "https://api.jiekou.ai/openai", defaultModel: "claude-sonnet-4-5-20250929", badge: "Cloud" },
-  { id: "azure", name: "Azure OpenAI", type: "azure", defaultBaseUrl: "https://your-resource.openai.azure.com/openai/deployments/your-deployment", defaultModel: "gpt-4o-mini", badge: "Enterprise" },
+export interface LMStudioSettings {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  status: ProviderConnectionStatus;
+  latency?: number;
+  lastError?: string;
+}
+
+export interface LLMConfig {
+  provider: string;
+  provider_name: string;
+  model: string;
+  base_url: string;
+  api_key: string;
+  max_tokens: number;
+  temperature: number;
+  api_type: string;
+}
+
+export interface LLMVisionConfig {
+  provider?: string;
+  provider_name?: string;
+  model: string;
+  base_url: string;
+  api_key: string;
+  max_tokens: number;
+  temperature: number;
+}
+
+export interface BrowserProxyConfig {
+  server: string;
+  username?: string;
+  password?: string;
+}
+
+export interface BrowserConfig {
+  headless: boolean;
+  disable_security: boolean;
+  chrome_instance_path: string;
+  cdp_url: string;
+  wss_url: string;
+  max_content_length: number;
+  proxy: BrowserProxyConfig;
+}
+
+export interface SearchConfig {
+  engine: string;
+  fallback_engines: string[];
+  retry_delay: number;
+  max_retries: number;
+  lang: string;
+  country: string;
+}
+
+export interface SandboxConfig {
+  use_sandbox: boolean;
+  image: string;
+  work_dir: string;
+  memory_limit: string;
+  cpu_limit: number;
+  timeout: number;
+  network_enabled: boolean;
+}
+
+export interface DaytonaConfig {
+  daytona_api_key: string;
+  daytona_server_url: string;
+  daytona_target: string;
+  sandbox_image_name: string;
+  VNC_password: string;
+}
+
+export interface MCPConfig {
+  server_reference: string;
+}
+
+export interface RunflowConfig {
+  use_data_analysis_agent: boolean;
+}
+
+export interface FullAppConfig {
+  llm: LLMConfig;
+  llm_vision: LLMVisionConfig;
+  browser: BrowserConfig;
+  search: SearchConfig;
+  sandbox: SandboxConfig;
+  daytona: DaytonaConfig;
+  mcp: MCPConfig;
+  runflow: RunflowConfig;
+}
+
+export const INITIAL_CLOUD_PROVIDERS: CloudProviderVaultItem[] = [
+  {
+    id: "google",
+    name: "Google Gemini",
+    type: "",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    apiKey: "",
+    model: "gemini-2.0-flash",
+    badge: "Cloud",
+    keyPrefixHint: "Google Gemini keys start with 'AIzaSy...'",
+    status: "untested"
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek / PPIO",
+    type: "ppio",
+    baseUrl: "https://api.ppinfra.com/v3/openai",
+    apiKey: "",
+    model: "deepseek/deepseek-v3-0324",
+    badge: "Cloud",
+    keyPrefixHint: "DeepSeek keys start with 'sk-...'",
+    status: "untested"
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    type: "",
+    baseUrl: "https://api.openai.com/v1",
+    apiKey: "",
+    model: "gpt-4o",
+    badge: "Cloud",
+    keyPrefixHint: "OpenAI keys start with 'sk-proj-...'",
+    status: "untested"
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic Claude",
+    type: "",
+    baseUrl: "https://api.anthropic.com/v1/",
+    apiKey: "",
+    model: "claude-3-7-sonnet-20250219",
+    badge: "Cloud",
+    keyPrefixHint: "Anthropic keys start with 'sk-ant-...'",
+    status: "untested"
+  },
+  {
+    id: "azure",
+    name: "Azure OpenAI",
+    type: "azure",
+    baseUrl: "https://your-resource.openai.azure.com/openai/deployments/your-deployment",
+    apiKey: "",
+    model: "gpt-4o-mini",
+    badge: "Enterprise",
+    keyPrefixHint: "Azure 32-character API key",
+    status: "untested"
+  }
 ];
+
+export const INITIAL_LMSTUDIO_SETTINGS: LMStudioSettings = {
+  baseUrl: "http://127.0.0.1:1234/v1",
+  apiKey: "",
+  model: "qwen3-vl-8b-instruct",
+  status: "untested"
+};
