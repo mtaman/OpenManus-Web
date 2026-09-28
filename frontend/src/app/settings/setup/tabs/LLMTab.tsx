@@ -5,9 +5,10 @@ import {
   Sparkles, Layers, RefreshCw, Check, AlertTriangle,
   Zap, Bot, Plus, ArrowUpCircle, Trash2, Eye, EyeOff, Sliders,
   Search, CheckCircle2, ShieldCheck, KeyRound, Globe, Server, Radio,
-  HelpCircle, XCircle, ShieldAlert, Cpu, Cloud, Terminal, ExternalLink
+  HelpCircle, XCircle, ShieldAlert, Cpu, Cloud, Terminal, RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { showToast } from "@/components/ui/ToastNotification";
 import type {
   HubSubTab,
   CustomEndpoint,
@@ -32,6 +33,7 @@ interface LLMTabProps {
   handleFetchModels: () => void;
   assignDetectedModel: (model: string, target: "primary" | "vision") => void;
   activateEngine: (providerId: string, providerName: string, model: string, baseUrl: string, apiKey: string, apiType: string) => void;
+  deactivateToDefault: () => void;
   testEndpoint: (baseUrl: string, apiKey: string, model: string, apiType?: string) => Promise<{ ok: boolean; message: string; latency?: number }>;
 }
 
@@ -50,14 +52,16 @@ export function LLMTab({
   handleFetchModels,
   assignDetectedModel,
   activateEngine,
+  deactivateToDefault,
   testEndpoint,
 }: LLMTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<HubSubTab>("overview");
   const [modelSearch, setModelSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [testingAll, setTestingAll] = useState(false);
 
-  // New/Edit Custom Endpoint State (Direct Reference: image_be6941.png)
+  // New/Edit Custom Endpoint Form State
   const [endpointForm, setEndpointForm] = useState<{
     name: string;
     providerId: string;
@@ -129,15 +133,26 @@ export function LLMTab({
         latency: res.latency,
         lastError: res.ok ? undefined : res.message
       }));
+      if (res.ok) {
+        showToast.success("LM Studio Connected", `Verified in ${res.latency} ms`, res.latency);
+      } else {
+        showToast.error("LM Studio Unreachable", res.message);
+      }
     } finally {
       setTestingId(null);
     }
   };
 
-  // Test Cloud Provider
+  // Test Cloud Provider with Clear User Feedback
   const handleTestCloud = async (providerId: string) => {
     const cp = cloudProviders.find((p) => p.id === providerId);
     if (!cp) return;
+
+    if (!cp.apiKey.trim()) {
+      showToast.warning(`${cp.name} API Key Required`, "Please enter an API key before testing connection.");
+      return;
+    }
+
     setTestingId(providerId);
     try {
       const res = await testEndpoint(cp.baseUrl, cp.apiKey, cp.model, cp.type);
@@ -148,17 +163,44 @@ export function LLMTab({
             : item
         )
       );
+
+      if (res.ok) {
+        showToast.success(`${cp.name} Verified`, `Active and responsive (${res.latency} ms)`, res.latency);
+      } else {
+        showToast.error(`${cp.name} Connection Failed`, res.message);
+      }
     } finally {
       setTestingId(null);
     }
   };
 
-  // Test and Save Custom Endpoint (Reference: image_be6941.png)
+  // Test All Configured Endpoints at Once
+  const handleTestAll = async () => {
+    setTestingAll(true);
+    showToast.info("Health Check Initiated", "Testing all configured AI endpoints...");
+    try {
+      await handleTestLMStudio();
+      for (const cp of cloudProviders) {
+        if (cp.apiKey.trim()) {
+          await handleTestCloud(cp.id);
+        }
+      }
+      showToast.success("Health Check Completed", "All provider responses updated.");
+    } finally {
+      setTestingAll(false);
+    }
+  };
+
+  // Custom Endpoint Actions
   const handleTestCustomForm = async () => {
     setTestingId("custom_form");
     try {
       const res = await testEndpoint(endpointForm.endpointUrl, endpointForm.apiKey, endpointForm.defaultModel, "");
-      alert(res.ok ? `Success! Connected in ${res.latency} ms` : `Failed: ${res.message}`);
+      if (res.ok) {
+        showToast.success("Custom Endpoint Connected", `Latency: ${res.latency} ms`, res.latency);
+      } else {
+        showToast.error("Custom Endpoint Failed", res.message);
+      }
     } finally {
       setTestingId(null);
     }
@@ -166,7 +208,7 @@ export function LLMTab({
 
   const handleSaveCustomEndpoint = () => {
     if (!endpointForm.name.trim() || !endpointForm.endpointUrl.trim()) {
-      alert("Name and Endpoint URL are required.");
+      showToast.warning("Missing Fields", "Name and Endpoint URL are required.");
       return;
     }
     const newEndpoint: CustomEndpoint = {
@@ -183,11 +225,12 @@ export function LLMTab({
     };
 
     setCustomEndpoints((prev) => [newEndpoint, ...prev]);
-    alert(`Endpoint '${newEndpoint.name}' saved successfully!`);
+    showToast.success("Custom Endpoint Saved", newEndpoint.name);
   };
 
   const handleDeleteCustomEndpoint = (id: string) => {
     setCustomEndpoints((prev) => prev.filter((item) => item.id !== id));
+    showToast.info("Endpoint Removed", "Custom endpoint removed.");
   };
 
   return (
@@ -261,19 +304,24 @@ export function LLMTab({
       </div>
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 1: OVERVIEW & OPS (الحالة العامة ومصفوفة الاتصال) */}
+      {/* SUB-TAB 1: OVERVIEW & OPS (الحالة العامة والتحكم بالتشغيل والتعطيل) */}
       {/* ========================================================================= */}
       {activeSubTab === "overview" && (
         <div className="space-y-5">
           {/* Active Engines Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border border-border bg-card space-y-2 shadow-xs">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                Primary Autonomous Engine [llm]
-              </span>
+            <div className="p-4 rounded-xl border border-primary/50 bg-primary/5 space-y-2 shadow-xs ring-1 ring-primary/20">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-primary uppercase tracking-wider block">
+                  Primary Autonomous Engine [llm]
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
+                </span>
+              </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold font-mono text-foreground">{config.llm.model}</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-card border border-border text-foreground">
                   {config.llm.provider_name || config.llm.provider}
                 </span>
               </div>
@@ -283,12 +331,17 @@ export function LLMTab({
             </div>
 
             <div className="p-4 rounded-xl border border-border bg-card space-y-2 shadow-xs">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                Visual Perception Engine [llm.vision]
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  Visual Perception Engine [llm.vision]
+                </span>
+                <span className="text-[10px] font-bold text-violet-500 bg-violet-500/10 px-2 py-0.5 rounded border border-violet-500/20">
+                  Perception
+                </span>
+              </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold font-mono text-foreground">{config.llm_vision.model}</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-violet-500/10 text-violet-500">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground">
                   {config.llm_vision.provider_name || config.llm_vision.provider}
                 </span>
               </div>
@@ -309,93 +362,148 @@ export function LLMTab({
                   Truthful live verification. Switch active primary with one click.
                 </span>
               </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTestAll}
+                disabled={testingAll}
+                className="h-7 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs flex items-center gap-1.5"
+              >
+                <RefreshCw size={11} className={`text-primary ${testingAll ? "animate-spin" : ""}`} />
+                <span>{testingAll ? "Pinging Endpoints..." : "Test All Endpoints"}</span>
+              </Button>
             </div>
 
             <div className="divide-y divide-border/60 text-xs">
               {/* Row: LM Studio */}
-              <div className="py-2.5 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2.5 w-2.5">
-                    {lmStudioSettings.status === "online" ? (
-                      <span className="inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                    ) : lmStudioSettings.status === "offline" ? (
-                      <span className="inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
-                    ) : (
-                      <span className="inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
-                    )}
-                  </span>
-                  <span className="font-semibold text-foreground">LM Studio (Local GPU)</span>
-                  <span className="text-[10px] text-muted-foreground font-mono">({lmStudioSettings.model})</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {lmStudioSettings.status === "online" && (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
-                      {lmStudioSettings.latency} ms
-                    </span>
-                  )}
-                  <button
-                    onClick={() =>
-                      activateEngine("lmstudio", "LM Studio (Local)", lmStudioSettings.model, lmStudioSettings.baseUrl, lmStudioSettings.apiKey, "")
-                    }
-                    className="px-2 py-0.5 rounded text-[10px] bg-primary/10 hover:bg-primary/20 text-primary font-medium cursor-pointer"
-                  >
-                    Activate
-                  </button>
-                </div>
-              </div>
+              {(() => {
+                const isPrimary = config.llm.provider === "lmstudio" || config.llm.base_url === lmStudioSettings.baseUrl;
+                return (
+                  <div className="py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        {lmStudioSettings.status === "online" ? (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                        ) : lmStudioSettings.status === "offline" ? (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+                        ) : (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+                        )}
+                      </span>
+                      <span className="font-semibold text-foreground">LM Studio (Local GPU)</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">({lmStudioSettings.model})</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {lmStudioSettings.status === "online" && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
+                          {lmStudioSettings.latency} ms
+                        </span>
+                      )}
+
+                      {isPrimary ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          Active Primary
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            activateEngine("lmstudio", "LM Studio (Local)", lmStudioSettings.model, lmStudioSettings.baseUrl, lmStudioSettings.apiKey, "")
+                          }
+                          className="px-2 py-0.5 rounded text-[10px] bg-primary/10 hover:bg-primary/20 text-primary font-medium cursor-pointer"
+                        >
+                          Activate
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Rows: Cloud Providers */}
-              {cloudProviders.map((cp) => (
-                <div key={cp.id} className="py-2.5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2.5 w-2.5">
-                      {cp.status === "online" ? (
-                        <span className="inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                      ) : cp.status === "offline" ? (
-                        <span className="inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
-                      ) : (
-                        <span className="inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
-                      )}
-                    </span>
-                    <span className="font-semibold text-foreground">{cp.name}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">({cp.model})</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {cp.status === "online" && (
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
-                        {cp.latency} ms
+              {cloudProviders.map((cp) => {
+                const isPrimary = config.llm.provider === cp.id || config.llm.base_url === cp.baseUrl;
+                return (
+                  <div key={cp.id} className="py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        {cp.status === "online" ? (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                        ) : cp.status === "offline" ? (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+                        ) : (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+                        )}
                       </span>
-                    )}
-                    <button
-                      onClick={() =>
-                        activateEngine(cp.id, cp.name, cp.model, cp.baseUrl, cp.apiKey, cp.type)
-                      }
-                      className="px-2 py-0.5 rounded text-[10px] bg-primary/10 hover:bg-primary/20 text-primary font-medium cursor-pointer"
-                    >
-                      Activate
-                    </button>
+                      <span className="font-semibold text-foreground">{cp.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">({cp.model})</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {cp.status === "online" && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
+                          {cp.latency} ms
+                        </span>
+                      )}
+
+                      {isPrimary ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                            Active Primary
+                          </span>
+                          <button
+                            onClick={deactivateToDefault}
+                            className="px-2 py-0.5 rounded text-[10px] bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer"
+                            title="Deactivate and revert to local LM Studio"
+                          >
+                            <RotateCcw size={10} />
+                            <span>Revert</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            activateEngine(cp.id, cp.name, cp.model, cp.baseUrl, cp.apiKey, cp.type)
+                          }
+                          className="px-2 py-0.5 rounded text-[10px] bg-primary/10 hover:bg-primary/20 text-primary font-medium cursor-pointer"
+                        >
+                          Activate
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Rows: Custom Endpoints */}
-              {customEndpoints.map((ce) => (
-                <div key={ce.id} className="py-2.5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
-                    <span className="font-semibold text-foreground">{ce.name}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">({ce.defaultModel})</span>
+              {customEndpoints.map((ce) => {
+                const isPrimary = config.llm.base_url === ce.endpointUrl;
+                return (
+                  <div key={ce.id} className="py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+                      <span className="font-semibold text-foreground">{ce.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">({ce.defaultModel})</span>
+                    </div>
+
+                    {isPrimary ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                        Active Primary
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          activateEngine(ce.providerId, ce.name, ce.defaultModel, ce.endpointUrl, ce.apiKey, "")
+                        }
+                        className="px-2 py-0.5 rounded text-[10px] bg-primary/10 hover:bg-primary/20 text-primary font-medium cursor-pointer"
+                      >
+                        Activate
+                      </button>
+                    )}
                   </div>
-                  <button
-                    onClick={() =>
-                      activateEngine(ce.providerId, ce.name, ce.defaultModel, ce.endpointUrl, ce.apiKey, "")
-                    }
-                    className="px-2 py-0.5 rounded text-[10px] bg-primary/10 hover:bg-primary/20 text-primary font-medium cursor-pointer"
-                  >
-                    Activate
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -429,7 +537,7 @@ export function LLMTab({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 2: LM STUDIO & LOCAL MODELS (مطابق تماماً للمرجع image_be69de.png) */}
+      {/* SUB-TAB 2: LM STUDIO & LOCAL MODELS */}
       {/* ========================================================================= */}
       {activeSubTab === "lmstudio" && (
         <div className="space-y-5">
@@ -441,7 +549,7 @@ export function LLMTab({
                   LM Studio Local Server (OpenAI-compatible)
                 </span>
               </div>
-              <span className="text-[11px] text-muted-foreground">Local GPU Inference</span>
+              <span className="text-[11px] text-muted-foreground font-mono">Port: 1234 (Local)</span>
             </div>
 
             <div className="space-y-3 text-xs">
@@ -493,7 +601,7 @@ export function LLMTab({
                     className="h-7 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs"
                   >
                     <Zap size={11} className={`text-amber-500 mr-1 ${testingId === "lmstudio" ? "animate-spin" : ""}`} />
-                    <span>{testingId === "lmstudio" ? "Connecting..." : "Test Connection"}</span>
+                    <span>{testingId === "lmstudio" ? "Testing..." : "Test Connection"}</span>
                   </Button>
 
                   {lmStudioSettings.status === "online" && (
@@ -571,93 +679,186 @@ export function LLMTab({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 3: CLOUD PROVIDERS (المزودون السحابيون المعتمدون بمفاتيح معزولة) */}
+      {/* SUB-TAB 3: CLOUD PROVIDERS (ترقية كاملة: قوائم النماذج، تشخيص الخطأ، وفحص حقيقي) */}
       {/* ========================================================================= */}
       {activeSubTab === "cloud" && (
         <div className="space-y-4">
-          {cloudProviders.map((cp) => (
-            <div key={cp.id} className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-xs">
-              <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-foreground">{cp.name}</span>
-                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono">
-                    {cp.badge}
-                  </span>
+          {cloudProviders.map((cp) => {
+            const isTestingThis = testingId === cp.id;
+            const isPrimary = config.llm.provider === cp.id || config.llm.base_url === cp.baseUrl;
+            const isVision = config.llm_vision.provider === cp.id || config.llm_vision.base_url === cp.baseUrl;
+
+            return (
+              <div key={cp.id} className="p-4 rounded-xl border border-border bg-card space-y-3.5 shadow-xs">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-foreground">{cp.name}</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono">
+                      {cp.badge}
+                    </span>
+
+                    {/* Status Pill */}
+                    {cp.status === "online" && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        <CheckCircle2 size={11} /> Connected ({cp.latency} ms)
+                      </span>
+                    )}
+                    {cp.status === "offline" && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+                        <XCircle size={11} /> Connection Failed
+                      </span>
+                    )}
+                    {cp.status === "untested" && (
+                      <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded">
+                        Untested
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {isPrimary ? (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-500/20">
+                        Active Primary
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => activateEngine(cp.id, cp.name, cp.model, cp.baseUrl, cp.apiKey, cp.type)}
+                        className="px-2.5 py-1 rounded text-[10px] bg-primary text-primary-foreground font-medium cursor-pointer hover:opacity-90"
+                      >
+                        Set Primary
+                      </button>
+                    )}
+
+                    {!isVision && (
+                      <button
+                        onClick={() => {
+                          setConfig((prev) => ({
+                            ...prev,
+                            llm_vision: {
+                              ...prev.llm_vision,
+                              provider: cp.id,
+                              provider_name: cp.name,
+                              model: cp.model,
+                              base_url: cp.baseUrl,
+                              api_key: cp.apiKey
+                            }
+                          }));
+                          showToast.info("Vision Engine Assigned", `${cp.name} (${cp.model})`);
+                        }}
+                        className="px-2 py-1 rounded text-[10px] bg-violet-500/10 text-violet-500 font-medium hover:bg-violet-500/20 border border-violet-500/20 cursor-pointer"
+                      >
+                        Set Vision
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
+
+                {/* Form Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  {/* Model with Quick Selector Dropdown */}
+                  <div>
+                    <label className="text-[10px] font-medium text-muted-foreground block mb-0.5">Model</label>
+                    <div className="space-y-1">
+                      <select
+                        value={cp.popularModels.includes(cp.model) ? cp.model : "custom"}
+                        onChange={(e) => {
+                          if (e.target.value !== "custom") {
+                            setCloudProviders((prev) =>
+                              prev.map((p) => (p.id === cp.id ? { ...p, model: e.target.value } : p))
+                            );
+                          }
+                        }}
+                        className="w-full bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono shadow-xs focus:ring-1 focus:ring-primary"
+                      >
+                        {cp.popularModels.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                        <option value="custom">-- Custom Model ID --</option>
+                      </select>
+
+                      <input
+                        type="text"
+                        value={cp.model}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCloudProviders((prev) => prev.map((p) => (p.id === cp.id ? { ...p, model: val } : p)));
+                        }}
+                        placeholder="Model identifier..."
+                        className="w-full bg-background border border-border rounded px-2.5 py-1 text-[11px] text-foreground font-mono shadow-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-medium text-muted-foreground block mb-0.5">Base Endpoint URL</label>
+                    <input
+                      type="text"
+                      value={cp.baseUrl}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCloudProviders((prev) => prev.map((p) => (p.id === cp.id ? { ...p, baseUrl: val, status: "untested" } : p)));
+                      }}
+                      className="w-full bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono shadow-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+                        <KeyRound size={11} /> API Key
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleKey(cp.id)}
+                        className="text-[9px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 cursor-pointer"
+                      >
+                        {showKeys[cp.id] ? <EyeOff size={10} /> : <Eye size={10} />}
+                        <span>{showKeys[cp.id] ? "Hide" : "Show"}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showKeys[cp.id] ? "text" : "password"}
+                      value={cp.apiKey}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCloudProviders((prev) => prev.map((p) => (p.id === cp.id ? { ...p, apiKey: val, status: "untested" } : p)));
+                      }}
+                      placeholder={`Enter key for ${cp.name}...`}
+                      className="w-full bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono shadow-xs"
+                    />
+                    <span className="text-[9px] text-muted-foreground block mt-0.5">{cp.keyPrefixHint}</span>
+                  </div>
+                </div>
+
+                {/* Error Banner when Connection Fails */}
+                {cp.status === "offline" && cp.lastError && (
+                  <div className="p-2 rounded bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-1.5">
+                    <ShieldAlert size={13} className="shrink-0" />
+                    <span className="font-mono text-[11px]">{cp.lastError}</span>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-1">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleTestCloud(cp.id)}
-                    disabled={testingId === cp.id}
-                    className="h-6 px-2 text-[10px] border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs"
+                    disabled={isTestingThis}
+                    className="h-6 px-2.5 text-[10px] border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs flex items-center gap-1"
                   >
-                    <Zap size={10} className={`text-amber-500 mr-1 ${testingId === cp.id ? "animate-spin" : ""}`} />
-                    <span>{testingId === cp.id ? "Testing..." : "Test Connection"}</span>
+                    <Zap size={10} className={`text-amber-500 ${isTestingThis ? "animate-spin" : ""}`} />
+                    <span>{isTestingThis ? "Verifying..." : "Test Connection"}</span>
                   </Button>
-                  <button
-                    onClick={() => activateEngine(cp.id, cp.name, cp.model, cp.baseUrl, cp.apiKey, cp.type)}
-                    className="px-2 py-1 rounded text-[10px] bg-primary text-primary-foreground font-medium cursor-pointer hover:opacity-90"
-                  >
-                    Set Primary
-                  </button>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground block mb-0.5">Model ID</label>
-                  <input
-                    type="text"
-                    value={cp.model}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCloudProviders((prev) => prev.map((p) => (p.id === cp.id ? { ...p, model: val } : p)));
-                    }}
-                    className="w-full bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono shadow-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-medium text-muted-foreground block mb-0.5">Base Endpoint URL</label>
-                  <input
-                    type="text"
-                    value={cp.baseUrl}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCloudProviders((prev) => prev.map((p) => (p.id === cp.id ? { ...p, baseUrl: val } : p)));
-                    }}
-                    className="w-full bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono shadow-xs"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label className="text-[10px] font-medium text-muted-foreground">API Key</label>
-                    <button
-                      type="button"
-                      onClick={() => toggleKey(cp.id)}
-                      className="text-[9px] text-muted-foreground hover:text-foreground flex items-center gap-0.5"
-                    >
-                      {showKeys[cp.id] ? <EyeOff size={10} /> : <Eye size={10} />}
-                      <span>{showKeys[cp.id] ? "Hide" : "Show"}</span>
-                    </button>
-                  </div>
-                  <input
-                    type={showKeys[cp.id] ? "text" : "password"}
-                    value={cp.apiKey}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCloudProviders((prev) => prev.map((p) => (p.id === cp.id ? { ...p, apiKey: val, status: "untested" } : p)));
-                    }}
-                    placeholder={`Paste key for ${cp.name}...`}
-                    className="w-full bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono shadow-xs"
-                  />
+                  <span className="text-[10px] text-muted-foreground">
+                    Credentials isolated to this provider
+                  </span>
                 </div>
               </div>
-              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <HelpCircle size={10} /> {cp.keyPrefixHint}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -666,7 +867,6 @@ export function LLMTab({
       {/* ========================================================================= */}
       {activeSubTab === "custom" && (
         <div className="space-y-6">
-          {/* Breadcrumbs matching image_be6941.png */}
           <div className="text-xs text-muted-foreground flex items-center gap-1 font-mono">
             <span>Settings</span>
             <span>&gt;</span>
@@ -675,7 +875,7 @@ export function LLMTab({
             <span className="text-foreground font-bold">Custom Endpoints</span>
           </div>
 
-          {/* Existing Endpoints List (image_be6941.png top block) */}
+          {/* Existing Endpoints List */}
           <div className="space-y-3">
             {customEndpoints.map((ce) => (
               <div key={ce.id} className="p-4 rounded-xl border border-border bg-card shadow-xs flex items-center justify-between">
@@ -715,7 +915,7 @@ export function LLMTab({
             ))}
           </div>
 
-          {/* Edit/Add Endpoint Form (image_be6941.png lower form) */}
+          {/* Edit/Add Endpoint Form */}
           <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center gap-2 pb-2 border-b border-border/60">
               <Plus size={14} className="text-primary" />
@@ -759,7 +959,6 @@ export function LLMTab({
                 />
               </div>
 
-              {/* API Mode Selector matching image_be6941.png */}
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">API Mode</label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-1 p-1 rounded-lg bg-background border border-border">

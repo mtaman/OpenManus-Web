@@ -132,7 +132,12 @@ export default function SettingsPage() {
           if (sc) {
             try {
               const parsed = JSON.parse(sc);
-              if (Array.isArray(parsed)) storedCloud = parsed;
+              if (Array.isArray(parsed)) {
+                storedCloud = INITIAL_CLOUD_PROVIDERS.map((base) => {
+                  const match = parsed.find((p: any) => p.id === base.id);
+                  return match ? { ...base, ...match } : base;
+                });
+              }
             } catch (e) {}
           }
           const sl = localStorage.getItem("omweb_lmstudio_vault");
@@ -283,6 +288,23 @@ export default function SettingsPage() {
     showToast.success("Active Engine Set", `${providerName} (${model}) is now primary.`);
   };
 
+  const deactivateToDefault = () => {
+    setConfig((prev) => ({
+      ...prev,
+      llm: {
+        ...prev.llm,
+        provider: "lmstudio",
+        provider_name: "LM Studio (Local)",
+        model: lmStudioSettings.model,
+        base_url: lmStudioSettings.baseUrl,
+        api_key: lmStudioSettings.apiKey,
+        api_type: "",
+        max_tokens: 8192
+      }
+    }));
+    showToast.info("Reverted to Local Engine", "LM Studio (Local GPU) is now active primary.");
+  };
+
   const testEndpoint = async (baseUrl: string, apiKey: string, model: string, apiType?: string) => {
     try {
       const res = await fetch(getApiUrl("/api/config/test-llm"), {
@@ -426,6 +448,7 @@ export default function SettingsPage() {
             handleFetchModels={handleFetchModels}
             assignDetectedModel={assignDetectedModel}
             activateEngine={activateEngine}
+            deactivateToDefault={deactivateToDefault}
             testEndpoint={testEndpoint}
           />
         )}

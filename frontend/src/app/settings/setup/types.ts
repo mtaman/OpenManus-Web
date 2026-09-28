@@ -28,6 +28,7 @@ export interface CloudProviderVaultItem {
   baseUrl: string;
   apiKey: string;
   model: string;
+  popularModels: string[];
   badge: "Cloud" | "Enterprise";
   keyPrefixHint: string;
   status: ProviderConnectionStatus;
@@ -135,6 +136,7 @@ export const INITIAL_CLOUD_PROVIDERS: CloudProviderVaultItem[] = [
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
     apiKey: "",
     model: "gemini-2.0-flash",
+    popularModels: ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.5-pro-preview-05-06"],
     badge: "Cloud",
     keyPrefixHint: "Google Gemini keys start with 'AIzaSy...'",
     status: "untested"
@@ -146,6 +148,7 @@ export const INITIAL_CLOUD_PROVIDERS: CloudProviderVaultItem[] = [
     baseUrl: "https://api.ppinfra.com/v3/openai",
     apiKey: "",
     model: "deepseek/deepseek-v3-0324",
+    popularModels: ["deepseek/deepseek-v3-0324", "deepseek/deepseek-r1", "deepseek-chat", "deepseek-reasoner"],
     badge: "Cloud",
     keyPrefixHint: "DeepSeek keys start with 'sk-...'",
     status: "untested"
@@ -157,6 +160,7 @@ export const INITIAL_CLOUD_PROVIDERS: CloudProviderVaultItem[] = [
     baseUrl: "https://api.openai.com/v1",
     apiKey: "",
     model: "gpt-4o",
+    popularModels: ["gpt-4o", "gpt-4o-mini", "o3-mini", "gpt-4.5-preview", "chatgpt-4o-latest"],
     badge: "Cloud",
     keyPrefixHint: "OpenAI keys start with 'sk-proj-...'",
     status: "untested"
@@ -168,6 +172,7 @@ export const INITIAL_CLOUD_PROVIDERS: CloudProviderVaultItem[] = [
     baseUrl: "https://api.anthropic.com/v1/",
     apiKey: "",
     model: "claude-3-7-sonnet-20250219",
+    popularModels: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
     badge: "Cloud",
     keyPrefixHint: "Anthropic keys start with 'sk-ant-...'",
     status: "untested"
@@ -179,6 +184,7 @@ export const INITIAL_CLOUD_PROVIDERS: CloudProviderVaultItem[] = [
     baseUrl: "https://your-resource.openai.azure.com/openai/deployments/your-deployment",
     apiKey: "",
     model: "gpt-4o-mini",
+    popularModels: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
     badge: "Enterprise",
     keyPrefixHint: "Azure 32-character API key",
     status: "untested"
