@@ -22,6 +22,21 @@ const config: Config = {
         arabic: ["var(--font-arabic)", "sans-serif"],
         mono: ["var(--font-mono)", "monospace"],
       },
+     fontSize: {
+        'xs':   ['0.875rem',  { lineHeight: '1.5' }],   // 14px
+        'sm':   ['1rem',      { lineHeight: '1.6' }],   // 16px
+        'base': ['1.125rem',  { lineHeight: '1.7' }],   // 18px
+        'lg':   ['1.25rem',   { lineHeight: '1.7' }],   // 20px
+        'xl':   ['1.5rem',    { lineHeight: '1.7' }],   // 24px
+        '2xl':  ['1.75rem',   { lineHeight: '1.6' }],   // 28px
+        '3xl':  ['2rem',      { lineHeight: '1.5' }],   // 32px
+        '4xl':  ['2.5rem',    { lineHeight: '1.4' }],   // 40px
+        '5xl':  ['3rem',      { lineHeight: '1.2' }],   // 48px
+        '6xl':  ['3.75rem',   { lineHeight: '1.1' }],   // 60px
+        '7xl':  ['4.5rem',    { lineHeight: '1.1' }],   // 72px
+        '8xl':  ['6rem',      { lineHeight: '1' }],     // 96px
+        '9xl':  ['8rem',      { lineHeight: '1' }],     // 128px
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -76,6 +91,7 @@ const config: Config = {
       },
       borderRadius: {
         none: "0px",
+        xs: "2px",
         sm: "4px",
         md: "8px",
         lg: "12px",
