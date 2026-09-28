@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -38,7 +38,19 @@ export function Sidebar() {
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
 
-  const fetchData = useCallback(async () => {
+  const lastFetchTimeRef = useRef<number>(0);
+  const isFetchingRef = useRef<boolean>(false);
+
+  const fetchData = useCallback(async (force = false) => {
+    const now = Date.now();
+    // Rate-limiting guard: prevent duplicate requests within 3 seconds unless forced
+    if (!force && (now - lastFetchTimeRef.current < 3000 || isFetchingRef.current)) {
+      return;
+    }
+
+    lastFetchTimeRef.current = now;
+    isFetchingRef.current = true;
+
     try {
       const [pRes, cRes] = await Promise.all([
         fetch("/api/chats/projects"),
@@ -54,6 +66,8 @@ export function Sidebar() {
       }
     } catch (e) {
       console.error("Failed to load sidebar data", e);
+    } finally {
+      isFetchingRef.current = false;
     }
   }, []);
 
@@ -62,21 +76,20 @@ export function Sidebar() {
     fetchData();
   }, [fetchData, pathname]);
 
-  // Window focus & custom event listeners (smart refresh without background noise)
+  // Tab visibility & custom event listeners (clean refresh without iframe focus bouncing)
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         fetchData();
       }
     };
-    window.addEventListener("focus", handleVisibility);
+
     window.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("omweb:refresh-sidebar", fetchData);
+    window.addEventListener("omweb:refresh-sidebar", () => fetchData(true));
 
     return () => {
-      window.removeEventListener("focus", handleVisibility);
       window.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("omweb:refresh-sidebar", fetchData);
+      window.removeEventListener("omweb:refresh-sidebar", () => fetchData(true));
     };
   }, [fetchData]);
 
@@ -89,7 +102,7 @@ export function Sidebar() {
       if (document.visibilityState === "visible") {
         fetchData();
       }
-    }, 6000);
+    }, 8000);
 
     return () => clearInterval(timer);
   }, [chats, fetchData]);
@@ -106,7 +119,7 @@ export function Sidebar() {
       if (res.ok) {
         setNewProjectName("");
         setIsCreatingProject(false);
-        fetchData();
+        fetchData(true);
       }
     } catch (err) {
       console.error("Failed to create project", err);
