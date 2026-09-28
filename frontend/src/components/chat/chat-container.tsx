@@ -27,7 +27,8 @@ import {
   Palette,
   Gamepad2,
   ArrowUp,
-  Activity
+  Activity,
+  History
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkspacePanel } from "@/components/workspace/workspace-panel";
@@ -40,6 +41,18 @@ interface StepEvent {
   content: string;
   toolName?: string;
   timestamp?: string;
+}
+
+interface ChatTurn {
+  id: string;
+  jobId: string;
+  prompt: string;
+  timestamp: string;
+  steps: StepEvent[];
+  finalResult: string | null;
+  status: "completed" | "failed";
+  tokensUsed?: { input: number; output: number; total: number };
+  producedFiles?: { name: string; path: string }[];
 }
 
 function safeRender(val: any): string {
@@ -68,6 +81,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [inputValue, setInputValue] = useState("");
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(initialJobId || null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [historyTurns, setHistoryTurns] = useState<ChatTurn[]>([]);
   const [status, setStatus] = useState<"idle" | "running" | "completed" | "failed">("idle");
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [finalResult, setFinalResult] = useState<string | null>(null);
@@ -89,6 +104,13 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const chatScrollBottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (status === "running" || steps.length > 0) {
+      chatScrollBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [steps, status, finalResult]);
 
   useEffect(() => {
     const handleSandboxEvent = (e: Event) => {
@@ -112,10 +134,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     if (initialJobId) {
       setActiveJobId(initialJobId);
       fetchJobDetails(initialJobId);
-      connectStream(initialJobId);
       setShowRightPanel(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialJobId]);
 
   const fetchJobDetails = async (jobId: string) => {
@@ -123,10 +143,34 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       const res = await fetch(`/api/run/jobs/${jobId}`);
       if (res.ok) {
         const data = await res.json();
+        if (data.chat_id) setActiveChatId(data.chat_id);
         if (data.prompt) setSubmittedPrompt(data.prompt);
         if (data.status) setStatus(data.status);
         if (data.result) setFinalResult(safeRender(data.result));
         setSessionTimestamp(data.created_at || data.timestamp || new Date().toLocaleString());
+
+        if (data.turns && Array.isArray(data.turns)) {
+          const loadedTurns: ChatTurn[] = data.turns.map((t: any, idx: number) => {
+            const replayedSteps: StepEvent[] = (t.events || []).map((ev: any, evIdx: number) => ({
+              id: `hist-${idx}-step-${evIdx}`,
+              step: ev.step || 1,
+              type: ev.type || "thought",
+              content: safeRender(ev.data?.thought || ev.data?.output || ev.data?.content || ev.data || JSON.stringify(ev)),
+              toolName: ev.data?.name,
+              timestamp: ev.timestamp || "",
+            }));
+            return {
+              id: t.job_id || `turn-${idx}`,
+              jobId: t.job_id || "",
+              prompt: t.prompt || "",
+              timestamp: t.created_at || "",
+              steps: replayedSteps,
+              finalResult: safeRender(t.result),
+              status: t.status || "completed",
+            };
+          });
+          setHistoryTurns(loadedTurns);
+        }
 
         if (data.events && Array.isArray(data.events)) {
           const replayed: StepEvent[] = [];
@@ -143,14 +187,19 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             });
           });
           setSteps(replayed);
-          if (replayed.length > 0) setShowRightPanel(true);
+          const maxStep = replayed.reduce((max, s) => Math.max(max, s.step), 0);
+          if (maxStep > 0) setCurrentStepNum(maxStep);
         }
 
         if (data.status === "completed") {
           setExpandedSteps({});
         }
 
-        fetchJobFiles(jobId);
+        fetchJobFiles(data.id || jobId);
+
+        if (data.status === "running") {
+          connectStream(data.id || jobId);
+        }
       }
     } catch (e) {
       console.error("Failed to fetch job details", e);
@@ -185,7 +234,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     };
 
     const handleEventPayload = (eventType: string, payload: any) => {
-      const step = payload.step || 1;
+      const step = payload.step || payload.data?.step || currentStepNum || 1;
       setCurrentStepNum(step);
       setExpandedSteps((prev) => ({ ...prev, [step]: true }));
 
@@ -212,9 +261,11 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           setShowRightPanel(true);
         }
         fetchJobFiles(jobId);
-      } else if (eventType === "final") {
-        const resText = payload.data?.result ?? "Task completed successfully.";
-        setFinalResult(safeRender(resText));
+      } else if (eventType === "final" || eventType === "done") {
+        const resText = payload.data?.result ?? payload.data?.content ?? "Task completed successfully.";
+        if (eventType === "final") {
+          setFinalResult(safeRender(resText));
+        }
         setStatus("completed");
         setExpandedSteps({});
         fetchJobFiles(jobId);
@@ -244,6 +295,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     bindEvt("tool_call");
     bindEvt("observation");
     bindEvt("final");
+    bindEvt("done");
     bindEvt("error");
     bindEvt("ping");
 
@@ -287,6 +339,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     setInputValue("");
     setSubmittedPrompt("");
     setActiveJobId(null);
+    setActiveChatId(null);
+    setHistoryTurns([]);
     setStatus("idle");
     setSteps([]);
     setFinalResult(null);
@@ -354,6 +408,21 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     const textToSend = (customPrompt !== undefined ? customPrompt : inputValue).trim();
     if (!textToSend || status === "running") return;
 
+    if (submittedPrompt && (finalResult || steps.length > 0)) {
+      const currentTurn: ChatTurn = {
+        id: activeJobId || `turn-${Date.now()}`,
+        jobId: activeJobId || "",
+        prompt: submittedPrompt,
+        timestamp: sessionTimestamp || new Date().toLocaleString(),
+        steps: [...steps],
+        finalResult: finalResult,
+        status: status === "failed" ? "failed" : "completed",
+        tokensUsed: { ...tokensUsed },
+        producedFiles: [...producedFiles],
+      };
+      setHistoryTurns((prev) => [...prev, currentTurn]);
+    }
+
     setInputValue("");
     setSubmittedPrompt(textToSend);
     setStatus("running");
@@ -371,7 +440,11 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: textToSend, max_steps: 20 }),
+        body: JSON.stringify({
+          prompt: textToSend,
+          max_steps: 20,
+          chat_id: activeChatId || undefined
+        }),
       });
 
       if (!res.ok) {
@@ -381,6 +454,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
       const data = await res.json();
       const jobId = data.job_id;
+      if (data.chat_id) {
+        setActiveChatId(data.chat_id);
+        if (typeof window !== "undefined") {
+          window.history.replaceState(null, "", `/chat/${data.chat_id}`);
+        }
+      }
       setActiveJobId(jobId);
       connectStream(jobId);
     } catch (err: any) {
@@ -412,7 +491,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     { label: "Create games", icon: <Gamepad2 size={13} />, prompt: "Create a playable HTML5 canvas retro game with keyboard controls, sound effects, and score tracking, then terminate." },
   ];
 
-  const isFreshSession = steps.length === 0 && !submittedPrompt && status !== "running";
+  const isFreshSession = historyTurns.length === 0 && steps.length === 0 && !submittedPrompt && status !== "running";
 
   const isRawTraceOutput = Boolean(
     finalResult &&
@@ -426,6 +505,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   return (
     <div className="flex h-full w-full bg-background text-foreground overflow-hidden font-sans">
       <div className="flex-1 flex flex-col h-full border-r border-border min-w-0 transition-all">
+        {/* Cockpit Sub-Header */}
         <div className="h-12 flex items-center justify-between px-5 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
           <div className="flex items-center gap-2.5">
             <button
@@ -439,8 +519,15 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             </button>
 
             <span className="text-xs font-medium text-foreground truncate max-w-[140px] sm:max-w-xs">
-              {submittedPrompt ? submittedPrompt : (activeJobId ? `Session ${activeJobId}` : "New Session")}
+              {submittedPrompt ? submittedPrompt : (activeChatId ? `Chat ${activeChatId}` : (activeJobId ? `Session ${activeJobId}` : "New Session"))}
             </span>
+
+            {historyTurns.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono bg-muted border border-border text-muted-foreground">
+                <History size={10} />
+                <span>Turn {historyTurns.length + 1}</span>
+              </span>
+            )}
 
             {status === "running" ? (
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-manus-warning/15 text-manus-warning border border-manus-warning/30">
@@ -464,7 +551,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             )}
 
             {currentStepNum > 0 && (
-              <span className="text-xs font-mono text-muted-foreground">
+              <span className="text-xs font-mono text-foreground font-semibold px-2 py-0.5 bg-muted rounded-md border border-border/60">
                 Step {currentStepNum} / 20
               </span>
             )}
@@ -492,6 +579,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           </div>
         </div>
 
+        {/* Dynamic Body: Fresh Landing or Active Multi-Turn Thread */}
         {isFreshSession ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full">
             <h1 className="font-serif text-3xl sm:text-4xl font-normal text-foreground tracking-tight mb-8">
@@ -542,13 +630,121 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-5 space-y-3.5">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {/* 1. Render Historical Completed Turns */}
+            {historyTurns.map((turn, tIdx) => {
+              const isTurnRawTrace = Boolean(
+                turn.finalResult &&
+                (turn.finalResult.includes("Observed output of cmd") || turn.finalResult.startsWith("Step 1:"))
+              );
+              const turnLastThought = [...turn.steps]
+                .reverse()
+                .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step "));
+
+              return (
+                <div key={turn.id || tIdx} className="space-y-3 pb-3 border-b border-border/60">
+                  <div className="p-3.5 rounded-xl bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+                    <div className="flex items-center justify-between text-muted-foreground text-[11px]">
+                      <span className="flex items-center gap-1.5 font-medium text-foreground">
+                        <User size={13} className="text-primary" />
+                        <span>User Request #{tIdx + 1}</span>
+                        {turn.timestamp && <span className="text-[10px] text-muted-foreground font-normal">({turn.timestamp})</span>}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copyText(turn.prompt, `turn-prompt-${tIdx}`)}
+                        className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                      >
+                        {copiedSection === `turn-prompt-${tIdx}` ? (
+                          <>
+                            <Check size={11} className="text-manus-success" />
+                            <span className="text-manus-success">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={11} />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="text-foreground text-xs leading-relaxed whitespace-pre-wrap font-sans">
+                      {turn.prompt}
+                    </div>
+                  </div>
+
+                  {turn.finalResult && (
+                    <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-manus-success font-semibold tracking-wide text-xs">
+                          DELIVERABLE COMPLETED #{tIdx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyText(turn.finalResult || "", `turn-res-${tIdx}`)}
+                          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all border border-border/40"
+                        >
+                          {copiedSection === `turn-res-${tIdx}` ? (
+                            <>
+                              <Check size={12} className="text-manus-success" />
+                              <span className="text-manus-success">Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={12} />
+                              <span>Copy Result</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {isTurnRawTrace ? (
+                        <div className="bg-background/60 p-3 rounded-lg border border-border/50 text-foreground leading-relaxed">
+                          <MarkdownRenderer content={turnLastThought ? turnLastThought.content : turn.finalResult} />
+                        </div>
+                      ) : (
+                        <div className="text-foreground leading-relaxed">
+                          <MarkdownRenderer content={turn.finalResult} />
+                        </div>
+                      )}
+
+                      {turn.producedFiles && turn.producedFiles.length > 0 && (
+                        <div className="pt-2.5 border-t border-manus-success/20">
+                          <span className="text-[11px] font-semibold text-foreground block mb-1.5">
+                            Generated Files:
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {turn.producedFiles.map((f) => (
+                              <button
+                                key={f.path}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedFileForEditor(f.name);
+                                  setShowRightPanel(true);
+                                }}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
+                              >
+                                <FileText size={12} className="text-manus-accent" />
+                                <span>{f.name}</span>
+                                <ExternalLink size={10} className="opacity-60" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* 2. Active Turn Prompt */}
             {submittedPrompt && (
               <div className="p-3.5 rounded-xl bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
                 <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                   <span className="flex items-center gap-1.5 font-medium text-foreground">
                     <User size={13} className="text-primary" />
-                    <span>User Task</span>
+                    <span>User Request {historyTurns.length > 0 ? `#${historyTurns.length + 1}` : ""}</span>
                     {sessionTimestamp && <span className="text-[10px] text-muted-foreground font-normal">({sessionTimestamp})</span>}
                   </span>
 
@@ -578,6 +774,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             )}
 
+            {/* Human Intervention Required */}
             {humanQuery && (
               <div className="p-4 rounded-xl bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
                 <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
@@ -607,11 +804,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             )}
 
+            {/* Running Status Indicator */}
             {status === "running" && (
               <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
                 <div className="flex items-center gap-2 text-xs">
                   <Loader2 size={13} className="animate-spin text-manus-accent" />
-                  <span>Agent reasoning &amp; executing autonomously...</span>
+                  <span>Agent reasoning & executing autonomously...</span>
                 </div>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
                   {elapsedSeconds}s
@@ -619,6 +817,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             )}
 
+            {/* Active Turn Step Accordions */}
             {Object.entries(groupedSteps).map(([stepNumStr, stepEvents]) => {
               const stepNum = parseInt(stepNumStr, 10);
               const isExpanded = expandedSteps[stepNum] === true;
@@ -693,6 +892,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               );
             })}
 
+            {/* Active Turn Deliverable Completed Card */}
             {finalResult && (
               <div className="p-4 rounded-xl bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
                 <div className="flex items-center justify-between">
@@ -739,7 +939,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                       >
                         <span className="flex items-center gap-1.5">
                           <Activity size={12} />
-                          <span>Execution Trace &amp; Observations</span>
+                          <span>Execution Trace & Observations</span>
                         </span>
                         <span>{showRawTrace ? "Hide trace" : "View diagnostic trace"}</span>
                       </button>
@@ -782,9 +982,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 )}
               </div>
             )}
+
+            <div ref={chatScrollBottomRef} />
           </div>
         )}
 
+        {/* Bottom Composer */}
         {!isFreshSession && (
           <div className="p-4 border-t border-border bg-card/40 space-y-2 shrink-0">
             <div className="relative flex items-center rounded-xl border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
@@ -793,7 +996,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : "Assign a follow-up task (Shift+Enter for newline)..."}
+                placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : "Assign a follow-up task in this chat (Shift+Enter for newline)..."}
                 disabled={status === "running"}
                 className="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground disabled:opacity-50 resize-none max-h-24 py-1"
               />
@@ -811,6 +1014,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         )}
       </div>
 
+      {/* Right Sandbox Workspace Panel */}
       {showRightPanel && (
         <div className="flex-1 h-full min-w-0 transition-all">
           <WorkspacePanel
