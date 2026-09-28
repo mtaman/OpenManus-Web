@@ -1,4 +1,10 @@
-﻿from fastapi import FastAPI
+import os
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from omweb.routers import status, run, files, config_rtr, mcp, setup, chats
 from omweb.config import get_workspace_root
