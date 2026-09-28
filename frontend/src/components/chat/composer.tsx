@@ -12,7 +12,9 @@ import {
   Cpu,
   Cloud,
   Bot,
-  MessageSquare
+  MessageSquare,
+  FileText,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +28,8 @@ interface ComposerProps {
 
 export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: ComposerProps) {
   const [text, setText] = useState("");
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const [activeModel, setActiveModel] = useState<string>("qwen3-vl-8b-instruct");
   const [activeProvider, setActiveProvider] = useState<string>("LM Studio (Local)");
   const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
@@ -33,7 +37,9 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   const [cloudList, setCloudList] = useState<any[]>([]);
   const [lmStudioItem, setLmStudioItem] = useState<any>(null);
   const [showModelMenu, setShowModelMenu] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -68,6 +74,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
     setExecMode(mode);
     if (typeof window !== "undefined") {
       localStorage.setItem("omweb_exec_mode", mode);
+      window.dispatchEvent(new CustomEvent("omweb:mode-change", { detail: mode }));
     }
   };
 
@@ -113,6 +120,39 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
     return base;
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setAttachedFiles((prev) => [...prev, ...newFiles]);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setAttachedFiles((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      setAttachedFiles((prev) => [...prev, ...droppedFiles]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -121,13 +161,20 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   };
 
   const handleSend = () => {
-    if (!text.trim() || isRunning || disabled) return;
+    if ((!text.trim() && attachedFiles.length === 0) || isRunning || disabled) return;
     const currentPayload = getActivePayload();
-    onSend(text.trim(), undefined, currentPayload);
+    onSend(text.trim(), attachedFiles.length > 0 ? attachedFiles : undefined, currentPayload);
     setText("");
+    setAttachedFiles([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const dynamicPlaceholder = placeholder || (
@@ -137,8 +184,17 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   );
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto px-4 pb-4">
-      {/* Top Model & Provider Switcher Bar */}
+    <div className="relative w-full max-w-[1000px] mx-auto">
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        multiple
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* Top Model & Engine Switcher Bar */}
       <div className="flex items-center justify-between mb-1.5 px-1">
         <div className="relative">
           <button
@@ -262,8 +318,45 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
         <span className="text-[10px] text-muted-foreground">Press Enter to send, Shift+Enter for new line</span>
       </div>
 
-      {/* Input Box */}
-      <div className="relative flex flex-col w-full rounded-xl border border-border bg-card shadow-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all">
+      {/* Floating Omnibar Input Box with Drag & Drop */}
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`relative flex flex-col w-full rounded-xl border bg-card shadow-lg transition-all ${
+          isDragging
+            ? "border-primary ring-2 ring-primary/40 bg-primary/5"
+            : "border-border focus-within:ring-1 focus-within:ring-primary focus-within:border-primary"
+        }`}
+      >
+        {/* Attached Files Badges Container */}
+        {attachedFiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 p-2.5 pb-1 border-b border-border/40 bg-muted/20">
+            {attachedFiles.map((file, idx) => (
+              <div
+                key={`${file.name}-${idx}`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-card border border-border shadow-xs text-foreground animate-in fade-in"
+              >
+                <FileText size={13} className="text-primary shrink-0" />
+                <span className="font-medium truncate max-w-[160px]" title={file.name}>
+                  {file.name}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  ({formatFileSize(file.size)})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFile(idx)}
+                  className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer ml-1"
+                  title="Remove file"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <textarea
           ref={textareaRef}
           value={text}
@@ -273,7 +366,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
             e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
           }}
           onKeyDown={handleKeyDown}
-          placeholder={dynamicPlaceholder}
+          placeholder={attachedFiles.length > 0 ? "Add instructions for attached files..." : dynamicPlaceholder}
           rows={1}
           disabled={disabled}
           className="w-full resize-none bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-h-[220px] font-sans"
@@ -285,10 +378,14 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
-              title="Attach files"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground cursor-pointer hover:bg-muted relative"
+              title="Attach files or images"
             >
               <Paperclip size={15} />
+              {attachedFiles.length > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
+              )}
             </Button>
 
             {/* Mode Toggle Control */}
@@ -337,7 +434,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
               <Button
                 type="button"
                 onClick={handleSend}
-                disabled={!text.trim() || disabled}
+                disabled={(!text.trim() && attachedFiles.length === 0) || disabled}
                 size="sm"
                 className="h-8 px-3.5 text-xs bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-40"
               >

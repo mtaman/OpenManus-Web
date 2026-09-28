@@ -3,6 +3,7 @@ import json
 import asyncio
 import mimetypes
 import uuid
+import shutil
 from pathlib import Path
 from io import BytesIO
 import zipfile
@@ -12,6 +13,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from typing import Optional, List, Dict, Any, Tuple
 
+from omweb.config import get_storage_root
 from omweb.job_manager import job_manager
 from omweb.sse_events import subscribe_events, SSEEventType
 from omweb.agent_bridge import run_instrumented, run_direct_chat, active_tasks, human_answers, human_data
@@ -73,7 +75,6 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
 
-    # Safely resolve execution mode with unconditional default initialization
     exec_mode = "agent"
     raw_mode = getattr(req, "mode", None)
     if isinstance(raw_mode, str) and raw_mode.strip():
@@ -91,7 +92,6 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
 
     actual_job_id = getattr(job, "id", generated_job_id)
 
-    # Build dynamic LLM override payload if provided from chat request
     llm_override: Dict[str, Any] = {}
     if req.model:
         llm_override["model"] = req.model.strip()
@@ -134,11 +134,25 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
             clean_prev = prev_r[:350].replace("\n", " ").strip()
             agent_prompt = f"[Context: In the previous turn, the user requested: '{prev_p}'. Result: '{clean_prev}']. Follow-up task: {prompt}"
     else:
-        chat_id = f"chat_{uuid.uuid4().hex[:10]}"
+        chat_id = req.chat_id.strip() if req.chat_id and req.chat_id.strip() else f"chat_{uuid.uuid4().hex[:10]}"
         project_id = req.project_id or "default_project"
         title = prompt[:40]
         turns = []
         agent_prompt = prompt
+
+    # Ensure chat files directory exists and sync global uploads into it
+    files_dir = project_manager.get_chat_files_dir(chat_id, project_id)
+    files_dir.mkdir(parents=True, exist_ok=True)
+    uploads_dir = get_storage_root().resolve() / "uploads"
+    if uploads_dir.exists():
+        for up_file in uploads_dir.iterdir():
+            if up_file.is_file():
+                dest = files_dir / up_file.name
+                if not dest.exists():
+                    try:
+                        shutil.copy2(up_file, dest)
+                    except Exception:
+                        pass
 
     JOB_TO_CHAT_ID[actual_job_id] = chat_id
     try:
@@ -169,7 +183,6 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     except Exception:
         pass
 
-    # Route background task cleanly according to execution mode
     if exec_mode == "chat":
         background_tasks.add_task(run_direct_chat, actual_job_id, prompt, llm_override)
     else:

@@ -1,10 +1,11 @@
 ﻿import os
 import shutil
 import mimetypes
+import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from omweb.config import get_storage_root
 from omweb.project_manager import project_manager
@@ -23,11 +24,9 @@ def safe_resolve(subpath: str) -> Path:
     clean_subpath = subpath.lstrip("/\\")
     target = (storage / clean_subpath).resolve()
 
-    # Direct match in storage
     if target.is_relative_to(storage) and target.exists() and target.is_file():
         return target
 
-    # Search inside chat files if subpath is relative to a chat
     for root, dirs, files in os.walk(storage):
         if "files" in root:
             possible = Path(root) / clean_subpath
@@ -137,7 +136,6 @@ async def save_file_content(payload: FileSaveRequest):
     storage = get_storage_root().resolve()
     target = None
 
-    # 1. If job_id is provided, resolve directly inside the active job's files folder
     if payload.job_id:
         chat = project_manager.get_chat(payload.job_id) or {}
         chat_id = chat.get("id", f"chat_{payload.job_id}")
@@ -149,7 +147,6 @@ async def save_file_content(payload: FileSaveRequest):
         if candidate.is_relative_to(files_dir):
             target = candidate
 
-    # 2. Try locating existing file across storage via safe_resolve
     if target is None or not target.exists():
         try:
             resolved = safe_resolve(clean_subpath)
@@ -158,7 +155,6 @@ async def save_file_content(payload: FileSaveRequest):
         except HTTPException:
             pass
 
-    # 3. Fallback to storage root with path traversal security check
     if target is None:
         target = (storage / clean_subpath).resolve()
         if not target.is_relative_to(storage):
@@ -175,3 +171,57 @@ async def save_file_content(payload: FileSaveRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write file: {str(e)}")
+
+
+@router.post("/upload")
+async def upload_files(
+    files: List[UploadFile] = File(...),
+    chat_id: Optional[str] = Form(None),
+    project_id: Optional[str] = Form(None),
+    job_id: Optional[str] = Form(None),
+):
+    """Upload files directly into the targeted chat workspace files directory."""
+    storage = get_storage_root().resolve()
+
+    effective_chat_id = chat_id.strip() if chat_id and chat_id.strip() else None
+    effective_project_id = project_id or "default_project"
+
+    if job_id and not effective_chat_id:
+        chat = project_manager.get_chat(job_id) or {}
+        effective_chat_id = chat.get("id")
+        effective_project_id = chat.get("project_id", effective_project_id)
+
+    if not effective_chat_id:
+        effective_chat_id = f"chat_{uuid.uuid4().hex[:10]}"
+
+    target_dir = project_manager.get_chat_files_dir(effective_chat_id, effective_project_id)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    uploaded_items = []
+
+    for f in files:
+        filename = Path(f.filename).name
+        if not filename:
+            continue
+
+        dest_path = target_dir / filename
+        with dest_path.open("wb") as buffer:
+            shutil.copyfileobj(f.file, buffer)
+
+        try:
+            global_uploads = storage / "uploads"
+            global_uploads.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(dest_path, global_uploads / filename)
+        except Exception:
+            pass
+
+        size = dest_path.stat().st_size
+        rel_path = str(dest_path.relative_to(storage)).replace("\\", "/") if dest_path.is_relative_to(storage) else filename
+
+        uploaded_items.append({
+            "name": filename,
+            "path": rel_path,
+            "resolved_path": str(dest_path),
+            "size": size
+        })
+
+    return {"status": "success", "chat_id": effective_chat_id, "files": uploaded_items}

@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Send,
   Wrench,
   BrainCircuit,
   FileText,
@@ -30,11 +29,14 @@ import {
   Activity,
   History,
   Bot,
-  MessageSquare
+  MessageSquare,
+  Paperclip,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkspacePanel } from "@/components/workspace/workspace-panel";
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
+import { Composer } from "@/components/chat/composer";
 
 interface StepEvent {
   id: string;
@@ -81,6 +83,8 @@ export interface ChatContainerProps {
 export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const router = useRouter();
   const [inputValue, setInputValue] = useState("");
+  const [landingAttachedFiles, setLandingAttachedFiles] = useState<File[]>([]);
+  const [isLandingDragging, setIsLandingDragging] = useState(false);
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(initialJobId || null);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -105,12 +109,25 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
   const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
 
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const landingFileInputRef = useRef<HTMLInputElement | null>(null);
+  const chatScrollBottomRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedMode = localStorage.getItem("omweb_exec_mode") as "agent" | "chat" | null;
       if (savedMode === "agent" || savedMode === "chat") {
         setExecMode(savedMode);
       }
+
+      const onModeChange = (e: any) => {
+        if (e.detail === "agent" || e.detail === "chat") {
+          setExecMode(e.detail);
+        }
+      };
+      window.addEventListener("omweb:mode-change", onModeChange);
+      return () => window.removeEventListener("omweb:mode-change", onModeChange);
     }
   }, []);
 
@@ -118,12 +135,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     setExecMode(newMode);
     if (typeof window !== "undefined") {
       localStorage.setItem("omweb_exec_mode", newMode);
+      window.dispatchEvent(new CustomEvent("omweb:mode-change", { detail: newMode }));
     }
   };
-
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const chatScrollBottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (status === "running" || steps.length > 0) {
@@ -371,6 +385,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       eventSourceRef.current.close();
     }
     setInputValue("");
+    setLandingAttachedFiles([]);
     setSubmittedPrompt("");
     setActiveJobId(null);
     setActiveChatId(null);
@@ -438,9 +453,42 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     }
   };
 
-  const handleStartTask = async (customPrompt?: string) => {
-    const textToSend = (customPrompt !== undefined ? customPrompt : inputValue).trim();
-    if (!textToSend || status === "running") return;
+  const handleStartTask = async (customPrompt?: string, customOverride?: any, filesToUpload?: File[]) => {
+    const rawText = (customPrompt !== undefined ? customPrompt : inputValue).trim();
+    if ((!rawText && (!filesToUpload || filesToUpload.length === 0)) || status === "running") return;
+
+    let finalPrompt = rawText;
+    const effectiveMode = customOverride?.mode || execMode;
+    const targetChatId = activeChatId || `chat_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+
+    if (filesToUpload && filesToUpload.length > 0) {
+      try {
+        const formData = new FormData();
+        filesToUpload.forEach((f) => formData.append("files", f));
+        formData.append("chat_id", targetChatId);
+        if (activeJobId) formData.append("job_id", activeJobId);
+
+        const uploadRes = await fetch("/api/files/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          const uploadedList: { name: string; path: string }[] = uploadData.files || [];
+          if (uploadedList.length > 0) {
+            const filesSummary = uploadedList
+              .map((f) => `- ${f.name} (located directly in your current workspace directory)`)
+              .join("\n");
+            finalPrompt = rawText
+              ? `${rawText}\n\n[Uploaded User Files in Workspace Directory]:\n${filesSummary}`
+              : `Please inspect and process the following uploaded workspace files:\n${filesSummary}`;
+          }
+        }
+      } catch (uploadErr) {
+        console.error("Failed to upload files:", uploadErr);
+      }
+    }
 
     if (submittedPrompt && (finalResult || steps.length > 0)) {
       const currentTurn: ChatTurn = {
@@ -458,7 +506,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     }
 
     setInputValue("");
-    setSubmittedPrompt(textToSend);
+    setLandingAttachedFiles([]);
+    setSubmittedPrompt(finalPrompt);
     setStatus("running");
     setSteps([]);
     setFinalResult(null);
@@ -471,15 +520,18 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     setSessionTimestamp(new Date().toLocaleString());
 
     try {
+      const storedOverride = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("omweb_active_llm_override") || "{}") : {};
+      const finalOverride = { ...storedOverride, ...(customOverride || {}) };
+
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: textToSend,
+          prompt: finalPrompt,
           max_steps: 20,
-          chat_id: activeChatId || undefined,
-          mode: execMode,
-          ...(typeof window !== "undefined" ? JSON.parse(localStorage.getItem("omweb_active_llm_override") || "{}") : {})
+          chat_id: targetChatId,
+          mode: effectiveMode,
+          ...finalOverride
         }),
       });
 
@@ -490,11 +542,10 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
       const data = await res.json();
       const jobId = data.job_id;
-      if (data.chat_id) {
-        setActiveChatId(data.chat_id);
-        if (typeof window !== "undefined") {
-          window.history.replaceState(null, "", `/chat/${data.chat_id}`);
-        }
+      const returnedChatId = data.chat_id || targetChatId;
+      setActiveChatId(returnedChatId);
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", `/chat/${returnedChatId}`);
       }
       setActiveJobId(jobId);
       connectStream(jobId);
@@ -505,14 +556,21 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleStartTask();
+  const handleLandingFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setLandingAttachedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+    }
+    if (landingFileInputRef.current) {
+      landingFileInputRef.current.value = "";
     }
   };
 
-  // Group steps helper (filters out empty steps)
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const groupStepEvents = (evts: StepEvent[]) => {
     return evts.reduce((acc, s) => {
       const isVisible = (s.content && s.content.trim() !== "") || Boolean(s.toolName);
@@ -565,7 +623,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     return "Agent reasoning & executing autonomously...";
   };
 
-  // Reusable Step Accordion Renderer
   const renderStepAccordion = (prefix: string, stepNum: number, stepEvents: StepEvent[]) => {
     const key = `${prefix}-${stepNum}`;
     const isExpanded = expandedSteps[key] === true;
@@ -762,18 +819,96 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               </div>
             </div>
 
-            <div className="w-full bg-card rounded-2xl border border-border shadow-manus-md p-3.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all text-left">
+            {/* Hidden Input for Landing Composer */}
+            <input
+              type="file"
+              multiple
+              ref={landingFileInputRef}
+              onChange={handleLandingFileChange}
+              className="hidden"
+            />
+
+            {/* Front Landing Omnibar Box with Drag & Drop */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsLandingDragging(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setIsLandingDragging(false); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsLandingDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  setLandingAttachedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
+                }
+              }}
+              className={`w-full bg-card rounded-2xl border transition-all text-left p-3.5 shadow-manus-md ${
+                isLandingDragging
+                  ? "border-primary ring-2 ring-primary/40 bg-primary/5"
+                  : "border-border focus-within:ring-1 focus-within:ring-primary focus-within:border-primary"
+              }`}
+            >
+              {/* Attached Files Badges Container */}
+              {landingAttachedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2 pb-2 border-b border-border/40">
+                  {landingAttachedFiles.map((file, idx) => (
+                    <div
+                      key={`${file.name}-${idx}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-muted/60 border border-border shadow-xs text-foreground animate-in fade-in"
+                    >
+                      <FileText size={13} className="text-primary shrink-0" />
+                      <span className="font-medium truncate max-w-[160px]" title={file.name}>
+                        {file.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        ({formatFileSize(file.size)})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setLandingAttachedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                        className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer ml-1"
+                        title="Remove file"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <textarea
                 ref={textareaRef}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (inputValue.trim() || landingAttachedFiles.length > 0) {
+                      handleStartTask(inputValue, undefined, landingAttachedFiles);
+                      setLandingAttachedFiles([]);
+                    }
+                  }
+                }}
                 rows={3}
-                placeholder={execMode === "chat" ? "Chat directly with AI (fast response, no autonomous steps)..." : "Assign an autonomous task or type code to execute..."}
+                placeholder={
+                  landingAttachedFiles.length > 0
+                    ? "Add instructions for attached files..."
+                    : (execMode === "chat" ? "Chat directly with AI (fast response, no autonomous steps)..." : "Assign an autonomous task or type code to execute...")
+                }
                 className="w-full bg-transparent border-0 outline-none text-sm text-foreground placeholder:text-muted-foreground resize-none leading-relaxed"
               />
+
               <div className="flex items-center justify-between pt-2 border-t border-border/50 mt-1">
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => landingFileInputRef.current?.click()}
+                    className="inline-flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer relative"
+                    title="Attach files or images"
+                  >
+                    <Paperclip size={15} />
+                    {landingAttachedFiles.length > 0 && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
+                    )}
+                  </button>
+
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-muted/60 text-muted-foreground border border-border">
                     <Sparkles size={12} className={execMode === "agent" ? "text-emerald-500" : "text-sky-500"} />
                     <span className="font-mono text-[11px] font-semibold text-foreground">
@@ -781,10 +916,14 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                     </span>
                   </span>
                 </div>
+
                 <button
                   type="button"
-                  onClick={() => handleStartTask()}
-                  disabled={!inputValue.trim()}
+                  onClick={() => {
+                    handleStartTask(inputValue, undefined, landingAttachedFiles);
+                    setLandingAttachedFiles([]);
+                  }}
+                  disabled={!inputValue.trim() && landingAttachedFiles.length === 0}
                   className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs cursor-pointer hover:bg-primary/90"
                   title="Dispatch Task (Enter)"
                 >
@@ -855,7 +994,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                       </div>
                     </div>
 
-                    {/* Historical Step Accordions (Shown only if has real steps) */}
+                    {/* Historical Step Accordions */}
                     {Object.keys(turnGroupedSteps).length > 0 && (
                       <div className="space-y-1.5">
                         {Object.entries(turnGroupedSteps).map(([sNum, sEvts]) =>
@@ -1009,7 +1148,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 </div>
               )}
 
-              {/* Active Turn Step Accordions (Only in Agent Mode and when valid events exist) */}
+              {/* Active Turn Step Accordions */}
               {execMode === "agent" && Object.keys(activeGroupedSteps).length > 0 && (
                 <div className="space-y-1.5">
                   {Object.entries(activeGroupedSteps).map(([stepNumStr, stepEvents]) =>
@@ -1114,31 +1253,17 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           </div>
         )}
 
-        {/* Bottom Composer — Centered & Max 1000px */}
+        {/* Bottom Floating Omnibar Composer */}
         {!isFreshSession && (
-          <div className="p-4 border-t border-border bg-card/40 shrink-0">
-            <div className="w-full max-w-[1000px] mx-auto space-y-2">
-              <div className="relative flex items-center rounded-sm border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
-                <textarea
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  rows={1}
-                  placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : execMode === "chat" ? "Chat directly with AI (fast response, no steps)..." : "Assign a follow-up task in this chat (Shift+Enter for newline)..."}
-                  disabled={status === "running"}
-                  className="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground disabled:opacity-50 resize-none max-h-24 py-1"
-                />
-                <Button
-                  type="button"
-                  onClick={() => handleStartTask()}
-                  size="sm"
-                  disabled={status === "running" || !inputValue.trim()}
-                  className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs"
-                >
-                  <Send size={12} />
-                </Button>
-              </div>
-            </div>
+          <div className="p-3 sm:p-4 border-t border-border bg-card/40 shrink-0">
+            <Composer
+              onSend={(textToSend, files, llmOverride) => {
+                handleStartTask(textToSend, llmOverride, files);
+              }}
+              onStop={handleStopTask}
+              isRunning={status === "running"}
+              disabled={status === "running"}
+            />
           </div>
         )}
       </div>
