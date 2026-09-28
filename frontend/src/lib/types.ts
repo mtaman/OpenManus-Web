@@ -9,6 +9,7 @@
   | "error";
 
 export type RunStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+export type ExecutionMode = "agent" | "chat";
 
 export interface ToolPair {
   kind: "tool";
@@ -47,6 +48,7 @@ export interface RunState {
   error: string | null;
   lastEventAt: number;
   droppedEvents: number;
+  mode?: ExecutionMode;
 }
 
 export interface SSEEnvelope {
@@ -54,6 +56,7 @@ export interface SSEEnvelope {
   type: ServerEventName;
   step: number;
   data: Record<string, any>;
+  mode?: ExecutionMode;
 }
 
 export interface Step {

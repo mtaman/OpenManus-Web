@@ -1,10 +1,10 @@
-"""
+﻿"""
 Pydantic data models for jobs, execution steps, and system events.
 """
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field
 
 
@@ -45,6 +45,10 @@ class RunRequest(BaseModel):
     prompt: str = Field(..., min_length=1, description="Task instruction prompt")
     model_override: Optional[str] = None
     max_steps: Optional[int] = Field(default=30, ge=1, le=100)
+    mode: Optional[Literal["agent", "chat"]] = Field(
+        default="agent",
+        description="Execution mode: 'agent' for autonomous tools loop, 'chat' for direct LLM response"
+    )
 
 
 class Job(BaseModel):

@@ -14,7 +14,7 @@ from typing import Optional, List, Dict, Any, Tuple
 
 from omweb.job_manager import job_manager
 from omweb.sse_events import subscribe_events, SSEEventType
-from omweb.agent_bridge import run_instrumented
+from omweb.agent_bridge import run_instrumented, run_direct_chat, active_tasks, human_answers, human_data
 from omweb.project_manager import project_manager
 
 router = APIRouter()
@@ -31,10 +31,14 @@ class RunRequest(BaseModel):
     base_url: Optional[str] = None
     api_key: Optional[str] = None
     api_type: Optional[str] = None
+    mode: Optional[str] = "agent"
 
 class FileContentPayload(BaseModel):
     path: str
     content: str
+
+class HumanResponsePayload(BaseModel):
+    answer: str
 
 def resolve_chat(identifier: str) -> Tuple[Optional[Dict[str, Any]], str]:
     if not identifier:
@@ -68,6 +72,14 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     prompt = req.prompt.strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+    # Safely resolve execution mode with unconditional default initialization
+    exec_mode = "agent"
+    raw_mode = getattr(req, "mode", None)
+    if isinstance(raw_mode, str) and raw_mode.strip():
+        m_val = raw_mode.strip().lower()
+        if m_val in ["agent", "chat"]:
+            exec_mode = m_val
 
     generated_job_id = f"job_{uuid.uuid4().hex[:12]}"
     try:
@@ -157,11 +169,17 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     except Exception:
         pass
 
-    background_tasks.add_task(run_instrumented, actual_job_id, agent_prompt, llm_override)
+    # Route background task cleanly according to execution mode
+    if exec_mode == "chat":
+        background_tasks.add_task(run_direct_chat, actual_job_id, prompt, llm_override)
+    else:
+        background_tasks.add_task(run_instrumented, actual_job_id, agent_prompt, llm_override)
+
     return {
         "job_id": actual_job_id,
         "status": "running",
         "chat_id": chat_id,
+        "mode": exec_mode,
         "model": llm_override.get("model"),
         "provider": llm_override.get("provider")
     }
@@ -206,6 +224,22 @@ async def get_job_detail(job_id: str):
         "turns": chat.get("turns", []),
         "created_at": chat.get("created_at")
     }
+
+@router.post("/jobs/{job_id}/stop")
+async def stop_job(job_id: str):
+    task = active_tasks.get(job_id)
+    if task and not task.done():
+        task.cancel()
+    job_manager.fail_job(job_id, "Job stopped by user.")
+    return {"status": "cancelled", "job_id": job_id}
+
+@router.post("/jobs/{job_id}/respond")
+async def respond_job(job_id: str, payload: HumanResponsePayload):
+    human_data[job_id] = payload.answer
+    event = human_answers.get(job_id)
+    if event:
+        event.set()
+    return {"status": "ok", "job_id": job_id}
 
 @router.get("/jobs/{job_id}/files")
 async def get_job_files(job_id: str):

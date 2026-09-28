@@ -1,7 +1,19 @@
 ﻿"use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Send, Paperclip, StopCircle, ChevronDown, Check, Server, Terminal, Cpu, Cloud } from "lucide-react";
+import {
+  Send,
+  Paperclip,
+  StopCircle,
+  ChevronDown,
+  Check,
+  Server,
+  Terminal,
+  Cpu,
+  Cloud,
+  Bot,
+  MessageSquare
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ComposerProps {
@@ -16,6 +28,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   const [text, setText] = useState("");
   const [activeModel, setActiveModel] = useState<string>("qwen3-vl-8b-instruct");
   const [activeProvider, setActiveProvider] = useState<string>("LM Studio (Local)");
+  const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
   const [customList, setCustomList] = useState<any[]>([]);
   const [cloudList, setCloudList] = useState<any[]>([]);
   const [lmStudioItem, setLmStudioItem] = useState<any>(null);
@@ -26,8 +39,13 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
     if (typeof window !== "undefined") {
       const savedModel = localStorage.getItem("omweb_active_model");
       const savedProvider = localStorage.getItem("omweb_active_provider");
+      const savedMode = localStorage.getItem("omweb_exec_mode") as "agent" | "chat" | null;
+
       if (savedModel) setActiveModel(savedModel);
       if (savedProvider) setActiveProvider(savedProvider);
+      if (savedMode === "agent" || savedMode === "chat") {
+        setExecMode(savedMode);
+      }
 
       try {
         const storedLM = JSON.parse(localStorage.getItem("omweb_lmstudio_vault") || "null");
@@ -45,6 +63,13 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
       } catch (e) {}
     }
   }, []);
+
+  const handleModeChange = (mode: "agent" | "chat") => {
+    setExecMode(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("omweb_exec_mode", mode);
+    }
+  };
 
   const handleSelectEngine = (payload: {
     model: string;
@@ -66,22 +91,26 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   };
 
   const getActivePayload = () => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("omweb_active_llm_override");
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {}
-      }
-    }
-    return {
+    let base = {
       model: activeModel,
       provider: activeProvider.toLowerCase().replace(/[^a-z0-9]/g, ""),
       provider_name: activeProvider,
       base_url: lmStudioItem?.baseUrl || "http://127.0.0.1:1234/v1",
       api_key: lmStudioItem?.apiKey || "",
-      api_type: ""
+      api_type: "",
+      mode: execMode
     };
+
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("omweb_active_llm_override");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return { ...base, ...parsed, mode: execMode };
+        } catch (e) {}
+      }
+    }
+    return base;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -100,6 +129,12 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
       textareaRef.current.style.height = "auto";
     }
   };
+
+  const dynamicPlaceholder = placeholder || (
+    execMode === "agent"
+      ? `Ask ${activeProvider} (${activeModel}) to execute autonomous tasks...`
+      : `Chat directly with ${activeProvider} (${activeModel})...`
+  );
 
   return (
     <div className="relative w-full max-w-4xl mx-auto px-4 pb-4">
@@ -238,14 +273,14 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
             e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
           }}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder || `Ask ${activeProvider} (${activeModel}) to execute autonomous tasks...`}
+          placeholder={dynamicPlaceholder}
           rows={1}
           disabled={disabled}
           className="w-full resize-none bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-h-[220px] font-sans"
         />
 
         <div className="flex items-center justify-between px-3 pb-2.5 pt-1">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -255,6 +290,36 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
             >
               <Paperclip size={15} />
             </Button>
+
+            {/* Mode Toggle Control */}
+            <div className="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border/60 text-[11px]">
+              <button
+                type="button"
+                onClick={() => handleModeChange("agent")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                  execMode === "agent"
+                    ? "bg-card text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Autonomous Agent: multi-step planning, tool execution, bash & browser"
+              >
+                <Bot size={13} className={execMode === "agent" ? "text-primary" : ""} />
+                <span>Agent</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange("chat")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                  execMode === "chat"
+                    ? "bg-card text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Direct Chat: fast response, no tools or execution steps"
+              >
+                <MessageSquare size={13} className={execMode === "chat" ? "text-primary" : ""} />
+                <span>Chat</span>
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

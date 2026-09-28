@@ -262,3 +262,109 @@ async def run_instrumented(
         active_tasks.pop(job_id, None)
         if current_active_job_id.get("current") == job_id:
             current_active_job_id.pop("current", None)
+
+
+async def run_direct_chat(
+    job_id: str,
+    prompt: str,
+    llm_override: Optional[Dict[str, Any]] = None
+) -> None:
+    """Execute fast direct chat without launching autonomous agent loops or system tools."""
+    print(f"\n[BRIDGE DIRECT CHAT] Initializing direct chat for job: {job_id}")
+    current_active_job_id["current"] = job_id
+
+    toml_cfg = read_active_toml_config()
+    active_llm = dict(toml_cfg.get("llm", {}))
+    if llm_override:
+        for k, v in llm_override.items():
+            if v:
+                active_llm[k] = v
+
+    provider_name = active_llm.get("provider_name") or active_llm.get("provider") or "Active Primary"
+    model_name = active_llm.get("model") or "default"
+    base_url = active_llm.get("base_url") or "http://127.0.0.1:1234/v1"
+    api_key = active_llm.get("api_key") or "EMPTY"
+
+    print(f"[BRIDGE DIRECT CHAT] Provider: [{provider_name}] | Model: '{model_name}' | URL: '{base_url}'")
+
+    await asyncio.sleep(0.1)
+    await dispatch_event(
+        job_id,
+        SSEEvent(
+            type=SSEEventType.STEP_START,
+            step=1,
+            data={
+                "status": "running",
+                "model": model_name,
+                "provider": provider_name,
+                "mode": "chat"
+            }
+        )
+    )
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+
+        # Retrieve context from previous turns if continuing conversation
+        chat = project_manager.get_chat(job_id) or {}
+        turns = chat.get("turns", [])
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a helpful, direct, and conversational AI assistant. "
+                    "Respond directly, accurately, and naturally to the user. "
+                    "Do NOT output execution plans, tool call steps, or bash scripts unless explicitly asked."
+                )
+            }
+        ]
+
+        for t in turns[-6:]:
+            p = t.get("prompt")
+            r = t.get("result")
+            if p:
+                messages.append({"role": "user", "content": p})
+            if r:
+                messages.append({"role": "assistant", "content": r})
+
+        messages.append({"role": "user", "content": prompt})
+
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            stream=False
+        )
+
+        result_text = ""
+        if response.choices and len(response.choices) > 0:
+            msg = response.choices[0].message
+            result_text = getattr(msg, "content", "") or ""
+
+        if not result_text:
+            result_text = "I received your message, but no content was returned by the model."
+
+        print(f"[BRIDGE DIRECT CHAT] Completed successfully ({len(result_text)} chars) for job: {job_id}")
+        job_manager.complete_job(job_id, result_text)
+        await dispatch_event(
+            job_id,
+            SSEEvent(type=SSEEventType.FINAL, step=1, data={"result": result_text})
+        )
+
+    except asyncio.CancelledError:
+        print(f"[BRIDGE DIRECT CHAT] Job was cancelled: {job_id}")
+    except Exception as err:
+        tb = traceback.format_exc()
+        print(f"[BRIDGE DIRECT CHAT ERROR] {err}\n{tb}")
+        job_manager.fail_job(job_id, str(err))
+        await dispatch_event(
+            job_id,
+            SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": str(err)})
+        )
+    finally:
+        human_answers.pop(job_id, None)
+        human_data.pop(job_id, None)
+        active_tasks.pop(job_id, None)
+        if current_active_job_id.get("current") == job_id:
+            current_active_job_id.pop("current", None)

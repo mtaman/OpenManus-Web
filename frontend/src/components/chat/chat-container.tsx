@@ -28,7 +28,9 @@ import {
   Gamepad2,
   ArrowUp,
   Activity,
-  History
+  History,
+  Bot,
+  MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WorkspacePanel } from "@/components/workspace/workspace-panel";
@@ -100,7 +102,24 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [humanQuery, setHumanQuery] = useState<string | null>(null);
   const [humanAnswer, setHumanAnswer] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
+    const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
+  const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedMode = localStorage.getItem("omweb_exec_mode") as "agent" | "chat" | null;
+      if (savedMode === "agent" || savedMode === "chat") {
+        setExecMode(savedMode);
+      }
+    }
+  }, []);
+
+  const handleModeChange = (newMode: "agent" | "chat") => {
+    setExecMode(newMode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("omweb_exec_mode", newMode);
+    }
+  };
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -445,7 +464,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: textToSend,
           max_steps: 20,
-          chat_id: activeChatId || undefined
+          chat_id: activeChatId || undefined,
+          mode: execMode
         , ...(typeof window !== "undefined" ? JSON.parse(localStorage.getItem("omweb_active_llm_override") || "{}") : {}) }),
       });
 
@@ -595,15 +615,39 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={3}
-                placeholder="Assign an autonomous task or type code to execute..."
+                placeholder={execMode === "chat" ? "Chat directly with AI (fast response, no autonomous steps)..." : "Assign an autonomous task or type code to execute..."}
                 className="w-full bg-transparent border-0 outline-none text-sm text-foreground placeholder:text-muted-foreground resize-none leading-relaxed"
               />
               <div className="flex items-center justify-between pt-2 border-t border-border/50 mt-1">
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
-                    <Sparkles size={12} className="text-manus-accent" />
-                    <span>OpenManus Engine</span>
-                  </span>
+                  <div className="flex items-center bg-muted/80 p-0.5 rounded-lg border border-border/70 text-xs shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange("agent")}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                        execMode === "agent"
+                          ? "bg-card text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      title="Autonomous Agent: multi-step planning, tools & execution"
+                    >
+                      <Bot size={13} className={execMode === "agent" ? "text-primary" : ""} />
+                      <span>Agent</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange("chat")}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                        execMode === "chat"
+                          ? "bg-card text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      title="Direct Chat: fast response, no tools or steps"
+                    >
+                      <MessageSquare size={13} className={execMode === "chat" ? "text-primary" : ""} />
+                      <span>Chat</span>
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -811,7 +855,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
                 <div className="flex items-center gap-2 text-xs">
                   <Loader2 size={13} className="animate-spin text-manus-accent" />
-                  <span>Agent reasoning & executing autonomously...</span>
+                  <span>{execMode === "chat" ? "Generating direct response..." : "Agent reasoning & executing autonomously..."}</span>
                 </div>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
                   {elapsedSeconds}s
@@ -899,7 +943,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-manus-success font-semibold tracking-wide text-xs flex items-center gap-1.5">
-                    <span>TASK DELIVERABLE COMPLETED</span>
+                    <span>{execMode === "chat" ? "RESPONSE" : "TASK DELIVERABLE COMPLETED"}</span>
                   </span>
                   <button
                     type="button"
@@ -998,7 +1042,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : "Assign a follow-up task in this chat (Shift+Enter for newline)..."}
+                placeholder={status === "running" ? "Agent is running... (use Stop to cancel)" : execMode === "chat" ? "Chat directly with AI (fast response, no steps)..." : "Assign a follow-up task in this chat (Shift+Enter for newline)..."}
                 disabled={status === "running"}
                 className="flex-1 bg-transparent border-0 outline-none text-xs text-foreground placeholder:text-muted-foreground disabled:opacity-50 resize-none max-h-24 py-1"
               />
