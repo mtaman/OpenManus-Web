@@ -258,7 +258,10 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           const fullPath = match[1].trim();
           const fileName = fullPath.split(/[\/\\]/).pop() || fullPath;
           setSelectedFileForEditor(fileName);
-          setShowRightPanel(true);
+        setShowRightPanel(true);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("openmanus:file-saved", { detail: { path: fileName } }));
+        }
         }
         fetchJobFiles(jobId);
       } else if (eventType === "final" || eventType === "done") {
@@ -1029,3 +1032,4 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 }
 
 export default ChatContainer;
+

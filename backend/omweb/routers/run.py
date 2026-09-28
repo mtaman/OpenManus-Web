@@ -19,7 +19,6 @@ from omweb.project_manager import project_manager
 
 router = APIRouter()
 
-# In-memory mapping to guarantee job_id -> chat_id resolution
 JOB_TO_CHAT_ID: Dict[str, str] = {}
 
 class RunRequest(BaseModel):
@@ -28,28 +27,23 @@ class RunRequest(BaseModel):
     max_steps: Optional[int] = 30
     chat_id: Optional[str] = None
 
+class FileContentPayload(BaseModel):
+    path: str
+    content: str
+
 def resolve_chat(identifier: str) -> Tuple[Optional[Dict[str, Any]], str]:
-    """Resolves chat data and chat_id regardless of whether passed identifier is chat_id or job_id."""
     if not identifier:
         return None, ""
-
-    # 1. Direct chat lookup
     direct_chat = project_manager.get_chat(identifier)
     if direct_chat:
         return direct_chat, direct_chat.get("id", identifier)
-
-    # 2. In-memory mapping
     if identifier in JOB_TO_CHAT_ID:
         cid = JOB_TO_CHAT_ID[identifier]
         return project_manager.get_chat(cid), cid
-
-    # 3. Check memory job object
     job = job_manager.get_job(identifier)
     if job and hasattr(job, "chat_id") and getattr(job, "chat_id"):
         cid = getattr(job, "chat_id")
         return project_manager.get_chat(cid), cid
-
-    # 4. Search existing sessions
     for c_item in project_manager.list_chats():
         cid = c_item.get("id")
         if cid:
@@ -60,7 +54,6 @@ def resolve_chat(identifier: str) -> Tuple[Optional[Dict[str, Any]], str]:
                 for turn in fc.get("turns", []):
                     if turn.get("job_id") == identifier:
                         return fc, cid
-
     fallback_id = identifier if identifier.startswith("chat_") else f"chat_{identifier}"
     return None, fallback_id
 
@@ -81,7 +74,6 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
 
     actual_job_id = getattr(job, "id", generated_job_id)
 
-    # Resolve or create chat session
     existing_chat = None
     if req.chat_id:
         existing_chat, _ = resolve_chat(req.chat_id)
@@ -92,7 +84,6 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         title = existing_chat.get("title") or prompt[:40]
         turns = list(existing_chat.get("turns", []))
 
-        # Archive the previous turn if it completed with a prompt & result
         prev_p = existing_chat.get("prompt", "")
         prev_r = existing_chat.get("result", "")
         prev_ev = existing_chat.get("events", [])
@@ -119,14 +110,12 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         turns = []
         agent_prompt = prompt
 
-    # Register in mappings
     JOB_TO_CHAT_ID[actual_job_id] = chat_id
     try:
         setattr(job, "chat_id", chat_id)
     except Exception:
         pass
 
-    # Save active session initialized with empty events for the fresh turn
     project_manager.save_chat_session(
         chat_id=chat_id,
         project_id=project_id,
@@ -138,7 +127,6 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         status="running"
     )
 
-    # Persist accumulated turns inside session.json
     try:
         session_file = project_manager.get_chat_dir(chat_id, project_id) / "session.json"
         if session_file.exists():
@@ -170,7 +158,6 @@ async def get_job_detail(job_id: str):
     effective_status = (getattr(job, "status", "") if job else "") or chat.get("status", "completed")
     effective_result = (getattr(job, "result", None) if job else None) or chat.get("result", "")
 
-    # Auto-extract final result from events if empty
     if not effective_result and effective_events:
         for ev in reversed(effective_events):
             ev_type = ev.get("type", "") if isinstance(ev, dict) else getattr(ev, "type", "")
@@ -233,6 +220,25 @@ async def get_job_file_content(job_id: str, path: str = Query(...)):
     except Exception as e:
         return {"path": path, "content": f"Binary content: {str(e)}"}
 
+@router.post("/jobs/{job_id}/content")
+async def save_job_file_content(job_id: str, payload: FileContentPayload):
+    _, chat_id = resolve_chat(job_id)
+    chat = project_manager.get_chat(chat_id) or {}
+    project_id = chat.get("project_id", "default_project")
+    files_dir = project_manager.get_chat_files_dir(chat_id, project_id)
+
+    clean_rel = payload.path.lstrip("/\\")
+    target = (files_dir / clean_rel).resolve()
+    if not target.is_relative_to(files_dir):
+        raise HTTPException(status_code=400, detail="Invalid file destination path")
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(payload.content, encoding="utf-8")
+        return {"status": "ok", "path": payload.path}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write file: {str(e)}")
+
 @router.get("/jobs/{job_id}/raw/{filepath:path}")
 async def get_job_raw_file(job_id: str, filepath: str):
     _, chat_id = resolve_chat(job_id)
@@ -290,7 +296,6 @@ async def stream_job_events(job_id: str):
 
     job_mem_status = getattr(job, "status", None)
 
-    # Replay ONLY if this exact job is already completed or failed in memory
     if job and job_mem_status in ["completed", "failed"]:
         memory_events = getattr(job, "events", [])
         async def replay_generator():
@@ -301,7 +306,6 @@ async def stream_job_events(job_id: str):
             yield {"event": "done", "data": json.dumps({"status": job_mem_status})}
         return EventSourceResponse(replay_generator())
 
-    # Active running job: Stream real-time events from agent
     collected_events = []
     current_step = 1
 
@@ -313,7 +317,6 @@ async def stream_job_events(job_id: str):
             if ev_step:
                 current_step = ev_step
 
-            # Parse event data safely
             if hasattr(event, "to_json"):
                 try:
                     raw_dict = json.loads(event.to_json())
@@ -322,7 +325,6 @@ async def stream_job_events(job_id: str):
             else:
                 raw_dict = {"data": getattr(event, "data", {})}
 
-            # Enforce clean top-level structure
             raw_dict["type"] = str(ev_type)
             raw_dict["step"] = current_step
             ev_data_str = json.dumps(raw_dict, ensure_ascii=False)
@@ -339,7 +341,6 @@ async def stream_job_events(job_id: str):
                 res_data = raw_dict.get("data", {})
                 final_res = res_data.get("result", "") if isinstance(res_data, dict) else str(res_data)
 
-                # Fallback to last informative thought if result is empty or raw trace
                 if not final_res or final_res == "{}":
                     for e in reversed(collected_events):
                         if e.get("type") == "thought":
@@ -363,7 +364,6 @@ async def stream_job_events(job_id: str):
                     status=final_status
                 )
 
-                # Preserve accumulated turns in session.json
                 try:
                     s_file = project_manager.get_chat_dir(chat_id, p_id) / "session.json"
                     if s_file.exists():

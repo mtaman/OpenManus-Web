@@ -28,13 +28,11 @@ export function PreviewTab({
   const [loading, setLoading] = useState<boolean>(false);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
-  // File classification
   const lowerFile = (effectiveFile || "").toLowerCase();
   const isMarkdown = lowerFile.endsWith(".md") || lowerFile.endsWith(".markdown");
   const isSvg = lowerFile.endsWith(".svg");
   const isHtml = lowerFile.endsWith(".html") || lowerFile.endsWith(".htm");
 
-  // Listen to openmanus:file-saved event for instant automatic reload
   useEffect(() => {
     const handleSaved = (e: Event) => {
       const ce = e as CustomEvent<{ path?: string }>;
@@ -49,14 +47,12 @@ export function PreviewTab({
     };
   }, [effectiveFile]);
 
-  // Discover previewable file automatically if none specified
   useEffect(() => {
     if (effectiveJobId && !explicitFile) {
-      fetch(`/api/run/jobs/${effectiveJobId}/files`)
+      fetch(`/api/run/jobs/${effectiveJobId}/files?t=${Date.now()}`, { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.files && Array.isArray(data.files)) {
-            // Priority: index.html > any .html > any .md > any .svg
             const bestFile =
               data.files.find((f: any) => f.name.toLowerCase() === "index.html") ||
               data.files.find((f: any) => {
@@ -78,7 +74,6 @@ export function PreviewTab({
     }
   }, [effectiveJobId, explicitFile]);
 
-  // Fetch file content with dual fallback (content API & job storage)
   const fetchContent = useCallback(async () => {
     if (!effectiveFile) {
       setRawContent("");
@@ -87,12 +82,22 @@ export function PreviewTab({
 
     setLoading(true);
     try {
-      let res = await fetch(`/api/files/content?path=${encodeURIComponent(effectiveFile)}`);
-      if (!res.ok && effectiveJobId) {
-        res = await fetch(`/api/run/jobs/${effectiveJobId}/content?path=${encodeURIComponent(effectiveFile)}`);
+      let res: Response | null = null;
+      // 1. FIRST PRIORITY: Always query the active chat/job storage deliverables
+      if (effectiveJobId) {
+        res = await fetch(`/api/run/jobs/${effectiveJobId}/content?path=${encodeURIComponent(effectiveFile)}&t=${Date.now()}`, {
+          cache: "no-store",
+        });
       }
 
-      if (res.ok) {
+      // 2. FALLBACK ONLY: If not in an active job context or file not found in chat, try workspace root
+      if (!res || !res.ok) {
+        res = await fetch(`/api/files/content?path=${encodeURIComponent(effectiveFile)}&t=${Date.now()}`, {
+          cache: "no-store",
+        });
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         setRawContent(data.content || "");
       } else {
@@ -110,7 +115,6 @@ export function PreviewTab({
     fetchContent();
   }, [fetchContent]);
 
-  // Sandboxed HTML base href injection
   const sandboxedHtml = useMemo(() => {
     if (!rawContent || !isHtml) return "";
     const baseHref = effectiveJobId ? `/api/run/jobs/${effectiveJobId}/raw/` : `/api/files/raw/`;
@@ -160,7 +164,6 @@ export function PreviewTab({
 
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-hidden font-sans">
-      {/* Subheader Toolbar */}
       <div className="h-10 border-b border-border bg-card/60 backdrop-blur-sm px-4 flex items-center justify-between shrink-0 text-xs">
         <div className="flex items-center gap-2 text-foreground min-w-0">
           {isMarkdown ? (
@@ -197,9 +200,7 @@ export function PreviewTab({
         </div>
       </div>
 
-      {/* Dynamic Visual Canvas Area */}
       <div className="flex-1 w-full h-full relative overflow-hidden bg-background">
-        {/* 1. Markdown Live Document Rendering */}
         {isMarkdown && (
           <div className="w-full h-full overflow-y-auto p-6 md:p-8 bg-card/40">
             <div className="max-w-3xl mx-auto rounded-xl border border-border/80 bg-card p-6 shadow-manus-sm">
@@ -208,7 +209,6 @@ export function PreviewTab({
           </div>
         )}
 
-        {/* 2. Vector SVG Visual Rendering */}
         {isSvg && (
           <div className="w-full h-full flex items-center justify-center p-8 bg-slate-950/40 overflow-auto">
             <div
@@ -218,7 +218,6 @@ export function PreviewTab({
           </div>
         )}
 
-        {/* 3. Isolated Sandbox HTML Application Rendering */}
         {isHtml && (
           <div className="w-full h-full bg-white relative overflow-hidden">
             <iframe
@@ -231,7 +230,6 @@ export function PreviewTab({
           </div>
         )}
 
-        {/* 4. Fallback Text Preview */}
         {!isMarkdown && !isSvg && !isHtml && (
           <div className="w-full h-full overflow-y-auto p-6 font-mono text-xs text-foreground bg-muted/20">
             <pre className="whitespace-pre-wrap">{rawContent}</pre>

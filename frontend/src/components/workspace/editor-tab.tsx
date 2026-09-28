@@ -68,8 +68,21 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
       setLoading(true);
       setStatusMsg(null);
       try {
-        const res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}`);
-        if (res.ok) {
+        let res: Response | null = null;
+        // 1. FIRST PRIORITY: Always load directly from active chat session files
+        if (activeJobId) {
+          res = await fetch(`/api/run/jobs/${activeJobId}/content?path=${encodeURIComponent(filePath)}&t=${Date.now()}`, {
+            cache: "no-store",
+          });
+        }
+        // 2. FALLBACK ONLY: If not in active job context, fallback to generic files
+        if (!res || !res.ok) {
+          res = await fetch(`/api/files/content?path=${encodeURIComponent(filePath)}&t=${Date.now()}`, {
+            cache: "no-store",
+          });
+        }
+
+        if (res && res.ok) {
           const data = await res.json();
           setContent(data.content || "");
         } else {
@@ -83,7 +96,7 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
     };
 
     loadFile();
-  }, [filePath, initialContent]);
+  }, [filePath, initialContent, activeJobId]);
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
@@ -139,15 +152,27 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
     setSaving(true);
     setStatusMsg(null);
     try {
-      const res = await fetch("/api/files/content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path: filePath,
-          content,
-          job_id: activeJobId || undefined,
-        }),
-      });
+      let res: Response;
+      if (activeJobId) {
+        // Direct save into active chat session folder
+        res = await fetch(`/api/run/jobs/${activeJobId}/content`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: filePath,
+            content,
+          }),
+        });
+      } else {
+        res = await fetch("/api/files/content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            path: filePath,
+            content,
+          }),
+        });
+      }
 
       if (res.ok) {
         setStatusMsg("Saved successfully");
@@ -177,7 +202,6 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
 
   return (
     <div className="flex flex-col h-full bg-[#0d1117] text-slate-100 font-sans select-text">
-      {/* Editor Header */}
       <div className="h-10 border-b border-[#30363d] bg-[#161b22] px-3.5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <FileCode size={14} className="text-primary shrink-0" />
@@ -259,7 +283,6 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
         </div>
       </div>
 
-      {/* Editor Body */}
       <div className="relative flex-1 flex min-h-0 bg-[#0d1117] overflow-hidden">
         <div
           ref={gutterRef}
