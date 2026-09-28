@@ -207,12 +207,6 @@ async def upload_files(
         with dest_path.open("wb") as buffer:
             shutil.copyfileobj(f.file, buffer)
 
-        try:
-            global_uploads = storage / "uploads"
-            global_uploads.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(dest_path, global_uploads / filename)
-        except Exception:
-            pass
 
         size = dest_path.stat().st_size
         rel_path = str(dest_path.relative_to(storage)).replace("\\", "/") if dest_path.is_relative_to(storage) else filename

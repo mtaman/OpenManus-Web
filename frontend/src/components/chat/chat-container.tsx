@@ -1170,6 +1170,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 </div>
               )}
 
+
+              {/* Active Turn Connected Stepper Timeline */}
+              {execMode === "agent" && activeGroupedSteps && Object.keys(activeGroupedSteps).length > 0 && (
+                renderConnectedTimeline("active", activeGroupedSteps, true)
+              )}
+
               {/* Live Contextual Running Status Indicator */}
               {status === "running" && (
                 <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-primary/20 bg-muted/40 text-foreground transition-all">
@@ -1181,11 +1187,6 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                     {elapsedSeconds}s
                   </span>
                 </div>
-              )}
-
-              {/* Active Turn Connected Stepper Timeline */}
-              {execMode === "agent" && activeGroupedSteps && Object.keys(activeGroupedSteps).length > 0 && (
-                renderConnectedTimeline("active", activeGroupedSteps, true)
               )}
 
               {/* Active Turn Deliverable / Response Card */}

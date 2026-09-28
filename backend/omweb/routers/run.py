@@ -140,19 +140,9 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         turns = []
         agent_prompt = prompt
 
-    # Ensure chat files directory exists and sync global uploads into it
+    # Ensure chat files directory exists
     files_dir = project_manager.get_chat_files_dir(chat_id, project_id)
     files_dir.mkdir(parents=True, exist_ok=True)
-    uploads_dir = get_storage_root().resolve() / "uploads"
-    if uploads_dir.exists():
-        for up_file in uploads_dir.iterdir():
-            if up_file.is_file():
-                dest = files_dir / up_file.name
-                if not dest.exists():
-                    try:
-                        shutil.copy2(up_file, dest)
-                    except Exception:
-                        pass
 
     JOB_TO_CHAT_ID[actual_job_id] = chat_id
     try:
