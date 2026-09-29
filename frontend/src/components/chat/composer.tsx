@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import {
@@ -17,6 +17,8 @@ import {
   X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AgentSelector } from "./agent-selector";
+import { useChatStore } from "@/stores/chat-store";
 
 interface ComposerProps {
   onSend: (text: string, files?: File[], llmOverride?: any) => void;
@@ -37,6 +39,8 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   const [cloudList, setCloudList] = useState<any[]>([]);
   const [lmStudioItem, setLmStudioItem] = useState<any>(null);
   const [showModelMenu, setShowModelMenu] = useState(false);
+
+  const { selectedAgentId } = useChatStore();
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,7 +109,8 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
       base_url: lmStudioItem?.baseUrl || "http://127.0.0.1:1234/v1",
       api_key: lmStudioItem?.apiKey || "",
       api_type: "",
-      mode: execMode
+      mode: execMode,
+      agent_id: execMode === "agent" ? (selectedAgentId || "manus") : "manus"
     };
 
     if (typeof window !== "undefined") {
@@ -113,7 +118,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          return { ...base, ...parsed, mode: execMode };
+          return { ...base, ...parsed, mode: execMode, agent_id: base.agent_id };
         } catch (e) {}
       }
     }
@@ -184,7 +189,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   );
 
   return (
-    <div className="relative w-full max-w-[1000px] mx-auto">
+    <div className="relative w-full max-w-[1000px] mx-auto font-sans">
       {/* Hidden File Input */}
       <input
         type="file"
@@ -417,6 +422,13 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
                 <span>Chat</span>
               </button>
             </div>
+
+            {/* Agent Selector: CONDITIONAL (Visible ONLY when execMode === 'agent') */}
+            {execMode === "agent" && (
+              <div className="animate-in fade-in duration-150">
+                <AgentSelector disabled={disabled || isRunning} />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -448,3 +460,5 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
     </div>
   );
 }
+
+export default Composer;

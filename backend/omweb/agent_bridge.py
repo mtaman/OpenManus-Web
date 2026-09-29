@@ -12,7 +12,7 @@ import json
 import asyncio
 import traceback
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, List
 
 from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
 from omweb.job_manager import job_manager
@@ -187,9 +187,38 @@ def inject_runtime_llm(agent: Any, active_llm: Dict[str, Any]):
             except Exception as client_err:
                 print(f"[BRIDGE WARNING] Could not rebuild AsyncOpenAI client: {client_err}")
 
-async def run_instrumented(job_id: str, prompt: str, agent_id: str = "manus", 
-    llm_override: Optional[Dict[str, Any]] = None
+async def run_instrumented(
+    job_id: str,
+    prompt: str,
+    *args: Any,
+    agent_id: Any = None,
+    llm_override: Optional[Dict[str, Any]] = None,
+    **kwargs: Any
 ) -> None:
+    # Universal Parameter Resolver (Defensive against Positional Argument Drift)
+    for arg in args:
+        if isinstance(arg, dict) and llm_override is None:
+            llm_override = arg
+        elif isinstance(arg, str) and agent_id is None:
+            agent_id = arg
+
+    if not agent_id and isinstance(llm_override, dict):
+        agent_id = llm_override.get("agent_id")
+
+    if not agent_id or not isinstance(agent_id, str):
+        agent_id = kwargs.get("agent_id") or "manus"
+    # Universal Parameter Resolver (Defensive against Positional Argument Drift)
+    for arg in args:
+        if isinstance(arg, dict) and llm_override is None:
+            llm_override = arg
+        elif isinstance(arg, str) and agent_id is None:
+            agent_id = arg
+
+    if not agent_id and isinstance(llm_override, dict):
+        agent_id = llm_override.get("agent_id")
+
+    if not agent_id or not isinstance(agent_id, str):
+        agent_id = kwargs.get("agent_id") or "manus"
     print(f"\n[BRIDGE] Initializing agent for job: {job_id}")
     current_active_job_id["current"] = job_id
     
@@ -232,7 +261,73 @@ async def run_instrumented(job_id: str, prompt: str, agent_id: str = "manus",
     manifest = agent_registry.get_agent(agent_id)
     print(f"[BRIDGE] Activating agent '{manifest['name']}' (ID: {agent_id})")
 
+    # Dynamic Sovereign Agent Resolution
+    from omweb.agents.registry import agent_registry
+    manifest = agent_registry.get_agent(agent_id)
+    print(f"[BRIDGE] Activating agent '{manifest['name']}' (ID: {agent_id})")
+
+    # Dynamic Sovereign Agent Resolution
+    from omweb.agents.registry import agent_registry
+    manifest = agent_registry.get_agent(agent_id)
+    print(f"[BRIDGE] Activating agent '{manifest['name']}' (ID: {agent_id})")
+
     agent = Manus()
+
+    # Scope tools according to manifest, always preserving vital core tools
+    allowed_tools = [t.lower() for t in manifest.get("tools", [])]
+    allowed_tools.extend(["terminate", "ask_human"])
+
+    if hasattr(agent, "tools"):
+        if isinstance(agent.tools, list):
+            agent.tools = [
+                t for t in agent.tools 
+                if getattr(t, "name", t.__class__.__name__).lower() in allowed_tools
+            ]
+        elif hasattr(agent.tools, "tools") and isinstance(agent.tools.tools, list):
+            agent.tools.tools = [
+                t for t in agent.tools.tools 
+                if getattr(t, "name", t.__class__.__name__).lower() in allowed_tools
+            ]
+        scoped_names = [getattr(t, "name", t.__class__.__name__) for t in (agent.tools if isinstance(agent.tools, list) else agent.tools.tools)]
+        print(f"[BRIDGE] Tools scoped to: {scoped_names}")
+
+    if manifest.get("max_steps"):
+        agent.max_steps = manifest["max_steps"]
+
+    sys_prompt = manifest.get("system_prompt", "").strip()
+    if sys_prompt and hasattr(agent, "system_prompt"):
+        try:
+            agent.system_prompt = f"{sys_prompt}\n\n{agent.system_prompt}"
+        except Exception:
+            pass
+
+    # Scope tools according to manifest, always preserving vital core tools
+    allowed_tools = [t.lower() for t in manifest.get("tools", [])]
+    allowed_tools.extend(["terminate", "ask_human"])
+
+    if hasattr(agent, "tools"):
+        if isinstance(agent.tools, list):
+            agent.tools = [
+                t for t in agent.tools 
+                if getattr(t, "name", t.__class__.__name__).lower() in allowed_tools
+            ]
+        elif hasattr(agent.tools, "tools") and isinstance(agent.tools.tools, list):
+            agent.tools.tools = [
+                t for t in agent.tools.tools 
+                if getattr(t, "name", t.__class__.__name__).lower() in allowed_tools
+            ]
+        scoped_names = [getattr(t, "name", t.__class__.__name__) for t in (agent.tools if isinstance(agent.tools, list) else agent.tools.tools)]
+        print(f"[BRIDGE] Tools scoped to: {scoped_names}")
+
+    if manifest.get("max_steps"):
+        agent.max_steps = manifest["max_steps"]
+
+    sys_prompt = manifest.get("system_prompt", "").strip()
+    if sys_prompt and hasattr(agent, "system_prompt"):
+        try:
+            agent.system_prompt = f"{sys_prompt}\n\n{agent.system_prompt}"
+        except Exception:
+            pass
 
     # Scope tools according to manifest
     allowed_tools = manifest.get("tools", [])
@@ -475,4 +570,3 @@ async def run_direct_chat(
         active_tasks.pop(job_id, None)
         if current_active_job_id.get("current") == job_id:
             current_active_job_id.pop("current", None)
-

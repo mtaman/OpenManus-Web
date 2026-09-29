@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import asyncio
 import mimetypes
@@ -104,6 +104,8 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         llm_override["api_key"] = req.api_key.strip()
     if req.api_type:
         llm_override["api_type"] = req.api_type.strip()
+    if req.agent_id:
+        llm_override["agent_id"] = req.agent_id.strip()
 
     existing_chat = None
     if req.chat_id:
@@ -150,6 +152,8 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     except Exception:
         pass
 
+    effective_agent = (req.agent_id or "manus").strip()
+
     project_manager.save_chat_session(
         chat_id=chat_id,
         project_id=project_id,
@@ -159,7 +163,7 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         events=[],
         result="",
         status="running",
-        agent_id=req.agent_id or "manus"
+        agent_id=effective_agent
     )
 
     try:
@@ -170,6 +174,7 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
             if llm_override:
                 s_data["model"] = llm_override.get("model")
                 s_data["provider"] = llm_override.get("provider")
+                s_data["agent_id"] = effective_agent
             session_file.write_text(json.dumps(s_data, indent=2, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
@@ -177,7 +182,7 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     if exec_mode == "chat":
         background_tasks.add_task(run_direct_chat, actual_job_id, prompt, llm_override)
     else:
-        background_tasks.add_task(run_instrumented, actual_job_id, agent_prompt, llm_override)
+        background_tasks.add_task(run_instrumented, actual_job_id, agent_prompt, effective_agent, llm_override)
 
     return {
         "job_id": actual_job_id,
@@ -185,7 +190,8 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         "chat_id": chat_id,
         "mode": exec_mode,
         "model": llm_override.get("model"),
-        "provider": llm_override.get("provider")
+        "provider": llm_override.get("provider"),
+        "agent_id": effective_agent
     }
 
 @router.get("/jobs")
@@ -226,7 +232,8 @@ async def get_job_detail(job_id: str):
         "result": effective_result,
         "events": effective_events,
         "turns": chat.get("turns", []),
-        "created_at": chat.get("created_at")
+        "created_at": chat.get("created_at"),
+        "agent_id": chat.get("agent_id", "manus")
     }
 
 @router.post("/jobs/{job_id}/stop")
@@ -442,7 +449,8 @@ async def stream_job_events(job_id: str):
                     prompt=prompt_val,
                     events=collected_events,
                     result=final_res,
-                    status=final_status
+                    status=final_status,
+                    agent_id=chat.get("agent_id", "manus")
                 )
 
                 try:

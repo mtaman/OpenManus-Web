@@ -9,6 +9,7 @@ import { ChatLanding } from "./chat-landing";
 import { ChatThread, ChatTurn } from "./chat-thread";
 import { StepEvent } from "./chat-timeline";
 import { EngineOption } from "./engine-selector";
+import { useChatStore } from "@/stores/chat-store";
 
 function safeRender(val: any): string {
   if (val === null || val === undefined) return "";
@@ -33,6 +34,7 @@ export interface ChatContainerProps {
 
 export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const router = useRouter();
+  const { selectedAgentId, setSelectedAgentId } = useChatStore();
   const [inputValue, setInputValue] = useState("");
   const [landingAttachedFiles, setLandingAttachedFiles] = useState<File[]>([]);
   const [submittedPrompt, setSubmittedPrompt] = useState("");
@@ -135,6 +137,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         const data = await res.json();
         if (data.chat_id) setActiveChatId(data.chat_id);
         if (data.prompt) setSubmittedPrompt(data.prompt);
+        if (data.agent_id) setSelectedAgentId(data.agent_id);
         if (data.status) setStatus(data.status);
         if (data.result) setFinalResult(safeRender(data.result));
         setSessionTimestamp(data.created_at || data.timestamp || new Date().toLocaleString());
@@ -437,10 +440,11 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+                body: JSON.stringify({
           prompt: finalPrompt,
           max_steps: 20,
           chat_id: targetChatId,
+          agent_id: selectedAgentId || "manus",
           mode: effectiveMode,
           ...storedOverride,
           ...(customOverride || {})

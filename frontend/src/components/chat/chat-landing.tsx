@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useRef, useState, useEffect } from "react";
 import {
@@ -14,6 +14,7 @@ import {
   FileText,
   X
 } from "lucide-react";
+import { AgentSelector } from "./agent-selector";
 
 interface QuickPill {
   label: string;
@@ -88,12 +89,12 @@ export function ChatLanding({
       : `Chat directly with ${activeProvider} (${activeModel})...`;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full">
+    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full font-sans">
       <h1 className="font-serif text-3xl sm:text-4xl font-normal text-foreground tracking-tight mb-4">
         What can I do for you?
       </h1>
 
-      <div className="flex items-center justify-center mb-6">
+      <div className="flex items-center justify-center mb-6 gap-3">
         <div className="inline-flex items-center bg-card/80 p-1.5 rounded-full border border-border/80 shadow-md backdrop-blur-md gap-1">
           <button
             type="button"
@@ -128,6 +129,13 @@ export function ChatLanding({
             )}
           </button>
         </div>
+
+        {/* Agent Selector: Visible ONLY when execMode === 'agent' */}
+        {execMode === "agent" && (
+          <div className="animate-in fade-in duration-200">
+            <AgentSelector />
+          </div>
+        )}
       </div>
 
       <input

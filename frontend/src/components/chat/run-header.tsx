@@ -3,7 +3,7 @@
 import React from "react";
 import { StatusPill, SystemStatus } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
-import { Square, Copy } from "lucide-react";
+import { Square, Copy, Bot, Code2, Search, BarChart3, Sparkles } from "lucide-react";
 
 interface RunHeaderProps {
   prompt: string;
@@ -11,6 +11,7 @@ interface RunHeaderProps {
   currentStep: number;
   maxSteps?: number;
   onCancel?: () => void;
+  agentId?: string;
 }
 
 export function RunHeader({
@@ -19,10 +20,26 @@ export function RunHeader({
   currentStep,
   maxSteps = 20,
   onCancel,
+  agentId = "manus",
 }: RunHeaderProps) {
   const handleCopyTrace = () => {
     navigator.clipboard.writeText(window.location.href);
   };
+
+  const getAgentInfo = (id: string) => {
+    switch (id.toLowerCase()) {
+      case "code_architect":
+        return { name: "Code Architect", icon: <Code2 size={12} className="text-cyan-400" /> };
+      case "deep_researcher":
+        return { name: "Deep Researcher", icon: <Search size={12} className="text-amber-400" /> };
+      case "data_scientist":
+        return { name: "Data Scientist", icon: <BarChart3 size={12} className="text-purple-400" /> };
+      default:
+        return { name: "Manus Generalist", icon: <Bot size={12} className="text-emerald-400" /> };
+    }
+  };
+
+  const agentMeta = getAgentInfo(agentId);
 
   return (
     <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-3 border-b border-[var(--color-line)] bg-[var(--color-surface-1)]/80 backdrop-blur-md">
@@ -33,7 +50,10 @@ export function RunHeader({
         <div className="flex items-center gap-3 text-xs text-[var(--color-ink-muted)] font-mono">
           <span>Step {currentStep} / {maxSteps}</span>
           <span>•</span>
-          <span>Local Engine</span>
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px]">
+            {agentMeta.icon}
+            <span className="font-semibold">{agentMeta.name}</span>
+          </div>
         </div>
       </div>
 
@@ -53,3 +73,5 @@ export function RunHeader({
     </div>
   );
 }
+
+export default RunHeader;
