@@ -7,9 +7,6 @@ export interface AgentStep {
   type: "thought" | "tool_call" | "observation" | "plan";
   content: string;
   timestamp: string;
-  tool_name?: string;
-  tool_args?: Record<string, any>;
-  toolName?: string;
 }
 
 export interface ChatMessage {
@@ -24,8 +21,10 @@ interface ChatState {
   messages: ChatMessage[];
   currentJobId: string | null;
   isRunning: boolean;
+  selectedAgentId: string;
   activeSteps: AgentStep[];
   sessions: ChatSession[];
+  setSelectedAgentId: (agentId: string) => void;
   loadSessions: () => Promise<void>;
   loadSessionDetail: (chatId: string) => Promise<void>;
   clearAllSessions: () => Promise<void>;
@@ -42,8 +41,11 @@ export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   currentJobId: null,
   isRunning: false,
+  selectedAgentId: "manus",
   activeSteps: [],
   sessions: [],
+
+  setSelectedAgentId: (agentId: string) => set({ selectedAgentId: agentId || "manus" }),
 
   loadSessions: async () => {
     try {
@@ -69,24 +71,23 @@ export const useChatStore = create<ChatState>((set) => ({
       if (chat) {
         set({
           currentJobId: chat.job_id || null,
+          selectedAgentId: chat.agent_id || "manus",
           messages: [
             {
               id: chat.id || "msg_1",
               role: "user",
               content: chat.prompt || chat.title,
               timestamp: chat.created_at || new Date().toISOString(),
-              status: chat.status === "completed" ? "completed" : "running",
-            },
+              status: chat.status === "completed" ? "completed" : "running"
+            }
           ],
           activeSteps: (chat.events || []).map((ev: any, idx: number) => ({
             id: `step_${idx}`,
             step_number: idx + 1,
             type: ev.type || "thought",
             content: typeof ev.data === "string" ? ev.data : (ev.data?.content || JSON.stringify(ev.data)),
-            timestamp: new Date().toISOString(),
-            tool_name: ev.data?.name || ev.data?.tool,
-            tool_args: ev.data?.arguments,
-          })),
+            timestamp: new Date().toISOString()
+          }))
         });
       }
     } catch (err) {
@@ -96,12 +97,12 @@ export const useChatStore = create<ChatState>((set) => ({
 
   clearAllSessions: async () => {
     await deleteAllChats();
-    set({ sessions: [], messages: [], currentJobId: null, activeSteps: [] });
+    set({ sessions: [], messages: [], currentJobId: null, activeSteps: [], selectedAgentId: "manus" });
   },
 
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   updateMessageStatus: (id, status) => set((state) => ({
-    messages: state.messages.map((msg) => (msg.id === id ? { ...msg, status } : msg)),
+    messages: state.messages.map((msg) => msg.id === id ? { ...msg, status } : msg)
   })),
   appendStep: (step) => set((state) => ({ activeSteps: [...state.activeSteps, step] })),
   clearActiveSteps: () => set({ activeSteps: [] }),

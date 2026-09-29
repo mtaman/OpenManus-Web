@@ -9,7 +9,6 @@
   | "error";
 
 export type RunStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
-export type ExecutionMode = "agent" | "chat";
 
 export interface ToolPair {
   kind: "tool";
@@ -48,7 +47,6 @@ export interface RunState {
   error: string | null;
   lastEventAt: number;
   droppedEvents: number;
-  mode?: ExecutionMode;
 }
 
 export interface SSEEnvelope {
@@ -56,13 +54,49 @@ export interface SSEEnvelope {
   type: ServerEventName;
   step: number;
   data: Record<string, any>;
-  mode?: ExecutionMode;
 }
 
-export interface Step {
+// ==========================================
+// Sovereign Store & Agent Manifest Contracts
+// ==========================================
+export interface AgentManifest {
   id: string;
-  step_number: number;
+  name: string;
+  role?: string;
+  icon?: string;
+  description?: string;
+  system_prompt: string;
+  tools: string[];
+  max_steps: number;
+  is_builtin?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ToolDefinition {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  safety_level: string;
+  parameters?: Record<string, string>;
+}
+
+export interface ExtensionDefinition {
+  id: string;
+  name: string;
   type: string;
-  content: string;
-  timestamp: string;
+  status: string;
+  command?: string;
+  description: string;
+}
+
+export interface AgentUpsertPayload {
+  name: string;
+  role?: string;
+  icon?: string;
+  description?: string;
+  system_prompt: string;
+  tools: string[];
+  max_steps?: number;
 }
