@@ -8,6 +8,7 @@ import {
   Folder,
   FolderOpen,
   Settings,
+  Store,
   History,
   PanelLeftClose,
   PanelLeft,
@@ -20,6 +21,7 @@ import { LanguageToggle } from "@/components/ui/language-toggle";
 const navItems = [
   { href: "/chat", icon: MessageSquare, label: "Chat" },
   { href: "/projects", icon: FolderOpen, label: "Projects" },
+  { href: "/stores", icon: Store, label: "Stores" },
   { href: "/history", icon: History, label: "History" },
   { href: "/files", icon: Folder, label: "Files" },
 ];

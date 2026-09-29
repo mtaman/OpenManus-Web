@@ -43,7 +43,6 @@ export function Sidebar() {
 
   const fetchData = useCallback(async (force = false) => {
     const now = Date.now();
-    // Rate-limiting guard: prevent duplicate requests within 3 seconds unless forced
     if (!force && (now - lastFetchTimeRef.current < 3000 || isFetchingRef.current)) {
       return;
     }
@@ -71,12 +70,10 @@ export function Sidebar() {
     }
   }, []);
 
-  // Initial load and sync on route change
   useEffect(() => {
     fetchData();
   }, [fetchData, pathname]);
 
-  // Tab visibility & custom event listeners (clean refresh without iframe focus bouncing)
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -93,7 +90,6 @@ export function Sidebar() {
     };
   }, [fetchData]);
 
-  // Conditional polling: ONLY active if a task/session is currently in 'running' state
   useEffect(() => {
     const hasRunningTask = chats.some((c) => c.status === "running");
     if (!hasRunningTask) return;
