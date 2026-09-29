@@ -16,6 +16,7 @@ import type {
   CustomEndpoint,
   CloudProviderVaultItem,
   LMStudioSettings,
+  OllamaSettings,
   FullAppConfig,
   ApiModeType
 } from "../types";
@@ -25,6 +26,8 @@ interface LLMTabProps {
   setConfig: React.Dispatch<React.SetStateAction<FullAppConfig>>;
   lmStudioSettings: LMStudioSettings;
   setLmStudioSettings: React.Dispatch<React.SetStateAction<LMStudioSettings>>;
+  ollamaSettings: OllamaSettings;
+  setOllamaSettings: React.Dispatch<React.SetStateAction<OllamaSettings>>;
   cloudProviders: CloudProviderVaultItem[];
   setCloudProviders: React.Dispatch<React.SetStateAction<CloudProviderVaultItem[]>>;
   customEndpoints: CustomEndpoint[];
@@ -45,6 +48,8 @@ export function LLMTab({
   setConfig,
   lmStudioSettings,
   setLmStudioSettings,
+  ollamaSettings,
+  setOllamaSettings,
   cloudProviders,
   setCloudProviders,
   customEndpoints,
@@ -60,11 +65,11 @@ export function LLMTab({
   testEndpoint,
 }: LLMTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<HubSubTab>("overview");
-  const [modelSearch, setModelSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testingAll, setTestingAll] = useState(false);
-  const [newModelInput, setNewModelInput] = useState("");
+  const [newLMModelInput, setNewLMModelInput] = useState("");
+  const [newOllamaModelInput, setNewOllamaModelInput] = useState("");
+  const [scanningOllama, setScanningOllama] = useState(false);
 
   // Model Discovery Target State (For Cloud & Custom Endpoints)
   const [discoveryTarget, setDiscoveryTarget] = useState<{
@@ -111,8 +116,9 @@ export function LLMTab({
     return clean;
   };
 
-  const handleAddLocalModel = () => {
-    const trimmed = newModelInput.trim();
+  // ---------------- LM Studio Handlers ----------------
+  const handleAddLMModel = () => {
+    const trimmed = newLMModelInput.trim();
     if (!trimmed) return;
     if (availableModels.includes(trimmed)) {
       showToast.info("Model Exists", "This model is already in the list.");
@@ -127,11 +133,11 @@ export function LLMTab({
       vault.savedModels = updated;
       localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(vault));
     }
-    setNewModelInput("");
+    setNewLMModelInput("");
     showToast.success("Model Added", trimmed);
   };
 
-  const handleRemoveLocalModel = (modelToRemove: string) => {
+  const handleRemoveLMModel = (modelToRemove: string) => {
     const updated = availableModels.filter((m) => m !== modelToRemove);
     setAvailableModels(updated);
     if (typeof window !== "undefined") {
@@ -144,6 +150,134 @@ export function LLMTab({
     showToast.info("Model Removed", modelToRemove);
   };
 
+  const handleTestLMStudio = async () => {
+    setTestingId("lmstudio");
+    try {
+      const res = await testEndpoint(lmStudioSettings.baseUrl, lmStudioSettings.apiKey, lmStudioSettings.model, "");
+      setLmStudioSettings((prev) => ({
+        ...prev,
+        status: res.ok ? "online" : "offline",
+        latency: res.latency,
+        lastError: res.ok ? undefined : res.message
+      }));
+      if (res.ok) {
+        showToast.success("LM Studio Connected", `Verified in ${res.latency} ms`, res.latency);
+      } else {
+        showToast.error("LM Studio Unreachable", res.message);
+      }
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  // ---------------- Ollama Handlers ----------------
+  const handleTestOllama = async () => {
+    setTestingId("ollama");
+    const testUrl = ollamaSettings.baseUrl.endsWith("/v1") ? ollamaSettings.baseUrl : `${ollamaSettings.baseUrl}/v1`;
+    try {
+      const res = await testEndpoint(testUrl, "", ollamaSettings.model || "test", "");
+      setOllamaSettings((prev) => ({
+        ...prev,
+        status: res.ok ? "online" : "offline",
+        latency: res.latency,
+        lastError: res.ok ? undefined : res.message
+      }));
+      if (res.ok) {
+        showToast.success("Ollama Connected", `Verified in ${res.latency} ms`, res.latency);
+      } else {
+        showToast.error("Ollama Unreachable", res.message);
+      }
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const handleScanOllama = async () => {
+    setScanningOllama(true);
+    try {
+      const res = await fetch("http://localhost:8088/api/config/fetch-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          base_url: ollamaSettings.baseUrl,
+          api_key: "",
+          provider_id: "ollama"
+        })
+      });
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
+        const defaultMod = ollamaSettings.model || data.models[0];
+        setOllamaSettings((prev) => {
+          const updated = {
+            ...prev,
+            savedModels: data.models,
+            model: defaultMod,
+            status: "online"
+          };
+          if (typeof window !== "undefined") {
+            localStorage.setItem("omweb_ollama_vault", JSON.stringify(updated));
+          }
+          return updated;
+        });
+        showToast.success("Ollama Models Found", `Retrieved ${data.models.length} local Ollama models!`);
+      } else {
+        const msg = data.error || data.message || "No models returned from Ollama endpoint (Port 11434).";
+        showToast.warning("Ollama Notice", msg);
+      }
+    } catch (e: any) {
+      showToast.error("Ollama Scan Failed", e.message);
+    } finally {
+      setScanningOllama(false);
+    }
+  };
+
+  const handleAddOllamaModel = () => {
+    const trimmed = newOllamaModelInput.trim();
+    if (!trimmed) return;
+    const currentList = ollamaSettings.savedModels || [];
+    if (currentList.includes(trimmed)) {
+      showToast.info("Model Exists", "This model is already in Ollama list.");
+      return;
+    }
+    const updated = [...currentList, trimmed];
+    const defaultM = ollamaSettings.model || trimmed;
+    setOllamaSettings((prev) => {
+      const state = { ...prev, savedModels: updated, model: defaultM };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("omweb_ollama_vault", JSON.stringify(state));
+      }
+      return state;
+    });
+    setNewOllamaModelInput("");
+    showToast.success("Ollama Model Added", trimmed);
+  };
+
+  const handleRemoveOllamaModel = (modelToRemove: string) => {
+    const currentList = ollamaSettings.savedModels || [];
+    const updated = currentList.filter((m) => m !== modelToRemove);
+    const newDefault = ollamaSettings.model === modelToRemove ? (updated[0] || "") : ollamaSettings.model;
+    setOllamaSettings((prev) => {
+      const state = { ...prev, savedModels: updated, model: newDefault };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("omweb_ollama_vault", JSON.stringify(state));
+      }
+      return state;
+    });
+    showToast.info("Ollama Model Removed", modelToRemove);
+  };
+
+  const handleClearOllama = () => {
+    setOllamaSettings((prev) => {
+      const cleared = { ...prev, savedModels: [], model: "", status: "untested" as const };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("omweb_ollama_vault", JSON.stringify(cleared));
+      }
+      return cleared;
+    });
+    showToast.info("Ollama Cleared", "Removed all Ollama models and deactivated from engine selector.");
+  };
+
+  // ---------------- Cloud & Custom Discovery Handlers ----------------
   const handleSaveDiscovered = (selectedModels: string[], primaryModel?: string) => {
     if (!discoveryTarget) return;
 
@@ -207,27 +341,6 @@ export function LLMTab({
     setDiscoveryTarget(null);
   };
 
-  // Test LM Studio Local
-  const handleTestLMStudio = async () => {
-    setTestingId("lmstudio");
-    try {
-      const res = await testEndpoint(lmStudioSettings.baseUrl, lmStudioSettings.apiKey, lmStudioSettings.model, "");
-      setLmStudioSettings((prev) => ({
-        ...prev,
-        status: res.ok ? "online" : "offline",
-        latency: res.latency,
-        lastError: res.ok ? undefined : res.message
-      }));
-      if (res.ok) {
-        showToast.success("LM Studio Connected", `Verified in ${res.latency} ms`, res.latency);
-      } else {
-        showToast.error("LM Studio Unreachable", res.message);
-      }
-    } finally {
-      setTestingId(null);
-    }
-  };
-
   const handleTestCloud = async (providerId: string) => {
     const cp = cloudProviders.find((p) => p.id === providerId);
     if (!cp) return;
@@ -263,6 +376,7 @@ export function LLMTab({
     showToast.info("Health Check Initiated", "Testing all configured AI endpoints...");
     try {
       await handleTestLMStudio();
+      await handleTestOllama();
       for (const cp of cloudProviders) {
         if (cp.apiKey.trim()) {
           await handleTestCloud(cp.id);
@@ -327,7 +441,7 @@ export function LLMTab({
           </h2>
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Dedicated engines for local GPUs, cloud credentials, custom endpoints, and role routing.
+          Dedicated engines for local GPUs, Ollama, cloud credentials, custom endpoints, and role routing.
         </p>
 
         {/* 4 Professional Sub-Tabs */}
@@ -355,7 +469,7 @@ export function LLMTab({
             }`}
           >
             <Cpu size={13} />
-            <span>LM Studio & Local</span>
+            <span>Local Engines (LM Studio & Ollama)</span>
           </button>
 
           <button
@@ -368,7 +482,7 @@ export function LLMTab({
             }`}
           >
             <Cloud size={13} />
-            <span>Cloud & Ollama</span>
+            <span>Cloud Providers</span>
           </button>
 
           <button
@@ -502,6 +616,54 @@ export function LLMTab({
                 );
               })()}
 
+              {/* Row: Ollama */}
+              {(() => {
+                const isPrimary = config.llm.provider === "ollama";
+                return (
+                  <div className="py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        {ollamaSettings.status === "online" ? (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                        ) : ollamaSettings.status === "offline" ? (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+                        ) : (
+                          <span className="inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
+                        )}
+                      </span>
+                      <span className="font-semibold text-foreground">Ollama (Local Server)</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">({ollamaSettings.model || "Not configured"})</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {ollamaSettings.status === "online" && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold">
+                          {ollamaSettings.latency} ms
+                        </span>
+                      )}
+
+                      {isPrimary ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          Active Primary
+                        </span>
+                      ) : (
+                        ollamaSettings.model && (
+                          <button
+                            onClick={() => {
+                              const b = ollamaSettings.baseUrl.endsWith("/v1") ? ollamaSettings.baseUrl : `${ollamaSettings.baseUrl}/v1`;
+                              activateEngine("ollama", "Ollama (Local)", ollamaSettings.model, b, "", "");
+                            }}
+                            className="px-2 py-0.5 rounded text-[10px] bg-primary/10 hover:bg-primary/20 text-primary font-medium cursor-pointer"
+                          >
+                            Activate
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Rows: Cloud Providers */}
               {cloudProviders.map((cp) => {
                 const isPrimary = config.llm.provider === cp.id || config.llm.base_url === cp.baseUrl;
@@ -618,14 +780,15 @@ export function LLMTab({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 2: LM STUDIO & LOCAL MODELS */}
+      {/* SUB-TAB 2: LOCAL ENGINES (LM STUDIO & OLLAMA) */}
       {/* ========================================================================= */}
       {activeSubTab === "lmstudio" && (
-        <div className="space-y-5">
+        <div className="space-y-6">
+          {/* 1. LM STUDIO CARD */}
           <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                <Cpu size={16} className="text-primary" />
                 <span className="text-xs font-bold text-foreground uppercase tracking-wider">
                   LM Studio Local Server (OpenAI-compatible)
                 </span>
@@ -634,47 +797,49 @@ export function LLMTab({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground block mb-1">
-                  LM Studio base URL override
-                </label>
-                <input
-                  type="text"
-                  value={lmStudioSettings.baseUrl}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setLmStudioSettings({ ...lmStudioSettings, baseUrl: val });
-                    if (config.llm.provider === "lmstudio") {
-                      setConfig((p) => ({ ...p, llm: { ...p.llm, base_url: val } }));
-                    }
-                  }}
-                  placeholder="http://127.0.0.1:1234/v1"
-                  className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                    Base URL override
+                  </label>
+                  <input
+                    type="text"
+                    value={lmStudioSettings.baseUrl}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLmStudioSettings({ ...lmStudioSettings, baseUrl: val });
+                      if (config.llm.provider === "lmstudio") {
+                        setConfig((p) => ({ ...p, llm: { ...p.llm, base_url: val } }));
+                      }
+                    }}
+                    placeholder="http://127.0.0.1:1234/v1"
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                    API Key (Optional for auth)
+                  </label>
+                  <input
+                    type="password"
+                    value={lmStudioSettings.apiKey}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLmStudioSettings({ ...lmStudioSettings, apiKey: val });
+                      if (config.llm.provider === "lmstudio") {
+                        setConfig((p) => ({ ...p, llm: { ...p.llm, api_key: val } }));
+                      }
+                    }}
+                    placeholder="Leave blank for standard local server"
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="text-[11px] font-medium text-muted-foreground block mb-1">
-                  API Key (Optional for local auth)
-                </label>
-                <input
-                  type="password"
-                  value={lmStudioSettings.apiKey}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setLmStudioSettings({ ...lmStudioSettings, apiKey: val });
-                    if (config.llm.provider === "lmstudio") {
-                      setConfig((p) => ({ ...p, llm: { ...p.llm, api_key: val } }));
-                    }
-                  }}
-                  placeholder="Leave blank for standard local server"
-                  className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-medium text-muted-foreground block mb-1">
-                  Default Local Model
+                  Default LM Studio Model
                 </label>
                 <input
                   type="text"
@@ -725,135 +890,311 @@ export function LLMTab({
                 </Button>
               </div>
             </div>
+
+            {/* Loaded LM Studio Models Sub-card */}
+            <div className="p-3.5 rounded-lg border border-border/80 bg-background/50 space-y-3 pt-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers size={14} className="text-primary" />
+                  <span className="text-xs font-semibold text-foreground">
+                    Loaded GPU Models ({availableModels.length})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {availableModels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAvailableModels([]);
+                        if (typeof window !== "undefined") {
+                          localStorage.removeItem("omweb_scanned_models");
+                        }
+                        showToast.info("List Cleared", "LM Studio models list cleared.");
+                      }}
+                      className="text-[11px] text-muted-foreground hover:text-rose-500 cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFetchModels}
+                    disabled={fetchingModels}
+                    className="h-6 text-[11px] border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs"
+                  >
+                    <RefreshCw size={10} className={`mr-1 ${fetchingModels ? "animate-spin" : ""}`} />
+                    <span>Scan Models</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Add manual model */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newLMModelInput}
+                  onChange={(e) => setNewLMModelInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddLMModel()}
+                  placeholder="Add local model ID (e.g. qwen3-vl-8b)..."
+                  className="flex-1 bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono placeholder:text-muted-foreground shadow-xs"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddLMModel}
+                  disabled={!newLMModelInput.trim()}
+                  className="h-6 text-[11px] cursor-pointer"
+                >
+                  <Plus size={10} className="mr-1" /> Add
+                </Button>
+              </div>
+
+              {availableModels.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-0.5">
+                  {availableModels.map((m) => {
+                    const isCurrentPrimary = config.llm.provider === "lmstudio" && config.llm.model === m;
+                    return (
+                      <div
+                        key={m}
+                        className={`p-2 rounded border text-xs font-mono flex items-center justify-between ${
+                          isCurrentPrimary ? "bg-primary/10 border-primary/40" : "bg-card border-border/70"
+                        }`}
+                      >
+                        <span className="truncate pr-2 font-medium" title={m}>{m}</span>
+                        <div className="flex items-center gap-1 shrink-0 font-sans">
+                          <button
+                            type="button"
+                            onClick={() => assignDetectedModel(m, "primary")}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
+                              isCurrentPrimary ? "bg-emerald-500 text-white" : "bg-primary/15 text-primary hover:bg-primary/25"
+                            }`}
+                          >
+                            {isCurrentPrimary ? "Active" : "Primary"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => assignDetectedModel(m, "vision")}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-500 hover:bg-violet-500/25 cursor-pointer"
+                          >
+                            Vision
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLMModel(m)}
+                            className="p-1 rounded text-muted-foreground hover:text-rose-500 cursor-pointer"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Local GPU Models List Card with Full Interactive Controls */}
-          <div className="p-4 rounded-xl border border-border bg-card space-y-3.5 shadow-xs">
-            <div className="flex items-center justify-between">
+          {/* 2. OLLAMA LOCAL SERVER CARD */}
+          <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
-                <Layers size={15} className="text-primary" />
+                <Terminal size={16} className="text-amber-500" />
                 <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Loaded GPU Models ({availableModels.length})
+                  Ollama Local Server
+                </span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono">
+                  Port: 11434 (Local)
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {availableModels.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAvailableModels([]);
-                      if (typeof window !== "undefined") {
-                        localStorage.removeItem("omweb_scanned_models");
-                      }
-                      showToast.info("List Cleared", "GPU models list cleared.");
-                    }}
-                    className="text-[11px] text-muted-foreground hover:text-rose-500 cursor-pointer"
-                  >
-                    Clear All
-                  </button>
+                {ollamaSettings.status === "online" && (
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 size={12} /> Connected ({ollamaSettings.latency} ms)
+                  </span>
                 )}
+                {ollamaSettings.status === "offline" && (
+                  <span className="text-[11px] text-rose-500 flex items-center gap-1 font-medium">
+                    <XCircle size={12} /> {ollamaSettings.lastError || "Unreachable"}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                    Ollama Base URL
+                  </label>
+                  <input
+                    type="text"
+                    value={ollamaSettings.baseUrl}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOllamaSettings({ ...ollamaSettings, baseUrl: val });
+                      if (config.llm.provider === "ollama") {
+                        const b = val.endsWith("/v1") ? val : `${val}/v1`;
+                        setConfig((p) => ({ ...p, llm: { ...p.llm, base_url: b } }));
+                      }
+                    }}
+                    placeholder="http://127.0.0.1:11434"
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                    Default Ollama Model
+                  </label>
+                  <input
+                    type="text"
+                    value={ollamaSettings.model}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOllamaSettings({ ...ollamaSettings, model: val });
+                      if (config.llm.provider === "ollama") {
+                        setConfig((p) => ({ ...p, llm: { ...p.llm, model: val } }));
+                      }
+                    }}
+                    placeholder="e.g. llama3.2, qwen2.5, deepseek-r1"
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleFetchModels}
-                  disabled={fetchingModels}
+                  onClick={handleTestOllama}
+                  disabled={testingId === "ollama"}
                   className="h-7 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs"
                 >
-                  <RefreshCw size={11} className={`mr-1.5 ${fetchingModels ? "animate-spin" : ""}`} />
-                  <span>Scan Models</span>
+                  <Zap size={11} className={`text-amber-500 mr-1 ${testingId === "ollama" ? "animate-spin" : ""}`} />
+                  <span>{testingId === "ollama" ? "Testing..." : "Test Connection"}</span>
+                </Button>
+
+                {ollamaSettings.model && (
+                  <Button
+                    onClick={() => {
+                      const b = ollamaSettings.baseUrl.endsWith("/v1") ? ollamaSettings.baseUrl : `${ollamaSettings.baseUrl}/v1`;
+                      activateEngine("ollama", "Ollama (Local)", ollamaSettings.model, b, "", "");
+                    }}
+                    className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium cursor-pointer shadow-xs"
+                  >
+                    Set as Active Primary
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Discovered Ollama Models Sub-card */}
+            <div className="p-3.5 rounded-lg border border-border/80 bg-background/50 space-y-3 pt-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers size={14} className="text-amber-500" />
+                  <span className="text-xs font-semibold text-foreground">
+                    Ollama Models ({ollamaSettings.savedModels?.length || 0})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {ollamaSettings.savedModels && ollamaSettings.savedModels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearOllama}
+                      className="text-[11px] text-muted-foreground hover:text-rose-500 cursor-pointer"
+                      title="Clear Ollama models and remove from engine selector"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleScanOllama}
+                    disabled={scanningOllama}
+                    className="h-6 text-[11px] border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs"
+                  >
+                    <RefreshCw size={10} className={`mr-1 ${scanningOllama ? "animate-spin" : ""}`} />
+                    <span>Scan Models</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Add manual Ollama model */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newOllamaModelInput}
+                  onChange={(e) => setNewOllamaModelInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddOllamaModel()}
+                  placeholder="Add Ollama model ID (e.g. deepseek-r1:7b)..."
+                  className="flex-1 bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono placeholder:text-muted-foreground shadow-xs"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddOllamaModel}
+                  disabled={!newOllamaModelInput.trim()}
+                  className="h-6 text-[11px] cursor-pointer"
+                >
+                  <Plus size={10} className="mr-1" /> Add
                 </Button>
               </div>
-            </div>
 
-            {/* Quick Add Custom Model Input */}
-            <div className="flex items-center gap-2 pt-1 border-t border-border/50">
-              <input
-                type="text"
-                value={newModelInput}
-                onChange={(e) => setNewModelInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddLocalModel()}
-                placeholder="Add local model ID manually (e.g. qwen2.5-coder:7b)..."
-                className="flex-1 bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono placeholder:text-muted-foreground shadow-xs"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handleAddLocalModel}
-                disabled={!newModelInput.trim()}
-                className="h-7 text-xs cursor-pointer"
-              >
-                <Plus size={11} className="mr-1" />
-                <span>Add</span>
-              </Button>
-            </div>
-
-            {availableModels.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1">
-                {availableModels.map((m) => {
-                  const isCurrentPrimary = config.llm.provider === "lmstudio" && config.llm.model === m;
-                  const isCurrentVision = config.llm_vision.provider === "lmstudio" && config.llm_vision.model === m;
-                  return (
-                    <div
-                      key={m}
-                      className={`p-2.5 rounded-lg border text-xs font-mono flex items-center justify-between transition-all ${
-                        isCurrentPrimary
-                          ? "bg-primary/5 border-primary/40 shadow-2xs"
-                          : "bg-background border-border/70 hover:border-border"
-                      }`}
-                    >
-                      <span className="truncate pr-2 font-medium" title={m}>
-                        {m}
-                      </span>
-                      <div className="flex items-center gap-1 shrink-0 font-sans">
-                        <button
-                          type="button"
-                          onClick={() => assignDetectedModel(m, "primary")}
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
-                            isCurrentPrimary
-                              ? "bg-emerald-500 text-white"
-                              : "bg-primary/10 text-primary hover:bg-primary/20"
-                          }`}
-                          title="Set as Active Primary Autonomous Engine"
-                        >
-                          {isCurrentPrimary ? "Active" : "Primary"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => assignDetectedModel(m, "vision")}
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
-                            isCurrentVision
-                              ? "bg-violet-600 text-white"
-                              : "bg-violet-500/10 text-violet-500 hover:bg-violet-500/20"
-                          }`}
-                          title="Set as Visual Perception Engine"
-                        >
-                          Vision
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveLocalModel(m)}
-                          className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer transition-colors"
-                          title="Remove from list"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+              {ollamaSettings.savedModels && ollamaSettings.savedModels.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-0.5">
+                  {ollamaSettings.savedModels.map((m) => {
+                    const isCurrentPrimary = config.llm.provider === "ollama" && config.llm.model === m;
+                    return (
+                      <div
+                        key={m}
+                        className={`p-2 rounded border text-xs font-mono flex items-center justify-between ${
+                          isCurrentPrimary ? "bg-amber-500/10 border-amber-500/40" : "bg-card border-border/70"
+                        }`}
+                      >
+                        <span className="truncate pr-2 font-medium" title={m}>{m}</span>
+                        <div className="flex items-center gap-1 shrink-0 font-sans">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const b = ollamaSettings.baseUrl.endsWith("/v1") ? ollamaSettings.baseUrl : `${ollamaSettings.baseUrl}/v1`;
+                              setOllamaSettings((p) => ({ ...p, model: m }));
+                              activateEngine("ollama", "Ollama (Local)", m, b, "", "");
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
+                              isCurrentPrimary ? "bg-emerald-500 text-white" : "bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25"
+                            }`}
+                          >
+                            {isCurrentPrimary ? "Active" : "Primary"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveOllamaModel(m)}
+                            className="p-1 rounded text-muted-foreground hover:text-rose-500 cursor-pointer"
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-lg">
-                <span>No GPU models discovered yet. Click &quot;Scan Models&quot; to fetch loaded models from LM Studio.</span>
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-4 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-lg">
+                  <span>No Ollama models found. Start Ollama and click &quot;Scan Models&quot; to detect local models.</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 3: CLOUD & OLLAMA PROVIDERS */}
+      {/* SUB-TAB 3: CLOUD PROVIDERS */}
       {/* ========================================================================= */}
       {activeSubTab === "cloud" && (
         <div className="space-y-4">
@@ -864,7 +1205,6 @@ export function LLMTab({
 
             return (
               <div key={cp.id} className="p-4 rounded-xl border border-border bg-card space-y-3.5 shadow-xs">
-                {/* Header */}
                 <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-foreground">{cp.name}</span>
@@ -927,7 +1267,6 @@ export function LLMTab({
                   </div>
                 </div>
 
-                {/* Form Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                   <div>
                     <label className="text-[10px] font-medium text-muted-foreground block mb-0.5">Model</label>
@@ -1018,7 +1357,6 @@ export function LLMTab({
                   </div>
                 </div>
 
-                {/* Error Banner when Connection Fails */}
                 {cp.status === "offline" && cp.lastError && (
                   <div className="p-2 rounded bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-1.5">
                     <ShieldAlert size={13} className="shrink-0" />
@@ -1026,7 +1364,6 @@ export function LLMTab({
                   </div>
                 )}
 
-                {/* Actions Row */}
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex items-center gap-2">
                     <Button
@@ -1045,7 +1382,7 @@ export function LLMTab({
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        if (cp.id !== "ollama" && !cp.apiKey.trim()) {
+                        if (!cp.apiKey.trim()) {
                           showToast.warning(`${cp.name} API Key Required`, "Please enter an API key before scanning models.");
                           return;
                         }

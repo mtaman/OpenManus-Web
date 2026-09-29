@@ -12,9 +12,11 @@ import { ToastContainer, showToast } from "@/components/ui/ToastNotification";
 import {
   INITIAL_CLOUD_PROVIDERS,
   INITIAL_LMSTUDIO_SETTINGS,
+  INITIAL_OLLAMA_SETTINGS,
   type SettingsTab,
   type CloudProviderVaultItem,
   type LMStudioSettings,
+  type OllamaSettings,
   type CustomEndpoint,
   type FullAppConfig
 } from "./setup/types";
@@ -30,6 +32,7 @@ export default function SettingsPage() {
   const initialLoadedRef = useRef<string>("");
 
   const [lmStudioSettings, setLmStudioSettings] = useState<LMStudioSettings>(INITIAL_LMSTUDIO_SETTINGS);
+  const [ollamaSettings, setOllamaSettings] = useState<OllamaSettings>(INITIAL_OLLAMA_SETTINGS);
   const [cloudProviders, setCloudProviders] = useState<CloudProviderVaultItem[]>(INITIAL_CLOUD_PROVIDERS);
   const [customEndpoints, setCustomEndpoints] = useState<CustomEndpoint[]>([
     {
@@ -106,7 +109,7 @@ export default function SettingsPage() {
 
   const [systemInfo, setSystemInfo] = useState<any>(null);
 
-  const currentSnapshot = JSON.stringify({ config, lmStudioSettings, cloudProviders, customEndpoints });
+  const currentSnapshot = JSON.stringify({ config, lmStudioSettings, ollamaSettings, cloudProviders, customEndpoints });
   const isDirty = initialLoadedRef.current !== "" && initialLoadedRef.current !== currentSnapshot;
 
   const getApiUrl = (endpoint: string) => `http://localhost:8088${endpoint}`;
@@ -126,6 +129,7 @@ export default function SettingsPage() {
 
         let storedCloud = INITIAL_CLOUD_PROVIDERS;
         let storedLM = INITIAL_LMSTUDIO_SETTINGS;
+        let storedOllama = INITIAL_OLLAMA_SETTINGS;
         let storedCustom = customEndpoints;
 
         if (typeof window !== "undefined") {
@@ -140,19 +144,7 @@ export default function SettingsPage() {
             } catch (e) {}
           }
 
-          const sc = localStorage.getItem("omweb_cloud_vault");
-          if (sc) {
-            try {
-              const parsed = JSON.parse(sc);
-              if (Array.isArray(parsed)) {
-                storedCloud = INITIAL_CLOUD_PROVIDERS.map((base) => {
-                  const match = parsed.find((p: any) => p.id === base.id);
-                  return match ? { ...base, ...match } : base;
-                });
-              }
-            } catch (e) {}
-          }
-
+          // Restore LM Studio Vault
           const sl = localStorage.getItem("omweb_lmstudio_vault");
           if (sl) {
             try {
@@ -164,6 +156,31 @@ export default function SettingsPage() {
             } catch (e) {}
           }
 
+          // Restore Ollama Vault
+          const so = localStorage.getItem("omweb_ollama_vault");
+          if (so) {
+            try {
+              const parsedOllama = JSON.parse(so);
+              storedOllama = { ...INITIAL_OLLAMA_SETTINGS, ...parsedOllama };
+            } catch (e) {}
+          }
+
+          // Restore Cloud Vault (Filter out any legacy dummy ollama)
+          const sc = localStorage.getItem("omweb_cloud_vault");
+          if (sc) {
+            try {
+              const parsed = JSON.parse(sc);
+              if (Array.isArray(parsed)) {
+                const cleanCloud = parsed.filter((p: any) => p.id !== "ollama");
+                storedCloud = INITIAL_CLOUD_PROVIDERS.map((base) => {
+                  const match = cleanCloud.find((p: any) => p.id === base.id);
+                  return match ? { ...base, ...match } : base;
+                });
+              }
+            } catch (e) {}
+          }
+
+          // Restore Custom Endpoints
           const sCust = localStorage.getItem("omweb_custom_endpoints");
           if (sCust) {
             try {
@@ -235,10 +252,17 @@ export default function SettingsPage() {
         };
 
         setLmStudioSettings(storedLM);
+        setOllamaSettings(storedOllama);
         setCloudProviders(storedCloud);
         setCustomEndpoints(storedCustom);
         setConfig(loadedConfig);
-        initialLoadedRef.current = JSON.stringify({ config: loadedConfig, lmStudioSettings: storedLM, cloudProviders: storedCloud, customEndpoints: storedCustom });
+        initialLoadedRef.current = JSON.stringify({
+          config: loadedConfig,
+          lmStudioSettings: storedLM,
+          ollamaSettings: storedOllama,
+          cloudProviders: storedCloud,
+          customEndpoints: storedCustom
+        });
 
         if (typeof window !== "undefined") {
           localStorage.setItem("omweb_active_model", loadedConfig.llm.model);
@@ -273,6 +297,7 @@ export default function SettingsPage() {
       const parsed = JSON.parse(initialLoadedRef.current);
       setConfig(parsed.config);
       setLmStudioSettings(parsed.lmStudioSettings);
+      setOllamaSettings(parsed.ollamaSettings || INITIAL_OLLAMA_SETTINGS);
       setCloudProviders(parsed.cloudProviders);
       setCustomEndpoints(parsed.customEndpoints);
       showToast.info("Changes Reverted", "Restored last saved vault configuration.");
@@ -296,6 +321,8 @@ export default function SettingsPage() {
 
     if (providerId === "lmstudio") {
       setLmStudioSettings((prev) => ({ ...prev, model, baseUrl, apiKey }));
+    } else if (providerId === "ollama") {
+      setOllamaSettings((prev) => ({ ...prev, model, baseUrl }));
     }
 
     if (typeof window !== "undefined") {
@@ -427,13 +454,18 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveStatus(null);
     try {
-      // Synchronize active LLM if provider is LM Studio
       const activeLlm = { ...config.llm };
       if (activeLlm.provider === "lmstudio") {
         activeLlm.model = lmStudioSettings.model;
         activeLlm.base_url = lmStudioSettings.baseUrl;
         activeLlm.api_key = lmStudioSettings.apiKey;
         activeLlm.provider_name = "LM Studio (Local)";
+      } else if (activeLlm.provider === "ollama") {
+        activeLlm.model = ollamaSettings.model;
+        const b = ollamaSettings.baseUrl.trim().rstrip ? ollamaSettings.baseUrl.trim().replace(/\/+$/, "") : ollamaSettings.baseUrl.trim();
+        activeLlm.base_url = b.endsWith("/v1") ? b : `${b}/v1`;
+        activeLlm.api_key = "";
+        activeLlm.provider_name = "Ollama (Local)";
       }
 
       const llmDict: any = { ...activeLlm };
@@ -473,6 +505,7 @@ export default function SettingsPage() {
         initialLoadedRef.current = JSON.stringify({
           config: { ...config, llm: activeLlm },
           lmStudioSettings: updatedLM,
+          ollamaSettings,
           cloudProviders,
           customEndpoints
         });
@@ -485,6 +518,7 @@ export default function SettingsPage() {
           localStorage.setItem("omweb_active_provider", activeLlm.provider_name);
           localStorage.setItem("omweb_cloud_vault", JSON.stringify(cloudProviders));
           localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(updatedLM));
+          localStorage.setItem("omweb_ollama_vault", JSON.stringify(ollamaSettings));
           localStorage.setItem("omweb_scanned_models", JSON.stringify(availableModels));
           localStorage.setItem("omweb_custom_endpoints", JSON.stringify(customEndpoints));
           localStorage.setItem("omweb_active_llm_override", JSON.stringify({
@@ -536,6 +570,8 @@ export default function SettingsPage() {
             setConfig={setConfig}
             lmStudioSettings={lmStudioSettings}
             setLmStudioSettings={setLmStudioSettings}
+            ollamaSettings={ollamaSettings}
+            setOllamaSettings={setOllamaSettings}
             cloudProviders={cloudProviders}
             setCloudProviders={setCloudProviders}
             customEndpoints={customEndpoints}

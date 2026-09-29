@@ -29,13 +29,14 @@ export function EngineSelector() {
   const [activeCustomEndpoints, setActiveCustomEndpoints] = useState<any[]>([]);
   const [lmStudioItem, setLmStudioItem] = useState<any>(null);
   const [localGPUModels, setLocalGPUModels] = useState<string[]>([]);
+  const [ollamaItem, setOllamaItem] = useState<any>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const loadRealProviders = () => {
     if (typeof window === "undefined") return;
 
-    // 1. Load Local GPU (LM Studio) Vault & Scanned Models
+    // 1. Load LM Studio Local Models
     try {
       const storedLM = JSON.parse(localStorage.getItem("omweb_lmstudio_vault") || "null");
       const scanned = JSON.parse(localStorage.getItem("omweb_scanned_models") || "[]");
@@ -55,14 +56,27 @@ export function EngineSelector() {
       });
     } catch (e) {}
 
-    // 2. Load Cloud Providers that have a real, saved API Key or are local (Ollama)
+    // 2. Load Ollama ONLY IF it has saved/scanned models
+    try {
+      const storedOllama = JSON.parse(localStorage.getItem("omweb_ollama_vault") || "null");
+      if (storedOllama && Array.isArray(storedOllama.savedModels) && storedOllama.savedModels.length > 0) {
+        setOllamaItem(storedOllama);
+      } else {
+        setOllamaItem(null);
+      }
+    } catch (e) {
+      setOllamaItem(null);
+    }
+
+    // 3. Load Cloud Providers (STRICT: API Key must be non-empty, and NOT Ollama)
     try {
       const storedCloud = JSON.parse(localStorage.getItem("omweb_cloud_vault") || "[]");
       if (Array.isArray(storedCloud)) {
         const configuredOnly = storedCloud.filter(
           (cp: any) =>
-            cp.id === "ollama" ||
-            (typeof cp.apiKey === "string" && cp.apiKey.trim() !== "")
+            cp.id !== "ollama" &&
+            typeof cp.apiKey === "string" &&
+            cp.apiKey.trim() !== ""
         );
         setActiveCloudProviders(configuredOnly);
       } else {
@@ -72,7 +86,7 @@ export function EngineSelector() {
       setActiveCloudProviders([]);
     }
 
-    // 3. Load Custom Endpoints configured by user
+    // 4. Load Custom Endpoints configured by user
     try {
       const storedCustom = JSON.parse(localStorage.getItem("omweb_custom_endpoints") || "[]");
       if (Array.isArray(storedCustom)) {
@@ -84,7 +98,7 @@ export function EngineSelector() {
       setActiveCustomEndpoints([]);
     }
 
-    // 4. Restore active selection
+    // 5. Restore active selection
     const savedModel = localStorage.getItem("omweb_active_model");
     const savedProvider = localStorage.getItem("omweb_active_provider");
     if (savedModel) setActiveModel(savedModel);
@@ -153,7 +167,7 @@ export function EngineSelector() {
             <Server size={11} />
           </div>
 
-          {/* 1. Local Hardware GPU (LM Studio) Models */}
+          {/* 1. LM STUDIO LOCAL GPU SECTION */}
           <div className="rounded-md bg-muted/20 border border-border/40 p-1.5 space-y-1">
             <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-semibold text-foreground">
               <span className="flex items-center gap-1.5">
@@ -196,11 +210,57 @@ export function EngineSelector() {
             </div>
           </div>
 
-          {/* 2. Cloud Providers & Ollama (Grouped Hierarchically) */}
+          {/* 2. OLLAMA LOCAL SECTION (STRICT: RENDERED ONLY IF MODELS ARE SAVED) */}
+          {ollamaItem && ollamaItem.savedModels && ollamaItem.savedModels.length > 0 && (
+            <div className="rounded-md bg-muted/20 border border-border/40 p-1.5 space-y-1">
+              <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-semibold text-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Terminal size={12} className="text-amber-500" />
+                  <span>Ollama (Local Server)</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {ollamaItem.savedModels.length} {ollamaItem.savedModels.length === 1 ? "model" : "models"}
+                </span>
+              </div>
+
+              <div className="space-y-0.5 pl-3">
+                {ollamaItem.savedModels.map((m: string) => {
+                  const isSelected = activeProvider.includes("Ollama") && activeModel === m;
+                  const bUrl = ollamaItem.baseUrl.endsWith("/v1") ? ollamaItem.baseUrl : `${ollamaItem.baseUrl}/v1`;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() =>
+                        handleSelectEngine({
+                          model: m,
+                          provider: "ollama",
+                          provider_name: "Ollama (Local)",
+                          base_url: bUrl,
+                          api_key: "",
+                          api_type: ""
+                        })
+                      }
+                      className={`w-full flex items-center justify-between px-2 py-1 rounded text-xs text-left transition-colors cursor-pointer ${
+                        isSelected
+                          ? "bg-primary/10 text-primary font-medium border border-primary/30"
+                          : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span className="font-mono truncate">{m}</span>
+                      {isSelected && <Check size={12} className="text-primary shrink-0 ml-1" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 3. ACTIVE CLOUD PROVIDERS (Grouped Hierarchically) */}
           {activeCloudProviders.length > 0 && (
             <div className="pt-1 border-t border-border/40 space-y-1.5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
-                Cloud Providers & Ollama
+                Cloud Providers & Saved Models
               </span>
               {activeCloudProviders.map((cp) => {
                 const modelsList = cp.savedModels && cp.savedModels.length > 0 ? cp.savedModels : [cp.model];
@@ -251,7 +311,7 @@ export function EngineSelector() {
             </div>
           )}
 
-          {/* 3. Custom Endpoints */}
+          {/* 4. CUSTOM ENDPOINTS */}
           {activeCustomEndpoints.length > 0 && (
             <div className="pt-1 border-t border-border/40 space-y-1.5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
