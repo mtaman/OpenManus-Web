@@ -905,7 +905,7 @@ export default function StorageArtifactsHubPage() {
                 Cancel
               </Button>
               <Button
-                variant={confirmModal.danger ? "destructive" : "default"}
+                variant={confirmModal.danger ? "danger" : "primary"}
                 size="sm"
                 onClick={confirmModal.onConfirm}
                 className="h-8 text-xs cursor-pointer"

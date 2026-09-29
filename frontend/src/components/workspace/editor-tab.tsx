@@ -204,11 +204,11 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
     <div className="flex flex-col h-full bg-[#0d1117] text-slate-100 font-sans select-text">
       <div className="h-10 border-b border-[#30363d] bg-[#161b22] px-3.5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <FileCode size={14} className="text-primary shrink-0" />
-          <span className="font-mono text-xs font-semibold text-foreground/90 truncate max-w-[180px]">
+          <FileCode size={14} className="text-primary text-[#305CDE] shrink-0" />
+          <span className="font-mono text-xs font-semibold  truncate max-w-[180px] color-[#eee]">
             {filePath || "draft-snippet"}
           </span>
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted/60 text-muted-foreground border border-border/40 shrink-0">
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#DEB230]/30  border border-border/40 shrink-0 color-[#ccc]">
             {displayLang}
           </span>
           <span className="text-[11px] font-mono text-muted-foreground hidden sm:inline">

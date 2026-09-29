@@ -1,10 +1,7 @@
 ﻿"use client";
 
 import React from "react";
-import { useTranslation } from "react-i18next";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { LanguageToggle } from "@/components/ui/language-toggle";
-import { Cpu, CheckCircle2, Activity } from "lucide-react";
+import { Cpu, Activity } from "lucide-react";
 
 interface HeaderProps {
   status?: "idle" | "running" | "ready" | "completed" | "error";
@@ -13,12 +10,10 @@ interface HeaderProps {
 }
 
 export function Header({
-  status = "ready",
+  status = "idle",
   sessionTitle = "New Autonomous Session",
   stepCount,
 }: HeaderProps) {
-  const { t } = useTranslation();
-
   return (
     <header className="h-14 border-b border-border bg-card/70 backdrop-blur-md px-5 flex items-center justify-between z-10 transition-colors">
       {/* Left: Session Title & Agent Status Indicator */}
@@ -30,36 +25,29 @@ export function Header({
           </span>
         </div>
 
-        {/* Semantic Status Badge */}
-        <div className="hidden sm:flex items-center gap-1.5">
-          {status === "running" ? (
+        {/* Semantic Status Badge — Only visible when actively RUNNING */}
+        {status === "running" && (
+          <div className="hidden sm:flex items-center gap-1.5">
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-mono font-medium bg-manus-warning/15 text-manus-warning border border-manus-warning/30">
               <span className="w-1.5 h-1.5 rounded-full bg-manus-warning animate-pulse" />
               <span>RUNNING</span>
             </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-mono font-medium bg-manus-success/15 text-manus-success border border-manus-success/30">
-              <span className="w-1.5 h-1.5 rounded-full bg-manus-success" />
-              <span>READY</span>
-            </span>
-          )}
 
-          {typeof stepCount === "number" && (
-            <span className="text-[11px] font-mono text-muted-foreground px-1.5 py-0.5 rounded-sm bg-background border border-border">
-              Step {stepCount}
-            </span>
-          )}
-        </div>
+            {typeof stepCount === "number" && (
+              <span className="text-[11px] font-mono text-muted-foreground px-1.5 py-0.5 rounded-sm bg-background border border-border">
+                Step {stepCount}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Right: Controls & Toggles */}
-      <div className="flex items-center gap-2.5 shrink-0">
-        <div className="hidden md:flex items-center gap-1.5 text-xs text-muted-foreground font-mono mr-2">
+      {/* Right: Core Connectivity Indicator Only */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
           <Activity className="h-3.5 w-3.5 text-manus-success animate-pulse" />
           <span>Core Online</span>
         </div>
-        <ThemeToggle />
-        <LanguageToggle />
       </div>
     </header>
   );

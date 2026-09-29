@@ -15,6 +15,7 @@ import {
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LanguageToggle } from "@/components/ui/language-toggle";
 
 const navItems = [
   { href: "/chat", icon: MessageSquare, label: "Chat" },
@@ -41,7 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground font-sans">
       {/* 64px Primary Icon Rail (Manus Architecture) */}
       <aside className="w-16 h-full flex flex-col items-center justify-between py-3 border-r border-border bg-card/60 backdrop-blur-md z-30 shrink-0 select-none">
-        {/* Brand Logo */}
+        {/* Brand Logo & Navigation */}
         <div className="flex flex-col items-center gap-4">
           <Link
             href="/chat"
@@ -55,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             />
           </Link>
 
-          {/* Navigation Rail */}
+          {/* Navigation Rail Links */}
           <nav className="flex flex-col gap-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -82,20 +83,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        {/* Toggle secondary sidebar button */}
+        {/* Rail Bottom Controls: PanelLeft Toggle + ThemeToggle + LanguageToggle */}
         <div className="flex flex-col items-center gap-2">
+          {/* Toggle secondary sidebar button */}
           <button
             type="button"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-            className="w-10 h-10 mb-2 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+            className="w-10 h-10 mb-1 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
           >
             {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
           </button>
 
-          {/* Bottom Rail Actions */}
+          {/* Bottom Actions: Theme & Language */}
           <div className="flex flex-col items-center gap-2 pt-2 border-t border-border/60">
             <ThemeToggle />
+            <LanguageToggle compact={true} />
           </div>
         </div>
       </aside>
@@ -103,7 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* 260px Secondary Sidebar (Collapsible) */}
       {isSidebarOpen && <Sidebar />}
 
-      {/* Main Workspace Area with Header */}
+      {/* Main Workspace Area with Clean Header */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
         <Header />
         <main className="flex-1 min-h-0 overflow-hidden relative flex">
