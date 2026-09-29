@@ -9,7 +9,6 @@ import {
   Server,
   ChevronDown,
   Check,
-  Settings,
   Plus
 } from "lucide-react";
 
@@ -29,47 +28,41 @@ export function EngineSelector() {
   const [activeCloudProviders, setActiveCloudProviders] = useState<any[]>([]);
   const [activeCustomEndpoints, setActiveCustomEndpoints] = useState<any[]>([]);
   const [lmStudioItem, setLmStudioItem] = useState<any>(null);
-  const [backendConfig, setBackendConfig] = useState<any>(null);
+  const [localGPUModels, setLocalGPUModels] = useState<string[]>([]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const loadRealProviders = async () => {
+  const loadRealProviders = () => {
     if (typeof window === "undefined") return;
 
-    // 1. Fetch Backend Default Configuration from config.toml
-    try {
-      const res = await fetch("/api/config");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.llm) {
-          setBackendConfig(data.llm);
-        }
-      }
-    } catch (err) {
-      console.warn("Could not fetch backend /api/config:", err);
-    }
-
-    // 2. Load Local GPU (LM Studio) Vault
+    // 1. Load Local GPU (LM Studio) Vault & Scanned Models
     try {
       const storedLM = JSON.parse(localStorage.getItem("omweb_lmstudio_vault") || "null");
-      if (storedLM) {
-        setLmStudioItem(storedLM);
-      } else {
-        setLmStudioItem({
-          baseUrl: "http://127.0.0.1:1234/v1",
-          model: "qwen3-vl-8b-instruct",
-          apiKey: ""
-        });
-      }
+      const scanned = JSON.parse(localStorage.getItem("omweb_scanned_models") || "[]");
+
+      const baseModel = storedLM?.model || "qwen3-vl-8b-instruct";
+      const combined = Array.from(new Set([
+        baseModel,
+        ...(Array.isArray(scanned) ? scanned : []),
+        ...(storedLM?.savedModels && Array.isArray(storedLM.savedModels) ? storedLM.savedModels : [])
+      ])).filter(Boolean);
+
+      setLocalGPUModels(combined);
+      setLmStudioItem(storedLM || {
+        baseUrl: "http://127.0.0.1:1234/v1",
+        model: baseModel,
+        apiKey: ""
+      });
     } catch (e) {}
 
-    // 3. Load ONLY Cloud Providers that have a real, saved API Key
+    // 2. Load Cloud Providers that have a real, saved API Key or are local (Ollama)
     try {
       const storedCloud = JSON.parse(localStorage.getItem("omweb_cloud_vault") || "[]");
       if (Array.isArray(storedCloud)) {
-        // Filter strictly: API key must be non-empty string
         const configuredOnly = storedCloud.filter(
-          (cp: any) => typeof cp.apiKey === "string" && cp.apiKey.trim() !== ""
+          (cp: any) =>
+            cp.id === "ollama" ||
+            (typeof cp.apiKey === "string" && cp.apiKey.trim() !== "")
         );
         setActiveCloudProviders(configuredOnly);
       } else {
@@ -79,7 +72,7 @@ export function EngineSelector() {
       setActiveCloudProviders([]);
     }
 
-    // 4. Load Custom Endpoints configured by user
+    // 3. Load Custom Endpoints configured by user
     try {
       const storedCustom = JSON.parse(localStorage.getItem("omweb_custom_endpoints") || "[]");
       if (Array.isArray(storedCustom)) {
@@ -91,7 +84,7 @@ export function EngineSelector() {
       setActiveCustomEndpoints([]);
     }
 
-    // 5. Restore current active selection
+    // 4. Restore active selection
     const savedModel = localStorage.getItem("omweb_active_model");
     const savedProvider = localStorage.getItem("omweb_active_provider");
     if (savedModel) setActiveModel(savedModel);
@@ -142,7 +135,7 @@ export function EngineSelector() {
           setIsOpen(!isOpen);
         }}
         className="inline-flex items-center gap-2 h-7 px-2.5 text-xs font-mono rounded-md border border-border bg-card hover:bg-muted text-foreground transition-all shadow-manus-xs cursor-pointer"
-        title="Select Active AI Provider and Model"
+        title="Select Active AI Provider & Model"
       >
         <span className="relative flex h-2 w-2 shrink-0">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -154,122 +147,162 @@ export function EngineSelector() {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-1.5 left-0 w-80 bg-card border border-border rounded-lg shadow-xl p-2 z-50 space-y-2.5 max-h-84 overflow-y-auto font-sans animate-in fade-in">
+        <div className="absolute top-full mt-1.5 left-0 w-88 bg-card border border-border rounded-lg shadow-xl p-2 z-50 space-y-2.5 max-h-96 overflow-y-auto font-sans animate-in fade-in">
           <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/60 flex items-center justify-between">
-            <span>Verified AI Providers</span>
+            <span>Verified AI Providers & Models</span>
             <Server size={11} />
           </div>
 
-          {/* 1. Local GPU (LM Studio) Provider */}
-          <div>
-            <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
-              Local Hardware GPU
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                handleSelectEngine({
-                  model: lmStudioItem?.model || "qwen3-vl-8b-instruct",
-                  provider: "lmstudio",
-                  provider_name: "LM Studio (Local)",
-                  base_url: lmStudioItem?.baseUrl || "http://127.0.0.1:1234/v1",
-                  api_key: lmStudioItem?.apiKey || "",
-                  api_type: ""
-                })
-              }
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-left hover:bg-muted text-foreground cursor-pointer transition-colors"
-            >
-              <div>
-                <span className="font-semibold flex items-center gap-1.5 text-foreground">
-                  <Cpu size={12} className="text-primary" /> LM Studio (Local GPU)
-                </span>
-                <span className="text-[10px] text-muted-foreground font-mono block pl-4 mt-0.5">
-                  {lmStudioItem?.model || "qwen3-vl-8b-instruct"}
-                </span>
-              </div>
-              {activeProvider.includes("LM Studio") && <Check size={13} className="text-emerald-500 shrink-0" />}
-            </button>
+          {/* 1. Local Hardware GPU (LM Studio) Models */}
+          <div className="rounded-md bg-muted/20 border border-border/40 p-1.5 space-y-1">
+            <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-semibold text-foreground">
+              <span className="flex items-center gap-1.5">
+                <Cpu size={12} className="text-primary" />
+                <span>LM Studio (Local GPU)</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {localGPUModels.length} {localGPUModels.length === 1 ? "model" : "models"}
+              </span>
+            </div>
+
+            <div className="space-y-0.5 pl-3">
+              {localGPUModels.map((m) => {
+                const isSelected = activeProvider.includes("LM Studio") && activeModel === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() =>
+                      handleSelectEngine({
+                        model: m,
+                        provider: "lmstudio",
+                        provider_name: "LM Studio (Local)",
+                        base_url: lmStudioItem?.baseUrl || "http://127.0.0.1:1234/v1",
+                        api_key: lmStudioItem?.apiKey || "",
+                        api_type: ""
+                      })
+                    }
+                    className={`w-full flex items-center justify-between px-2 py-1 rounded text-xs text-left transition-colors cursor-pointer ${
+                      isSelected
+                        ? "bg-primary/10 text-primary font-medium border border-primary/30"
+                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span className="font-mono truncate">{m}</span>
+                    {isSelected && <Check size={12} className="text-primary shrink-0 ml-1" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* 2. Real Cloud Providers (Rendered ONLY if API Key is configured) */}
+          {/* 2. Cloud Providers & Ollama (Grouped Hierarchically) */}
           {activeCloudProviders.length > 0 && (
-            <div className="pt-1 border-t border-border/40">
+            <div className="pt-1 border-t border-border/40 space-y-1.5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
-                Active Cloud Providers
+                Cloud Providers & Ollama
               </span>
-              {activeCloudProviders.map((cp) => (
-                <button
-                  key={cp.id}
-                  type="button"
-                  onClick={() =>
-                    handleSelectEngine({
-                      model: cp.model,
-                      provider: cp.id,
-                      provider_name: cp.name,
-                      base_url: cp.baseUrl,
-                      api_key: cp.apiKey,
-                      api_type: cp.type || ""
-                    })
-                  }
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-left hover:bg-muted text-foreground cursor-pointer transition-colors"
-                >
-                  <div>
-                    <span className="font-medium flex items-center gap-1.5 text-foreground">
-                      <Cloud size={12} className="text-sky-500" /> {cp.name}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-mono block pl-4 mt-0.5">{cp.model}</span>
+              {activeCloudProviders.map((cp) => {
+                const modelsList = cp.savedModels && cp.savedModels.length > 0 ? cp.savedModels : [cp.model];
+                return (
+                  <div key={cp.id} className="rounded-md bg-muted/20 border border-border/40 p-1.5 space-y-1">
+                    <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-semibold text-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <Cloud size={12} className="text-sky-500" />
+                        <span>{cp.name}</span>
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {modelsList.length} {modelsList.length === 1 ? "model" : "models"}
+                      </span>
+                    </div>
+
+                    <div className="space-y-0.5 pl-3">
+                      {modelsList.map((m: string) => {
+                        const isSelected = activeProvider === cp.name && activeModel === m;
+                        return (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() =>
+                              handleSelectEngine({
+                                model: m,
+                                provider: cp.id,
+                                provider_name: cp.name,
+                                base_url: cp.baseUrl,
+                                apiKey: cp.apiKey,
+                                api_type: cp.type || ""
+                              })
+                            }
+                            className={`w-full flex items-center justify-between px-2 py-1 rounded text-xs text-left transition-colors cursor-pointer ${
+                              isSelected
+                                ? "bg-primary/10 text-primary font-medium border border-primary/30"
+                                : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <span className="font-mono truncate">{m}</span>
+                            {isSelected && <Check size={12} className="text-primary shrink-0 ml-1" />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  {activeProvider === cp.name && <Check size={13} className="text-emerald-500 shrink-0" />}
-                </button>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* 3. Custom Endpoints (User-added servers) */}
+          {/* 3. Custom Endpoints */}
           {activeCustomEndpoints.length > 0 && (
-            <div className="pt-1 border-t border-border/40">
+            <div className="pt-1 border-t border-border/40 space-y-1.5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
                 Custom Endpoints
               </span>
-              {activeCustomEndpoints.map((ce) => (
-                <button
-                  key={ce.id}
-                  type="button"
-                  onClick={() =>
-                    handleSelectEngine({
-                      model: ce.defaultModel,
-                      provider: ce.providerId,
-                      provider_name: ce.name,
-                      base_url: ce.endpointUrl,
-                      api_key: ce.apiKey || "",
-                      api_type: ""
-                    })
-                  }
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-left hover:bg-muted text-foreground cursor-pointer transition-colors"
-                >
-                  <div>
-                    <span className="font-medium flex items-center gap-1.5 text-foreground">
-                      <Terminal size={12} className="text-amber-500" /> {ce.name}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-mono block pl-4 mt-0.5">{ce.defaultModel}</span>
-                  </div>
-                  {activeProvider === ce.name && <Check size={13} className="text-emerald-500 shrink-0" />}
-                </button>
-              ))}
-            </div>
-          )}
+              {activeCustomEndpoints.map((ce) => {
+                const modelsList = ce.savedModels && ce.savedModels.length > 0 ? ce.savedModels : [ce.defaultModel];
+                return (
+                  <div key={ce.id} className="rounded-md bg-muted/20 border border-border/40 p-1.5 space-y-1">
+                    <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-semibold text-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <Terminal size={12} className="text-amber-500" />
+                        <span>{ce.name}</span>
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {modelsList.length} {modelsList.length === 1 ? "model" : "models"}
+                      </span>
+                    </div>
 
-          {/* 4. Settings Shortcut if no Cloud API keys are configured */}
-          {activeCloudProviders.length === 0 && (
-            <div className="p-2 rounded bg-muted/40 border border-border/50 text-[11px] text-muted-foreground flex items-center justify-between">
-              <span>No Cloud API Keys configured yet.</span>
-              <Link
-                href="/settings"
-                onClick={() => setIsOpen(false)}
-                className="inline-flex items-center gap-1 text-primary hover:underline font-medium text-[10px]"
-              >
-                <Plus size={10} /> Add in Settings
-              </Link>
+                    <div className="space-y-0.5 pl-3">
+                      {modelsList.map((m: string) => {
+                        const isSelected = activeProvider === ce.name && activeModel === m;
+                        return (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() =>
+                              handleSelectEngine({
+                                model: m,
+                                provider: ce.providerId,
+                                provider_name: ce.name,
+                                base_url: ce.endpointUrl,
+                                apiKey: ce.apiKey || "",
+                                api_type: ""
+                              })
+                            }
+                            className={`w-full flex items-center justify-between px-2 py-1 rounded text-xs text-left transition-colors cursor-pointer ${
+                              isSelected
+                                ? "bg-primary/10 text-primary font-medium border border-primary/30"
+                                : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            <span className="font-mono truncate">{m}</span>
+                            {isSelected && <Check size={12} className="text-primary shrink-0 ml-1" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

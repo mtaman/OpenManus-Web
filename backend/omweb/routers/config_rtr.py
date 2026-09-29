@@ -147,25 +147,104 @@ async def test_llm_connection(payload: TestLLMRequest):
 class FetchModelsRequest(BaseModel):
     base_url: str
     api_key: Optional[str] = ""
+    provider_type: Optional[str] = ""
+    provider_id: Optional[str] = ""
 
 @router.post("/fetch-models")
 async def fetch_available_models(payload: FetchModelsRequest):
-    api_key = payload.api_key
+    """Fetch live available model IDs from Local GPU or Cloud AI Providers."""
+    api_key = payload.api_key or ""
     if api_key and "••••" in api_key:
         current = read_raw_config()
         api_key = current.get("llm", {}).get("api_key", "")
 
-    base = payload.base_url.rstrip("/")
+    base = payload.base_url.strip().rstrip("/")
+    p_id = (payload.provider_id or "").lower()
+    p_type = (payload.provider_type or "").lower()
+
+    # 1. ANTHROPIC CLAUDE PROTOCOL
+    if "anthropic" in p_id or "anthropic" in p_type or "anthropic.com" in base:
+        if not api_key:
+            return {"ok": False, "error": "Anthropic API key required for scanning models", "models": []}
+        url = "https://api.anthropic.com/v1/models"
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01"
+        }
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    model_ids = [m["id"] for m in data.get("data", []) if "id" in m]
+                    return {"ok": True, "models": sorted(list(set(model_ids)))}
+                return {"ok": False, "error": f"Anthropic error {resp.status_code}: {resp.text[:150]}", "models": []}
+        except Exception as e:
+            return {"ok": False, "error": f"Anthropic connection error: {str(e)}", "models": []}
+
+    # 2. GOOGLE GEMINI PROTOCOL
+    if "gemini" in p_id or "google" in p_id or "googleapis.com" in base:
+        if not api_key:
+            return {"ok": False, "error": "Google Gemini API key required for scanning models", "models": []}
+        gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(gemini_url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_models = data.get("models", [])
+                    model_ids = [
+                        m["name"].replace("models/", "")
+                        for m in raw_models
+                        if "name" in m and (
+                            not m.get("supportedGenerationMethods") or
+                            "generateContent" in m.get("supportedGenerationMethods", [])
+                        )
+                    ]
+                    chat_models = [m for m in model_ids if not any(x in m for x in ["embedding", "aqa", "imagen"])]
+                    return {"ok": True, "models": sorted(list(set(chat_models or model_ids)))}
+        except Exception:
+            pass
+
+        # 2.5 OLLAMA PROTOCOL (Local Port 11434 or Provider Ollama)
+    if "ollama" in p_id or "ollama" in p_type or "11434" in base:
+        # Try native Ollama /api/tags
+        tags_url = f"{base}/api/tags" if not base.endswith("/api/tags") else base
+        if "/v1" in tags_url:
+            tags_url = tags_url.replace("/v1", "") + "/api/tags"
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                resp = await client.get(tags_url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_tags = data.get("models", [])
+                    models = [m["name"] for m in raw_tags if "name" in m]
+                    if models:
+                        return {"ok": True, "models": sorted(list(set(models)))}
+        except Exception:
+            pass
+
+    # 3. OPENAI-COMPATIBLE PROTOCOL (LM Studio, DeepSeek/PPIO, Groq, Ollama, OpenAI)
     url = base if base.endswith("/models") else f"{base}/models"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        async with httpx.AsyncClient(timeout=6.0) as client:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
-                model_ids = [m["id"] for m in data.get("data", []) if "id" in m]
-                return {"ok": True, "models": model_ids}
+                raw_list = data.get("data", []) or data.get("models", [])
+                model_ids = []
+                for m in raw_list:
+                    if isinstance(m, dict):
+                        m_id = m.get("id") or m.get("name")
+                        if m_id:
+                            model_ids.append(str(m_id))
+                    elif isinstance(m, str):
+                        model_ids.append(m)
+
+                clean_ids = [m for m in model_ids if not any(x in m.lower() for x in ["tts-", "whisper-", "embedding", "dall-e"])]
+                return {"ok": True, "models": sorted(list(set(clean_ids or model_ids)))}
+            return {"ok": False, "error": f"Server returned HTTP {resp.status_code}: {resp.text[:150]}", "models": []}
     except Exception as e:
-        return {"ok": False, "error": str(e), "models": []}
-    return {"ok": False, "models": []}
+        return {"ok": False, "error": f"Failed to connect to endpoint: {str(e)}", "models": []}

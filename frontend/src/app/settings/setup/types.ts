@@ -19,6 +19,7 @@ export interface CustomEndpoint {
   latency?: number;
   lastError?: string;
   useForNewChats?: boolean;
+  savedModels?: string[];
 }
 
 export interface CloudProviderVaultItem {
@@ -29,11 +30,12 @@ export interface CloudProviderVaultItem {
   apiKey: string;
   model: string;
   popularModels: string[];
-  badge: "Cloud" | "Enterprise";
+  badge: "Cloud" | "Enterprise" | "Local";
   keyPrefixHint: string;
   status: ProviderConnectionStatus;
   latency?: number;
   lastError?: string;
+  savedModels?: string[];
 }
 
 export interface LMStudioSettings {
@@ -43,6 +45,7 @@ export interface LMStudioSettings {
   status: ProviderConnectionStatus;
   latency?: number;
   lastError?: string;
+  savedModels?: string[];
 }
 
 export interface LLMConfig {
@@ -130,6 +133,20 @@ export interface FullAppConfig {
 
 export const INITIAL_CLOUD_PROVIDERS: CloudProviderVaultItem[] = [
   {
+    id: "ollama",
+    name: "Ollama (Local Server)",
+    type: "",
+    baseUrl: "http://127.0.0.1:11434/v1",
+    apiKey: "ollama",
+    model: "llama3.2",
+    popularModels: ["llama3.2", "qwen2.5", "deepseek-r1", "mistral", "phi4"],
+    badge: "Local",
+    keyPrefixHint: "Ollama runs locally without an API key (port 11434)",
+    status: "untested",
+    savedModels: []
+  },
+
+  {
     id: "google",
     name: "Google Gemini",
     type: "",
@@ -197,3 +214,4 @@ export const INITIAL_LMSTUDIO_SETTINGS: LMStudioSettings = {
   model: "qwen3-vl-8b-instruct",
   status: "untested"
 };
+

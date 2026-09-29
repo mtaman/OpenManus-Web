@@ -42,8 +42,9 @@ export default function SettingsPage() {
       contextWindow: "Auto",
       apiKey: "",
       status: "untested",
-      useForNewChats: true
-    }
+      useForNewChats: true,
+      savedModels: []
+    },
   ]);
 
   const [config, setConfig] = useState<FullAppConfig>({
@@ -128,6 +129,17 @@ export default function SettingsPage() {
         let storedCustom = customEndpoints;
 
         if (typeof window !== "undefined") {
+          // Restore Scanned GPU Models
+          const sm = localStorage.getItem("omweb_scanned_models");
+          if (sm) {
+            try {
+              const parsedModels = JSON.parse(sm);
+              if (Array.isArray(parsedModels) && parsedModels.length > 0) {
+                setAvailableModels(parsedModels);
+              }
+            } catch (e) {}
+          }
+
           const sc = localStorage.getItem("omweb_cloud_vault");
           if (sc) {
             try {
@@ -140,12 +152,18 @@ export default function SettingsPage() {
               }
             } catch (e) {}
           }
+
           const sl = localStorage.getItem("omweb_lmstudio_vault");
           if (sl) {
             try {
-              storedLM = JSON.parse(sl);
+              const parsedLM = JSON.parse(sl);
+              storedLM = { ...INITIAL_LMSTUDIO_SETTINGS, ...parsedLM };
+              if (parsedLM.savedModels && Array.isArray(parsedLM.savedModels) && parsedLM.savedModels.length > 0) {
+                setAvailableModels((prev) => (prev.length > 0 ? prev : parsedLM.savedModels));
+              }
             } catch (e) {}
           }
+
           const sCust = localStorage.getItem("omweb_custom_endpoints");
           if (sCust) {
             try {
@@ -157,7 +175,7 @@ export default function SettingsPage() {
 
         const loadedConfig: FullAppConfig = {
           llm: {
-            provider: cfg.llm?.provider || "lmstudio",
+            provider: cfg.llm?.provider || storedLM.provider || "lmstudio",
             provider_name: cfg.llm?.provider_name || "LM Studio (Local)",
             model: cfg.llm?.model || storedLM.model,
             base_url: cfg.llm?.base_url || storedLM.baseUrl,
@@ -248,16 +266,6 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchConfig();
     fetchSystemInfo();
-
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (initialLoadedRef.current !== "" && initialLoadedRef.current !== JSON.stringify({ config, lmStudioSettings, cloudProviders, customEndpoints })) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
   const handleReset = () => {
@@ -285,23 +293,32 @@ export default function SettingsPage() {
         max_tokens: 8192
       }
     }));
+
+    if (providerId === "lmstudio") {
+      setLmStudioSettings((prev) => ({ ...prev, model, baseUrl, apiKey }));
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("omweb_active_model", model);
+      localStorage.setItem("omweb_active_provider", providerName);
+      localStorage.setItem("omweb_active_llm_override", JSON.stringify({
+        model,
+        provider: providerId,
+        provider_name: providerName,
+        base_url: baseUrl,
+        api_key: apiKey,
+        api_type: apiType || ""
+      }));
+      window.dispatchEvent(new CustomEvent("omweb:model-change", {
+        detail: { model, provider_name: providerName }
+      }));
+    }
+
     showToast.success("Active Engine Set", `${providerName} (${model}) is now primary.`);
   };
 
   const deactivateToDefault = () => {
-    setConfig((prev) => ({
-      ...prev,
-      llm: {
-        ...prev.llm,
-        provider: "lmstudio",
-        provider_name: "LM Studio (Local)",
-        model: lmStudioSettings.model,
-        base_url: lmStudioSettings.baseUrl,
-        api_key: lmStudioSettings.apiKey,
-        api_type: "",
-        max_tokens: 8192
-      }
-    }));
+    activateEngine("lmstudio", "LM Studio (Local)", lmStudioSettings.model, lmStudioSettings.baseUrl, lmStudioSettings.apiKey, "");
     showToast.info("Reverted to Local Engine", "LM Studio (Local GPU) is now active primary.");
   };
 
@@ -326,14 +343,25 @@ export default function SettingsPage() {
       const res = await fetch(getApiUrl("/api/config/fetch-models"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base_url: lmStudioSettings.baseUrl, api_key: lmStudioSettings.apiKey }),
+        body: JSON.stringify({
+          base_url: lmStudioSettings.baseUrl,
+          api_key: lmStudioSettings.apiKey,
+          provider_id: "lmstudio"
+        }),
       });
       const data = await res.json();
       if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
         setAvailableModels(data.models);
-        showToast.success("Models Detected", `Retrieved ${data.models.length} local models!`);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("omweb_scanned_models", JSON.stringify(data.models));
+          const sl = localStorage.getItem("omweb_lmstudio_vault");
+          const vault = sl ? JSON.parse(sl) : { ...lmStudioSettings };
+          vault.savedModels = data.models;
+          localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(vault));
+        }
+        showToast.success("Models Detected", `Retrieved ${data.models.length} local GPU models!`);
       } else {
-        const msg = data.message || "No models returned from local endpoint.";
+        const msg = data.message || data.error || "No models returned from local endpoint.";
         setScanError(msg);
         showToast.warning("Scan Notice", msg);
       }
@@ -348,11 +376,49 @@ export default function SettingsPage() {
 
   const assignDetectedModel = (modelName: string, target: "primary" | "vision") => {
     if (target === "primary") {
-      setConfig((p) => ({ ...p, llm: { ...p.llm, model: modelName } }));
+      setConfig((p) => ({
+        ...p,
+        llm: {
+          ...p.llm,
+          model: modelName,
+          provider: "lmstudio",
+          provider_name: "LM Studio (Local)",
+          base_url: lmStudioSettings.baseUrl
+        }
+      }));
       setLmStudioSettings((p) => ({ ...p, model: modelName }));
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("omweb_active_model", modelName);
+        localStorage.setItem("omweb_active_provider", "LM Studio (Local)");
+        localStorage.setItem("omweb_active_llm_override", JSON.stringify({
+          model: modelName,
+          provider: "lmstudio",
+          provider_name: "LM Studio (Local)",
+          base_url: lmStudioSettings.baseUrl,
+          api_key: lmStudioSettings.apiKey,
+          api_type: ""
+        }));
+        const sl = localStorage.getItem("omweb_lmstudio_vault");
+        const vault = sl ? JSON.parse(sl) : { ...lmStudioSettings };
+        vault.model = modelName;
+        localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(vault));
+        window.dispatchEvent(new CustomEvent("omweb:model-change", {
+          detail: { model: modelName, provider_name: "LM Studio (Local)" }
+        }));
+      }
       showToast.success("Primary Model Set", modelName);
     } else {
-      setConfig((p) => ({ ...p, llm_vision: { ...p.llm_vision, model: modelName } }));
+      setConfig((p) => ({
+        ...p,
+        llm_vision: {
+          ...p.llm_vision,
+          model: modelName,
+          provider: "lmstudio",
+          provider_name: "LM Studio (Local)",
+          base_url: lmStudioSettings.baseUrl
+        }
+      }));
       showToast.info("Vision Model Set", modelName);
     }
   };
@@ -361,9 +427,18 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveStatus(null);
     try {
-      const llmDict: any = { ...config.llm };
+      // Synchronize active LLM if provider is LM Studio
+      const activeLlm = { ...config.llm };
+      if (activeLlm.provider === "lmstudio") {
+        activeLlm.model = lmStudioSettings.model;
+        activeLlm.base_url = lmStudioSettings.baseUrl;
+        activeLlm.api_key = lmStudioSettings.apiKey;
+        activeLlm.provider_name = "LM Studio (Local)";
+      }
+
+      const llmDict: any = { ...activeLlm };
       llmDict["vision"] = config.llm_vision;
-      llmDict.max_tokens = sanitizeTokens(config.llm.max_tokens);
+      llmDict.max_tokens = sanitizeTokens(activeLlm.max_tokens);
 
       const payload = {
         llm: llmDict,
@@ -390,16 +465,39 @@ export default function SettingsPage() {
       });
 
       if (res.ok) {
-        initialLoadedRef.current = JSON.stringify({ config, lmStudioSettings, cloudProviders, customEndpoints });
+        const updatedLM = {
+          ...lmStudioSettings,
+          savedModels: availableModels
+        };
+
+        initialLoadedRef.current = JSON.stringify({
+          config: { ...config, llm: activeLlm },
+          lmStudioSettings: updatedLM,
+          cloudProviders,
+          customEndpoints
+        });
+
         setSaveStatus({ ok: true, message: "Configuration saved to config.toml!" });
-        showToast.success("Saved Successfully", `Active: ${config.llm.provider_name} (${config.llm.model})`);
+        showToast.success("Saved Successfully", `Active: ${activeLlm.provider_name} (${activeLlm.model})`);
 
         if (typeof window !== "undefined") {
-          localStorage.setItem("omweb_active_model", config.llm.model);
-          localStorage.setItem("omweb_active_provider", config.llm.provider_name);
+          localStorage.setItem("omweb_active_model", activeLlm.model);
+          localStorage.setItem("omweb_active_provider", activeLlm.provider_name);
           localStorage.setItem("omweb_cloud_vault", JSON.stringify(cloudProviders));
-          localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(lmStudioSettings));
+          localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(updatedLM));
+          localStorage.setItem("omweb_scanned_models", JSON.stringify(availableModels));
           localStorage.setItem("omweb_custom_endpoints", JSON.stringify(customEndpoints));
+          localStorage.setItem("omweb_active_llm_override", JSON.stringify({
+            model: activeLlm.model,
+            provider: activeLlm.provider,
+            provider_name: activeLlm.provider_name,
+            base_url: activeLlm.base_url,
+            api_key: activeLlm.api_key,
+            api_type: activeLlm.api_type || ""
+          }));
+          window.dispatchEvent(new CustomEvent("omweb:model-change", {
+            detail: { model: activeLlm.model, provider_name: activeLlm.provider_name }
+          }));
         }
 
         setTimeout(() => setSaveStatus(null), 4000);
@@ -443,6 +541,7 @@ export default function SettingsPage() {
             customEndpoints={customEndpoints}
             setCustomEndpoints={setCustomEndpoints}
             availableModels={availableModels}
+            setAvailableModels={setAvailableModels}
             fetchingModels={fetchingModels}
             scanError={scanError}
             handleFetchModels={handleFetchModels}
@@ -452,7 +551,6 @@ export default function SettingsPage() {
             testEndpoint={testEndpoint}
           />
         )}
-
         {activeTab === "browser" && <BrowserTab config={config} setConfig={setConfig} />}
         {activeTab === "search" && <SearchTab config={config} setConfig={setConfig} />}
         {activeTab === "sandbox" && <SandboxTab config={config} setConfig={setConfig} />}

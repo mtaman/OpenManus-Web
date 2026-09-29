@@ -5,10 +5,12 @@ import {
   Sparkles, Layers, RefreshCw, Check, AlertTriangle,
   Zap, Bot, Plus, ArrowUpCircle, Trash2, Eye, EyeOff, Sliders,
   Search, CheckCircle2, ShieldCheck, KeyRound, Globe, Server, Radio,
-  HelpCircle, XCircle, ShieldAlert, Cpu, Cloud, Terminal, RotateCcw
+  HelpCircle, XCircle, ShieldAlert, Cpu, Cloud, Terminal, RotateCcw,
+  X, CheckSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { showToast } from "@/components/ui/ToastNotification";
+import { ModelDiscoveryModal } from "../ModelDiscoveryModal";
 import type {
   HubSubTab,
   CustomEndpoint,
@@ -28,6 +30,7 @@ interface LLMTabProps {
   customEndpoints: CustomEndpoint[];
   setCustomEndpoints: React.Dispatch<React.SetStateAction<CustomEndpoint[]>>;
   availableModels: string[];
+  setAvailableModels: React.Dispatch<React.SetStateAction<string[]>>;
   fetchingModels: boolean;
   scanError: string | null;
   handleFetchModels: () => void;
@@ -47,6 +50,7 @@ export function LLMTab({
   customEndpoints,
   setCustomEndpoints,
   availableModels,
+  setAvailableModels,
   fetchingModels,
   scanError,
   handleFetchModels,
@@ -60,6 +64,18 @@ export function LLMTab({
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testingAll, setTestingAll] = useState(false);
+  const [newModelInput, setNewModelInput] = useState("");
+
+  // Model Discovery Target State (For Cloud & Custom Endpoints)
+  const [discoveryTarget, setDiscoveryTarget] = useState<{
+    id: string;
+    name: string;
+    baseUrl: string;
+    apiKey: string;
+    type?: string;
+    savedModels?: string[];
+    isCustom?: boolean;
+  } | null>(null);
 
   // New/Edit Custom Endpoint Form State
   const [endpointForm, setEndpointForm] = useState<{
@@ -84,18 +100,6 @@ export function LLMTab({
 
   const [showKeys, setShowKeys] = useState<{ [id: string]: boolean }>({});
 
-  const tokenPresets = [4096, 8192, 16384, 32768, 65536, 131072];
-
-  const categories = [
-    { id: "all", label: "All Models" },
-    { id: "qwen", label: "Qwen" },
-    { id: "deepseek", label: "DeepSeek" },
-    { id: "claude", label: "Claude" },
-    { id: "gpt", label: "GPT / OpenAI" },
-    { id: "glm", label: "GLM" },
-    { id: "gemini", label: "Gemini" },
-  ];
-
   const toggleKey = (id: string) => {
     setShowKeys((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -107,20 +111,101 @@ export function LLMTab({
     return clean;
   };
 
-  const filteredModels = useMemo(() => {
-    return availableModels.filter((m) => {
-      const matchSearch = m.toLowerCase().includes(modelSearch.toLowerCase().trim());
-      if (!matchSearch) return false;
-      if (selectedCategory === "all") return true;
-      if (selectedCategory === "qwen") return m.toLowerCase().includes("qwen");
-      if (selectedCategory === "deepseek") return m.toLowerCase().includes("deepseek");
-      if (selectedCategory === "claude") return m.toLowerCase().includes("claude");
-      if (selectedCategory === "gpt") return m.toLowerCase().includes("gpt");
-      if (selectedCategory === "glm") return m.toLowerCase().includes("glm");
-      if (selectedCategory === "gemini") return m.toLowerCase().includes("gemini");
-      return true;
-    });
-  }, [availableModels, modelSearch, selectedCategory]);
+  const handleAddLocalModel = () => {
+    const trimmed = newModelInput.trim();
+    if (!trimmed) return;
+    if (availableModels.includes(trimmed)) {
+      showToast.info("Model Exists", "This model is already in the list.");
+      return;
+    }
+    const updated = [...availableModels, trimmed];
+    setAvailableModels(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("omweb_scanned_models", JSON.stringify(updated));
+      const sl = localStorage.getItem("omweb_lmstudio_vault");
+      const vault = sl ? JSON.parse(sl) : { ...lmStudioSettings };
+      vault.savedModels = updated;
+      localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(vault));
+    }
+    setNewModelInput("");
+    showToast.success("Model Added", trimmed);
+  };
+
+  const handleRemoveLocalModel = (modelToRemove: string) => {
+    const updated = availableModels.filter((m) => m !== modelToRemove);
+    setAvailableModels(updated);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("omweb_scanned_models", JSON.stringify(updated));
+      const sl = localStorage.getItem("omweb_lmstudio_vault");
+      const vault = sl ? JSON.parse(sl) : { ...lmStudioSettings };
+      vault.savedModels = updated;
+      localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(vault));
+    }
+    showToast.info("Model Removed", modelToRemove);
+  };
+
+  const handleSaveDiscovered = (selectedModels: string[], primaryModel?: string) => {
+    if (!discoveryTarget) return;
+
+    if (discoveryTarget.isCustom) {
+      setCustomEndpoints((prev) =>
+        prev.map((ce) =>
+          ce.id === discoveryTarget.id
+            ? {
+                ...ce,
+                savedModels: selectedModels,
+                defaultModel: primaryModel || (selectedModels.length > 0 ? selectedModels[0] : ce.defaultModel)
+              }
+            : ce
+        )
+      );
+      if (typeof window !== "undefined") {
+        try {
+          const stored = JSON.parse(localStorage.getItem("omweb_custom_endpoints") || "[]");
+          const updated = stored.map((ce: any) =>
+            ce.id === discoveryTarget.id
+              ? {
+                  ...ce,
+                  savedModels: selectedModels,
+                  defaultModel: primaryModel || (selectedModels.length > 0 ? selectedModels[0] : ce.defaultModel)
+                }
+              : ce
+          );
+          localStorage.setItem("omweb_custom_endpoints", JSON.stringify(updated));
+        } catch (e) {}
+      }
+    } else {
+      setCloudProviders((prev) =>
+        prev.map((cp) =>
+          cp.id === discoveryTarget.id
+            ? {
+                ...cp,
+                savedModels: selectedModels,
+                model: primaryModel || (selectedModels.length > 0 ? selectedModels[0] : cp.model)
+              }
+            : cp
+        )
+      );
+      if (typeof window !== "undefined") {
+        try {
+          const stored = JSON.parse(localStorage.getItem("omweb_cloud_vault") || "[]");
+          const updated = stored.map((cp: any) =>
+            cp.id === discoveryTarget.id
+              ? {
+                  ...cp,
+                  savedModels: selectedModels,
+                  model: primaryModel || (selectedModels.length > 0 ? selectedModels[0] : cp.model)
+                }
+              : cp
+          );
+          localStorage.setItem("omweb_cloud_vault", JSON.stringify(updated));
+        } catch (e) {}
+      }
+    }
+
+    showToast.success("Models Saved", `Saved ${selectedModels.length} models for${discoveryTarget.name}`);
+    setDiscoveryTarget(null);
+  };
 
   // Test LM Studio Local
   const handleTestLMStudio = async () => {
@@ -143,7 +228,6 @@ export function LLMTab({
     }
   };
 
-  // Test Cloud Provider with Clear User Feedback
   const handleTestCloud = async (providerId: string) => {
     const cp = cloudProviders.find((p) => p.id === providerId);
     if (!cp) return;
@@ -174,7 +258,6 @@ export function LLMTab({
     }
   };
 
-  // Test All Configured Endpoints at Once
   const handleTestAll = async () => {
     setTestingAll(true);
     showToast.info("Health Check Initiated", "Testing all configured AI endpoints...");
@@ -191,7 +274,6 @@ export function LLMTab({
     }
   };
 
-  // Custom Endpoint Actions
   const handleTestCustomForm = async () => {
     setTestingId("custom_form");
     try {
@@ -221,7 +303,8 @@ export function LLMTab({
       contextWindow: endpointForm.contextWindow,
       apiKey: endpointForm.apiKey.trim(),
       status: "untested",
-      useForNewChats: endpointForm.useForNewChats
+      useForNewChats: endpointForm.useForNewChats,
+      savedModels: []
     };
 
     setCustomEndpoints((prev) => [newEndpoint, ...prev]);
@@ -285,7 +368,7 @@ export function LLMTab({
             }`}
           >
             <Cloud size={13} />
-            <span>Cloud Providers</span>
+            <span>Cloud & Ollama</span>
           </button>
 
           <button
@@ -304,11 +387,10 @@ export function LLMTab({
       </div>
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 1: OVERVIEW & OPS (الحالة العامة والتحكم بالتشغيل والتعطيل) */}
+      {/* SUB-TAB 1: OVERVIEW & OPS */}
       {/* ========================================================================= */}
       {activeSubTab === "overview" && (
         <div className="space-y-5">
-          {/* Active Engines Summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-4 rounded-xl border border-primary/50 bg-primary/5 space-y-2 shadow-xs ring-1 ring-primary/20">
               <div className="flex items-center justify-between">
@@ -351,7 +433,6 @@ export function LLMTab({
             </div>
           </div>
 
-          {/* Providers Connectivity Health Matrix */}
           <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div>
@@ -560,7 +641,13 @@ export function LLMTab({
                 <input
                   type="text"
                   value={lmStudioSettings.baseUrl}
-                  onChange={(e) => setLmStudioSettings({ ...lmStudioSettings, baseUrl: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLmStudioSettings({ ...lmStudioSettings, baseUrl: val });
+                    if (config.llm.provider === "lmstudio") {
+                      setConfig((p) => ({ ...p, llm: { ...p.llm, base_url: val } }));
+                    }
+                  }}
                   placeholder="http://127.0.0.1:1234/v1"
                   className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
                 />
@@ -573,7 +660,13 @@ export function LLMTab({
                 <input
                   type="password"
                   value={lmStudioSettings.apiKey}
-                  onChange={(e) => setLmStudioSettings({ ...lmStudioSettings, apiKey: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLmStudioSettings({ ...lmStudioSettings, apiKey: val });
+                    if (config.llm.provider === "lmstudio") {
+                      setConfig((p) => ({ ...p, llm: { ...p.llm, api_key: val } }));
+                    }
+                  }}
                   placeholder="Leave blank for standard local server"
                   className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
                 />
@@ -586,7 +679,13 @@ export function LLMTab({
                 <input
                   type="text"
                   value={lmStudioSettings.model}
-                  onChange={(e) => setLmStudioSettings({ ...lmStudioSettings, model: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLmStudioSettings({ ...lmStudioSettings, model: val });
+                    if (config.llm.provider === "lmstudio") {
+                      setConfig((p) => ({ ...p, llm: { ...p.llm, model: val } }));
+                    }
+                  }}
                   className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground font-mono shadow-xs"
                 />
               </div>
@@ -628,8 +727,8 @@ export function LLMTab({
             </div>
           </div>
 
-          {/* Local Model Discovery Card */}
-          <div className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-xs">
+          {/* Local GPU Models List Card with Full Interactive Controls */}
+          <div className="p-4 rounded-xl border border-border bg-card space-y-3.5 shadow-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Layers size={15} className="text-primary" />
@@ -637,41 +736,116 @@ export function LLMTab({
                   Loaded GPU Models ({availableModels.length})
                 </span>
               </div>
+              <div className="flex items-center gap-2">
+                {availableModels.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAvailableModels([]);
+                      if (typeof window !== "undefined") {
+                        localStorage.removeItem("omweb_scanned_models");
+                      }
+                      showToast.info("List Cleared", "GPU models list cleared.");
+                    }}
+                    className="text-[11px] text-muted-foreground hover:text-rose-500 cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFetchModels}
+                  disabled={fetchingModels}
+                  className="h-7 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs"
+                >
+                  <RefreshCw size={11} className={`mr-1.5 ${fetchingModels ? "animate-spin" : ""}`} />
+                  <span>Scan Models</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Quick Add Custom Model Input */}
+            <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+              <input
+                type="text"
+                value={newModelInput}
+                onChange={(e) => setNewModelInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddLocalModel()}
+                placeholder="Add local model ID manually (e.g. qwen2.5-coder:7b)..."
+                className="flex-1 bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono placeholder:text-muted-foreground shadow-xs"
+              />
               <Button
-                variant="outline"
+                type="button"
                 size="sm"
-                onClick={handleFetchModels}
-                disabled={fetchingModels}
-                className="h-7 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs"
+                variant="outline"
+                onClick={handleAddLocalModel}
+                disabled={!newModelInput.trim()}
+                className="h-7 text-xs cursor-pointer"
               >
-                <RefreshCw size={11} className={`mr-1.5 ${fetchingModels ? "animate-spin" : ""}`} />
-                <span>Scan Models</span>
+                <Plus size={11} className="mr-1" />
+                <span>Add</span>
               </Button>
             </div>
 
-            {availableModels.length > 0 && (
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1">
-                  {availableModels.map((m) => (
-                    <div key={m} className="p-2 rounded border border-border bg-background flex items-center justify-between text-xs font-mono">
-                      <span className="truncate pr-2">{m}</span>
+            {availableModels.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1">
+                {availableModels.map((m) => {
+                  const isCurrentPrimary = config.llm.provider === "lmstudio" && config.llm.model === m;
+                  const isCurrentVision = config.llm_vision.provider === "lmstudio" && config.llm_vision.model === m;
+                  return (
+                    <div
+                      key={m}
+                      className={`p-2.5 rounded-lg border text-xs font-mono flex items-center justify-between transition-all ${
+                        isCurrentPrimary
+                          ? "bg-primary/5 border-primary/40 shadow-2xs"
+                          : "bg-background border-border/70 hover:border-border"
+                      }`}
+                    >
+                      <span className="truncate pr-2 font-medium" title={m}>
+                        {m}
+                      </span>
                       <div className="flex items-center gap-1 shrink-0 font-sans">
                         <button
+                          type="button"
                           onClick={() => assignDetectedModel(m, "primary")}
-                          className="px-1.5 py-0.5 rounded text-[10px] bg-primary/10 text-primary font-medium hover:bg-primary/20"
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                            isCurrentPrimary
+                              ? "bg-emerald-500 text-white"
+                              : "bg-primary/10 text-primary hover:bg-primary/20"
+                          }`}
+                          title="Set as Active Primary Autonomous Engine"
                         >
-                          Primary
+                          {isCurrentPrimary ? "Active" : "Primary"}
                         </button>
                         <button
+                          type="button"
                           onClick={() => assignDetectedModel(m, "vision")}
-                          className="px-1.5 py-0.5 rounded text-[10px] bg-violet-500/10 text-violet-500 font-medium hover:bg-violet-500/20"
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all cursor-pointer ${
+                            isCurrentVision
+                              ? "bg-violet-600 text-white"
+                              : "bg-violet-500/10 text-violet-500 hover:bg-violet-500/20"
+                          }`}
+                          title="Set as Visual Perception Engine"
                         >
                           Vision
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLocalModel(m)}
+                          className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                          title="Remove from list"
+                        >
+                          <Trash2 size={12} />
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-6 text-center text-xs text-muted-foreground bg-muted/20 border border-dashed border-border rounded-lg">
+                <span>No GPU models discovered yet. Click &quot;Scan Models&quot; to fetch loaded models from LM Studio.</span>
               </div>
             )}
           </div>
@@ -679,7 +853,7 @@ export function LLMTab({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 3: CLOUD PROVIDERS (ترقية كاملة: قوائم النماذج، تشخيص الخطأ، وفحص حقيقي) */}
+      {/* SUB-TAB 3: CLOUD & OLLAMA PROVIDERS */}
       {/* ========================================================================= */}
       {activeSubTab === "cloud" && (
         <div className="space-y-4">
@@ -698,7 +872,6 @@ export function LLMTab({
                       {cp.badge}
                     </span>
 
-                    {/* Status Pill */}
                     {cp.status === "online" && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                         <CheckCircle2 size={11} /> Connected ({cp.latency} ms)
@@ -756,12 +929,17 @@ export function LLMTab({
 
                 {/* Form Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                  {/* Model with Quick Selector Dropdown */}
                   <div>
                     <label className="text-[10px] font-medium text-muted-foreground block mb-0.5">Model</label>
                     <div className="space-y-1">
                       <select
-                        value={cp.popularModels.includes(cp.model) ? cp.model : "custom"}
+                        value={
+                          cp.savedModels && cp.savedModels.includes(cp.model)
+                            ? cp.model
+                            : cp.popularModels.includes(cp.model)
+                            ? cp.model
+                            : "custom"
+                        }
                         onChange={(e) => {
                           if (e.target.value !== "custom") {
                             setCloudProviders((prev) =>
@@ -771,9 +949,18 @@ export function LLMTab({
                         }}
                         className="w-full bg-background border border-border rounded px-2.5 py-1 text-xs text-foreground font-mono shadow-xs focus:ring-1 focus:ring-primary"
                       >
-                        {cp.popularModels.map((m) => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
+                        {cp.savedModels && cp.savedModels.length > 0 && (
+                          <optgroup label="Discovered & Saved Models">
+                            {cp.savedModels.map((m) => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Popular Presets">
+                          {cp.popularModels.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </optgroup>
                         <option value="custom">-- Custom Model ID --</option>
                       </select>
 
@@ -839,18 +1026,50 @@ export function LLMTab({
                   </div>
                 )}
 
-                {/* Actions */}
+                {/* Actions Row */}
                 <div className="flex items-center justify-between pt-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleTestCloud(cp.id)}
-                    disabled={isTestingThis}
-                    className="h-6 px-2.5 text-[10px] border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs flex items-center gap-1"
-                  >
-                    <Zap size={10} className={`text-amber-500 ${isTestingThis ? "animate-spin" : ""}`} />
-                    <span>{isTestingThis ? "Verifying..." : "Test Connection"}</span>
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTestCloud(cp.id)}
+                      disabled={isTestingThis}
+                      className="h-7 px-2.5 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs flex items-center gap-1"
+                    >
+                      <Zap size={11} className={`text-amber-500 ${isTestingThis ? "animate-spin" : ""}`} />
+                      <span>{isTestingThis ? "Verifying..." : "Test Connection"}</span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (cp.id !== "ollama" && !cp.apiKey.trim()) {
+                          showToast.warning(`${cp.name} API Key Required`, "Please enter an API key before scanning models.");
+                          return;
+                        }
+                        setDiscoveryTarget({
+                          id: cp.id,
+                          name: cp.name,
+                          baseUrl: cp.baseUrl,
+                          apiKey: cp.apiKey,
+                          type: cp.type,
+                          savedModels: cp.savedModels || [],
+                          isCustom: false
+                        });
+                      }}
+                      className="h-7 px-2.5 text-xs border-border bg-card hover:bg-muted text-foreground cursor-pointer shadow-xs flex items-center gap-1.5"
+                    >
+                      <RefreshCw size={11} className="text-primary" />
+                      <span>Scan Models</span>
+                      {cp.savedModels && cp.savedModels.length > 0 && (
+                        <span className="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-primary/15 text-primary font-mono font-bold">
+                          {cp.savedModels.length}
+                        </span>
+                      )}
+                    </Button>
+                  </div>
 
                   <span className="text-[10px] text-muted-foreground">
                     Credentials isolated to this provider
@@ -863,7 +1082,7 @@ export function LLMTab({
       )}
 
       {/* ========================================================================= */}
-      {/* SUB-TAB 4: CUSTOM ENDPOINTS (تطبيق مطابق 100% للمرجع image_be6941.png) */}
+      {/* SUB-TAB 4: CUSTOM ENDPOINTS */}
       {/* ========================================================================= */}
       {activeSubTab === "custom" && (
         <div className="space-y-6">
@@ -875,7 +1094,6 @@ export function LLMTab({
             <span className="text-foreground font-bold">Custom Endpoints</span>
           </div>
 
-          {/* Existing Endpoints List */}
           <div className="space-y-3">
             {customEndpoints.map((ce) => (
               <div key={ce.id} className="p-4 rounded-xl border border-border bg-card shadow-xs flex items-center justify-between">
@@ -887,12 +1105,36 @@ export function LLMTab({
                     </span>
                   </div>
                   <span className="text-xs text-muted-foreground font-mono block">{ce.endpointUrl}</span>
-                  <span className="text-[10px] text-muted-foreground font-mono block">
-                    {ce.name} &#36;&#123;HERMES_CUSTOM_{ce.providerId.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY&#125;
-                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDiscoveryTarget({
+                        id: ce.id,
+                        name: ce.name,
+                        baseUrl: ce.endpointUrl,
+                        apiKey: ce.apiKey || "",
+                        type: "",
+                        savedModels: ce.savedModels || [],
+                        isCustom: true
+                      });
+                    }}
+                    className="h-8 px-2.5 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-xs flex items-center gap-1"
+                    title="Scan available models for this endpoint"
+                  >
+                    <RefreshCw size={11} className="text-primary" />
+                    <span>Scan</span>
+                    {ce.savedModels && ce.savedModels.length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-primary/15 text-primary font-mono font-bold">
+                        {ce.savedModels.length}
+                      </span>
+                    )}
+                  </Button>
+
                   <Button
                     onClick={() =>
                       activateEngine(ce.providerId, ce.name, ce.defaultModel, ce.endpointUrl, ce.apiKey, "")
@@ -902,6 +1144,7 @@ export function LLMTab({
                     <Zap size={12} />
                     <span>Use</span>
                   </Button>
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -915,7 +1158,6 @@ export function LLMTab({
             ))}
           </div>
 
-          {/* Edit/Add Endpoint Form */}
           <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center gap-2 pb-2 border-b border-border/60">
               <Plus size={14} className="text-primary" />
@@ -1023,10 +1265,6 @@ export function LLMTab({
                   />
                   <span className="text-xs text-foreground">Use for new chats</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="rounded border-border text-primary" />
-                  <span className="text-xs text-foreground">Discover models</span>
-                </label>
               </div>
 
               <div className="flex items-center gap-2.5 pt-3 border-t border-border/60">
@@ -1056,6 +1294,21 @@ export function LLMTab({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Model Discovery Modal */}
+      {discoveryTarget && (
+        <ModelDiscoveryModal
+          isOpen={Boolean(discoveryTarget)}
+          onClose={() => setDiscoveryTarget(null)}
+          providerId={discoveryTarget.id}
+          providerName={discoveryTarget.name}
+          baseUrl={discoveryTarget.baseUrl}
+          apiKey={discoveryTarget.apiKey}
+          providerType={discoveryTarget.type}
+          initialSavedModels={discoveryTarget.savedModels || []}
+          onSaveModels={handleSaveDiscovered}
+        />
       )}
     </div>
   );
