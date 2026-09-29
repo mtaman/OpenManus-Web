@@ -37,7 +37,7 @@ export function ChatSubHeader({
   onToggleRightPanel,
 }: ChatSubHeaderProps) {
   return (
-    <div className="h-12 flex items-center justify-between px-5 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
+    <div className="h-12 flex items-center justify-between px-5  border-border bg-[#ffffff]/1 backdrop-blur-sm shrink-0">
       <div className="flex items-center gap-2.5">
         {isFreshSession ? (
           <EngineSelector />
@@ -54,7 +54,7 @@ export function ChatSubHeader({
         )}
 
         <span className="text-xs font-medium text-foreground truncate max-w-[140px] sm:max-w-xs">
-          {submittedPrompt ? submittedPrompt : (activeChatId ? `Chat ${activeChatId}` : (activeJobId ? `Session ${activeJobId}` : "New Session"))}
+          {submittedPrompt ? submittedPrompt : (activeChatId ? `Chat ${activeChatId}` : (activeJobId ? `Session ${activeJobId}` : " "))}
         </span>
 
         {historyTurnsCount > 0 && (
