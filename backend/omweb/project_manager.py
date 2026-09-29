@@ -250,20 +250,22 @@ class ProjectManager:
         title: str,
         job_id: str,
         prompt: str,
-        events: List[Any],
+        events: list,
         result: str = "",
-        status: str = "running"
-    ) -> Dict[str, Any]:
+        status: str = "running",
+        agent_id: str = "manus"
+    ) -> dict:
         existing = self.get_chat(job_id) or self.get_chat(chat_id)
         if existing:
             prev_pid = existing.get("project_id")
             if prev_pid and prev_pid != "default_project" and (not project_id or project_id == "default_project"):
                 project_id = prev_pid
+            if not agent_id or agent_id == "manus":
+                agent_id = existing.get("agent_id", "manus")
 
         resolved_project_id = project_id or "default_project"
         chat_dir = self.get_chat_dir(chat_id, resolved_project_id)
         chat_dir.mkdir(parents=True, exist_ok=True)
-
         session_file = chat_dir / "session.json"
         events_file = chat_dir / "events.json"
 
@@ -282,6 +284,8 @@ class ProjectManager:
                 created_at = old.get("created_at", now_str)
                 if not result and old.get("result"):
                     result = old.get("result")
+                if not agent_id or agent_id == "manus":
+                    agent_id = old.get("agent_id", "manus")
                 if old.get("status") in ["completed", "failed"] and status == "running":
                     status = old.get("status")
             except Exception:
@@ -293,30 +297,32 @@ class ProjectManager:
             "job_id": job_id,
             "title": title or prompt[:40] or "New Session",
             "prompt": prompt,
+            "agent_id": agent_id,
             "status": status,
             "result": result,
             "created_at": created_at,
             "updated_at": now_str
         }
-
         session_file.write_text(json.dumps(session_data, indent=2, ensure_ascii=False), encoding="utf-8")
         events_file.write_text(json.dumps(final_events, indent=2, ensure_ascii=False), encoding="utf-8")
 
+        # Update central index atomically
         index = self._read_index()
-        chats = [c for c in index.get("chats", []) if _extract_id(c) not in [chat_id, job_id]]
+        chats = index.get("chats", [])
+        chats = [c for c in chats if c.get("id") != chat_id and c.get("job_id") != job_id]
         chats.insert(0, {
             "id": chat_id,
             "job_id": job_id,
             "project_id": resolved_project_id,
             "title": session_data["title"],
             "prompt": prompt,
+            "agent_id": agent_id,
             "status": status,
             "created_at": created_at,
             "updated_at": now_str
         })
         index["chats"] = chats
         self._write_index(index)
-
         return session_data
 
     def get_chat(self, identifier: str) -> Optional[Dict[str, Any]]:

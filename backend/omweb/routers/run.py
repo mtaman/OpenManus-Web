@@ -27,6 +27,7 @@ class RunRequest(BaseModel):
     prompt: str
     project_id: Optional[str] = "default_project"
     max_steps: Optional[int] = 30
+    agent_id: Optional[str] = "manus"
     chat_id: Optional[str] = None
     model: Optional[str] = None
     provider: Optional[str] = None
@@ -157,7 +158,8 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         prompt=prompt,
         events=[],
         result="",
-        status="running"
+        status="running",
+        agent_id=req.agent_id or "manus"
     )
 
     try:

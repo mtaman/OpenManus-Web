@@ -187,9 +187,7 @@ def inject_runtime_llm(agent: Any, active_llm: Dict[str, Any]):
             except Exception as client_err:
                 print(f"[BRIDGE WARNING] Could not rebuild AsyncOpenAI client: {client_err}")
 
-async def run_instrumented(
-    job_id: str, 
-    prompt: str, 
+async def run_instrumented(job_id: str, prompt: str, agent_id: str = "manus", 
     llm_override: Optional[Dict[str, Any]] = None
 ) -> None:
     print(f"\n[BRIDGE] Initializing agent for job: {job_id}")
@@ -229,7 +227,22 @@ async def run_instrumented(
         )
     )
 
+    # Dynamic Sovereign Agent Resolution
+    from omweb.agents.registry import agent_registry
+    manifest = agent_registry.get_agent(agent_id)
+    print(f"[BRIDGE] Activating agent '{manifest['name']}' (ID: {agent_id})")
+
     agent = Manus()
+
+    # Scope tools according to manifest
+    allowed_tools = manifest.get("tools", [])
+    if hasattr(agent, "tools") and isinstance(agent.tools, list):
+        if allowed_tools:
+            agent.tools = [t for t in agent.tools if getattr(t, "name", "").lower() in allowed_tools or t.__class__.__name__.lower() in allowed_tools]
+            print(f"[BRIDGE] Tools scoped to: {[getattr(t, 'name', t.__class__.__name__) for t in agent.tools]}")
+
+    if manifest.get("max_steps"):
+        agent.max_steps = manifest["max_steps"]
     inject_runtime_llm(agent, active_llm)
 
     chat = project_manager.get_chat(job_id) or {}
