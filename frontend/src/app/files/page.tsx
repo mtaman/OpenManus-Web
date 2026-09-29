@@ -514,7 +514,7 @@ export default function StorageArtifactsHubPage() {
             </Button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-6  mx-auto px-10">
             {loadingArtifacts ? (
               <div className="flex flex-col items-center justify-center h-64 text-muted-foreground text-xs font-mono animate-pulse gap-2">
                 <RefreshCw size={18} className="animate-spin text-primary" />
