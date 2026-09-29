@@ -1,17 +1,18 @@
-import os
+﻿import os
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["MPLBACKEND"] = "Agg"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 import sys
-import os
 import json
 import asyncio
 import traceback
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
 from omweb.job_manager import job_manager
@@ -102,17 +103,60 @@ def apply_global_ask_human_patch():
     except Exception as e:
         print(f"[BRIDGE WARNING] Could not patch AskHuman: {e}")
 
-# Apply patch immediately on module load
+def apply_global_python_execute_patch():
+    """Intercept PythonExecute globally in memory to enforce headless Agg backend and timeout."""
+    try:
+        import app.tool.python_execute as py_tool_mod
+        if hasattr(py_tool_mod, "PythonExecute"):
+            cls = py_tool_mod.PythonExecute
+            orig_execute = cls.execute
+            
+            async def patched_execute(self, code: str = "", **kwargs):
+                safe_header = (
+                    "import os, sys\n"
+                    "os.environ['MPLBACKEND'] = 'Agg'\n"
+                    "try:\n"
+                    "    import matplotlib\n"
+                    "    matplotlib.use('Agg')\n"
+                    "    import matplotlib.pyplot as plt\n"
+                    "    plt.show = lambda *args, **kwargs: None\n"
+                    "except Exception:\n"
+                    "    pass\n\n"
+                )
+                wrapped_code = safe_header + code
+                
+                job_id = current_active_job_id.get("current", "")
+                if job_id:
+                    try:
+                        chat = project_manager.get_chat(job_id) or {}
+                        cid = chat.get("id", f"chat_{job_id}")
+                        pid = chat.get("project_id", "default_project")
+                        pdir = project_manager.get_chat_files_dir(cid, pid)
+                        pdir.mkdir(parents=True, exist_ok=True)
+                        os.chdir(str(pdir.resolve()))
+                    except Exception as ex:
+                        print(f"[BRIDGE WARNING] Could not chdir to deliverables: {ex}")
+
+                try:
+                    return await asyncio.wait_for(orig_execute(self, code=wrapped_code, **kwargs), timeout=60.0)
+                except asyncio.TimeoutError:
+                    return "Error: Python execution timed out after 60 seconds."
+            
+            cls.execute = patched_execute
+            print("[BRIDGE] Successfully applied in-memory patch to PythonExecute.execute")
+    except Exception as e:
+        print(f"[BRIDGE WARNING] Could not patch PythonExecute module directly: {e}")
+
+# Apply patches immediately on module load
 apply_global_ask_human_patch()
+apply_global_python_execute_patch()
 
 def inject_runtime_llm(agent: Any, active_llm: Dict[str, Any]):
     """Dynamically inject runtime LLM configuration into the agent instance."""
     model = active_llm.get("model")
     base_url = active_llm.get("base_url")
     api_key = active_llm.get("api_key") or "EMPTY"
-    api_type = active_llm.get("api_type", "")
     
-    # 1. Update global app.config in memory if available
     try:
         import app.config as app_config_mod
         if hasattr(app_config_mod, "config"):
@@ -128,7 +172,6 @@ def inject_runtime_llm(agent: Any, active_llm: Dict[str, Any]):
     except Exception as ex:
         print(f"[BRIDGE] Notice: could not patch app.config directly: {ex}")
 
-    # 2. Update agent instance attributes directly
     if hasattr(agent, "llm"):
         if model and hasattr(agent.llm, "model"):
             agent.llm.model = model
@@ -152,7 +195,6 @@ async def run_instrumented(
     print(f"\n[BRIDGE] Initializing agent for job: {job_id}")
     current_active_job_id["current"] = job_id
     
-    # Resolve active LLM parameters: merge disk config with request override
     toml_cfg = read_active_toml_config()
     active_llm = dict(toml_cfg.get("llm", {}))
     if llm_override:
@@ -188,9 +230,13 @@ async def run_instrumented(
     )
 
     agent = Manus()
-    
-    # Inject active LLM configuration into the agent
     inject_runtime_llm(agent, active_llm)
+
+    chat = project_manager.get_chat(job_id) or {}
+    chat_id = chat.get("id", f"chat_{job_id}")
+    project_id = chat.get("project_id", "default_project")
+    project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
+    project_dir.mkdir(parents=True, exist_ok=True)
 
     original_step = agent.step
     async def instrumented_step():
@@ -213,6 +259,35 @@ async def run_instrumented(
         raw_args = getattr(command.function, "arguments", "{}") if hasattr(command, "function") else "{}"
         curr_step = getattr(agent, "current_step", 1)
         
+        # Inject headless matplotlib protection and cwd jailing for python tools
+        if tool_name in ["python_execute", "python"]:
+            try:
+                args_dict = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
+                orig_code = args_dict.get("code", "")
+                if orig_code:
+                    safe_head = (
+                        "import os, sys\n"
+                        f"try:\n"
+                        f"    os.chdir(r'{str(project_dir.resolve())}')\n"
+                        f"except Exception:\n"
+                        f"    pass\n"
+                        "os.environ['MPLBACKEND'] = 'Agg'\n"
+                        "try:\n"
+                        "    import matplotlib\n"
+                        "    matplotlib.use('Agg')\n"
+                        "    import matplotlib.pyplot as plt\n"
+                        "    plt.show = lambda *args, **kwargs: None\n"
+                        "except Exception:\n"
+                        "    pass\n\n"
+                    )
+                    args_dict["code"] = safe_head + orig_code
+                    if isinstance(raw_args, str):
+                        command.function.arguments = json.dumps(args_dict)
+                    else:
+                        command.function.arguments = args_dict
+            except Exception as patch_err:
+                print(f"[BRIDGE WARNING] Could not inject headless wrapper: {patch_err}")
+
         await dispatch_event(
             job_id,
             SSEEvent(
@@ -222,8 +297,38 @@ async def run_instrumented(
             )
         )
         
-        obs_output = await original_execute_tool(command)
+        # Snapshot files before tool execution
+        files_before: Set[str] = set()
+        if project_dir.exists():
+            files_before = {p.name for p in project_dir.iterdir() if p.is_file()}
+
+        try:
+            if tool_name in ["python_execute", "python"]:
+                obs_output = await asyncio.wait_for(original_execute_tool(command), timeout=60.0)
+            else:
+                obs_output = await original_execute_tool(command)
+        except asyncio.TimeoutError:
+            obs_output = "Error: Tool execution timed out after 60.0 seconds to prevent blocking."
         
+        # Detect new deliverables and dispatch artifact notifications
+        if project_dir.exists():
+            files_after = {p.name for p in project_dir.iterdir() if p.is_file()}
+            new_files = files_after - files_before
+            for nf in new_files:
+                print(f"[BRIDGE] New artifact generated: {nf}")
+                await dispatch_event(
+                    job_id,
+                    SSEEvent(
+                        type=SSEEventType.OBSERVATION,
+                        step=curr_step,
+                        data={
+                            "artifact": nf,
+                            "path": nf,
+                            "chat_id": chat_id, "event": "artifact_created"
+                        }
+                    )
+                )
+
         await dispatch_event(
             job_id,
             SSEEvent(
@@ -238,16 +343,12 @@ async def run_instrumented(
     agent.step = instrumented_step
 
     try:
-        # Enforce isolated chat deliverables directory inside storage repository
-        chat = project_manager.get_chat(job_id) or {}
-        chat_id = chat.get("id", f"chat_{job_id}")
-        project_id = chat.get("project_id", "default_project")
-        project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
-        
         scoped_prompt = (
-            f"[PROJECT CONTEXT]\n"
-            f"You MUST create and save all project files and deliverables strictly inside this directory: "
-            f"{project_dir.resolve()}\n\n"
+            f"[PROJECT WORKSPACE RULES]\n"
+            f"1. Working Directory: Your active directory is already set to: {project_dir.resolve()}\n"
+            f"2. File Deliverables: Save all generated figures, images, charts, and files using clean relative names (e.g. plt.savefig('square.png'), open('output.txt', 'w')). Do NOT construct long absolute paths.\n"
+            f"3. Headless Visualization: This is a non-interactive server environment. NEVER call plt.show() or GUI blocking functions. Always save figures directly to file using plt.savefig('filename.png') and close them.\n"
+            f"4. Live Sandbox: Web applications, UI mockups, and interactive demos should be saved as .html or .svg files so the user can preview them live in the Sandbox tab.\n\n"
             f"[USER PROMPT]\n"
             f"{prompt}"
         )
@@ -270,7 +371,6 @@ async def run_instrumented(
         if current_active_job_id.get("current") == job_id:
             current_active_job_id.pop("current", None)
 
-
 async def run_direct_chat(
     job_id: str,
     prompt: str,
@@ -292,8 +392,6 @@ async def run_direct_chat(
     base_url = active_llm.get("base_url") or "http://127.0.0.1:1234/v1"
     api_key = active_llm.get("api_key") or "EMPTY"
 
-    print(f"[BRIDGE DIRECT CHAT] Provider: [{provider_name}] | Model: '{model_name}' | URL: '{base_url}'")
-
     await asyncio.sleep(0.1)
     await dispatch_event(
         job_id,
@@ -313,18 +411,13 @@ async def run_direct_chat(
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
-        # Retrieve context from previous turns if continuing conversation
         chat = project_manager.get_chat(job_id) or {}
         turns = chat.get("turns", [])
 
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are a helpful, direct, and conversational AI assistant. "
-                    "Respond directly, accurately, and naturally to the user. "
-                    "Do NOT output execution plans, tool call steps, or bash scripts unless explicitly asked."
-                )
+                "content": "You are a helpful, direct, and conversational AI assistant. Respond directly, accurately, and naturally to the user."
             }
         ]
 
@@ -352,12 +445,9 @@ async def run_direct_chat(
         if not result_text:
             result_text = "I received your message, but no content was returned by the model."
 
-        print(f"[BRIDGE DIRECT CHAT] Completed successfully ({len(result_text)} chars) for job: {job_id}")
+        print(f"[BRIDGE DIRECT CHAT] Completed successfully for job: {job_id}")
         job_manager.complete_job(job_id, result_text)
-        await dispatch_event(
-            job_id,
-            SSEEvent(type=SSEEventType.FINAL, step=1, data={"result": result_text})
-        )
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.FINAL, step=1, data={"result": result_text}))
 
     except asyncio.CancelledError:
         print(f"[BRIDGE DIRECT CHAT] Job was cancelled: {job_id}")
@@ -365,13 +455,11 @@ async def run_direct_chat(
         tb = traceback.format_exc()
         print(f"[BRIDGE DIRECT CHAT ERROR] {err}\n{tb}")
         job_manager.fail_job(job_id, str(err))
-        await dispatch_event(
-            job_id,
-            SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": str(err)})
-        )
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": str(err)}))
     finally:
         human_answers.pop(job_id, None)
         human_data.pop(job_id, None)
         active_tasks.pop(job_id, None)
         if current_active_job_id.get("current") == job_id:
             current_active_job_id.pop("current", None)
+

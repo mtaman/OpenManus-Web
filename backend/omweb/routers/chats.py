@@ -1,4 +1,8 @@
-﻿from fastapi import APIRouter, HTTPException
+﻿import os
+import mimetypes
+from pathlib import Path
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 from omweb.project_manager import project_manager
@@ -79,3 +83,65 @@ async def delete_single_chat(chat_id: str):
     actual_id = chat.get("id", chat_id)
     project_manager.delete_chat(actual_id)
     return {"status": "ok", "message": f"Chat {actual_id} deleted"}
+
+@router.get("/{chat_id}/files")
+async def get_chat_files(chat_id: str):
+    chat = project_manager.get_chat(chat_id)
+    project_id = chat.get("project_id", "default_project") if chat else "default_project"
+    files_dir = project_manager.get_chat_files_dir(chat_id, project_id)
+
+    if not files_dir.exists():
+        return {"chat_id": chat_id, "files": []}
+
+    chat_files = []
+    for root, dirs, files in os.walk(files_dir):
+        for f in files:
+            p = Path(root) / f
+            rel = p.relative_to(files_dir)
+            rel_str = str(rel).replace("\\", "/")
+            stat = p.stat()
+            chat_files.append({
+                "name": f,
+                "path": rel_str,
+                "size": stat.st_size,
+                "modified": int(stat.st_mtime)
+            })
+    return {"chat_id": chat_id, "files": chat_files}
+
+@router.get("/{chat_id}/raw/{filepath:path}")
+async def get_chat_raw_file(chat_id: str, filepath: str):
+    chat = project_manager.get_chat(chat_id)
+    project_id = chat.get("project_id", "default_project") if chat else "default_project"
+    files_dir = project_manager.get_chat_files_dir(chat_id, project_id)
+
+    clean_rel = filepath.lstrip("/\\")
+    target = (files_dir / clean_rel).resolve()
+    if not target.is_relative_to(files_dir) or not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found in chat deliverables")
+
+    content_type, _ = mimetypes.guess_type(str(target))
+    ext = target.suffix.lower()
+    if ext == ".css":
+        content_type = "text/css"
+    elif ext in [".js", ".mjs"]:
+        content_type = "application/javascript"
+    elif ext in [".html", ".htm"]:
+        content_type = "text/html"
+    elif ext == ".png":
+        content_type = "image/png"
+    elif ext in [".jpg", ".jpeg"]:
+        content_type = "image/jpeg"
+    elif ext == ".webp":
+        content_type = "image/webp"
+    elif ext == ".svg":
+        content_type = "image/svg+xml"
+    elif ext == ".pdf":
+        content_type = "application/pdf"
+    elif ext == ".mp4":
+        content_type = "video/mp4"
+    elif ext == ".webm":
+        content_type = "video/webm"
+    elif ext in [".mov", ".quicktime"]:
+        content_type = "video/quicktime"
+
+    return FileResponse(target, media_type=content_type or "application/octet-stream")

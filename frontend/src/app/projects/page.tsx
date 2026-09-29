@@ -68,7 +68,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="flex flex-col flex-1 h-full w-full bg-background text-foreground overflow-hidden font-sans">
+    <div className="flex flex-col flex-1 h-full w-full bg-background text-foreground overflow-hidden font-sans ">
       <div className="h-14 flex items-center justify-between px-8 border-b border-border bg-card/40 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
           <Folder className="h-5 w-5 text-manus-accent" />
@@ -83,7 +83,7 @@ export default function ProjectsPage() {
         </Button>
       </div>
 
-      <div className="flex-1 p-8 overflow-y-auto bg-background">
+      <div className="flex-1 p-5 overflow-y-auto bg-background mx-auto px-5 bg-transparent">
         {loading ? (
           <div className="flex items-center justify-center h-48 text-muted-foreground text-xs animate-pulse font-mono">
             Loading projects...

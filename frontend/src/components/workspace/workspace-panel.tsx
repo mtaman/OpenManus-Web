@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Monitor,
   FolderTree,
@@ -17,52 +17,159 @@ import { ArtifactsTab } from "./artifacts-tab";
 import { LogsTab } from "./logs-tab";
 import { EditorTab } from "./editor-tab";
 
-type TabId = "preview" | "files" | "artifacts" | "logs" | "editor";
+export type TabId = "preview" | "files" | "artifacts" | "logs" | "editor";
+
+export function getFileCategory(filename: string): "preview" | "artifacts" | "editor" {
+  if (!filename) return "preview";
+  const lower = filename.toLowerCase();
+  const ext = lower.split(".").pop() || "";
+
+  // Web apps, SVGs, and markdown documents belong to Preview
+  if (["html", "htm", "svg", "md", "markdown"].includes(ext)) {
+    return "preview";
+  }
+
+  // Strictly visual & binary media deliverables belong to Artifacts
+  if (
+    [
+      "png", "jpg", "jpeg", "webp", "gif", "ico", "bmp",
+      "mp4", "webm", "ogg", "mov", "avi", "mkv", "m4v",
+      "pdf",
+    ].includes(ext)
+  ) {
+    return "artifacts";
+  }
+
+  // Code scripts, styles, data sheets, and config belong to Editor & Files
+  return "editor";
+}
 
 export interface WorkspacePanelProps {
   activeJobId?: string | null;
+  activeChatId?: string | null;
   overrideFile?: string | null;
   overrideDraft?: { filename: string; content: string } | null;
 }
 
-export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: WorkspacePanelProps) {
+export function WorkspacePanel({
+  activeJobId,
+  activeChatId,
+  overrideFile,
+  overrideDraft,
+}: WorkspacePanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("preview");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState<string | null>(null);
   const [jobFiles, setJobFiles] = useState<{ name: string; path: string }[]>([]);
   const [exporting, setExporting] = useState<boolean>(false);
 
+  const effectiveScopeId = activeChatId || activeJobId || null;
+
+  const handleSelectArtifact = useCallback((filename: string) => {
+    if (!filename) return;
+    setSelectedFilePath(filename);
+    setDraftContent(null);
+
+    const category = getFileCategory(filename);
+    if (category === "preview") {
+      setActiveTab("preview");
+    } else if (category === "artifacts") {
+      setActiveTab("artifacts");
+    } else {
+      setActiveTab("editor");
+    }
+  }, []);
+
+  const handleEditorSaved = (savedPath: string) => {
+    setSelectedFilePath(savedPath);
+    const category = getFileCategory(savedPath);
+    if (category === "preview") {
+      setActiveTab("preview");
+    }
+  };
+
   useEffect(() => {
-    if (!activeJobId) {
+    const handleSwitchTab = (e: Event) => {
+      const ce = e as CustomEvent<TabId | { tab: TabId; file?: string }>;
+      const targetTab = typeof ce.detail === "string" ? ce.detail : ce.detail?.tab;
+      const targetFile = typeof ce.detail === "object" ? ce.detail?.file : undefined;
+
+      if (targetFile) {
+        setSelectedFilePath(targetFile);
+      }
+      if (targetTab && ["preview", "files", "artifacts", "logs", "editor"].includes(targetTab)) {
+        setActiveTab(targetTab as TabId);
+      }
+    };
+
+    const handleArtifactCreated = (e: Event) => {
+      const ce = e as CustomEvent<{ artifact?: string; path?: string }>;
+      const artName = ce.detail?.artifact || ce.detail?.path;
+      if (artName) {
+        setSelectedFilePath(artName);
+        const cat = getFileCategory(artName);
+        if (cat === "artifacts") {
+          setActiveTab("artifacts");
+        } else if (cat === "preview") {
+          setActiveTab("preview");
+        }
+      }
+    };
+
+    window.addEventListener("openmanus:switch-tab", handleSwitchTab);
+    window.addEventListener("openmanus:artifact-created", handleArtifactCreated);
+
+    return () => {
+      window.removeEventListener("openmanus:switch-tab", handleSwitchTab);
+      window.removeEventListener("openmanus:artifact-created", handleArtifactCreated);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!effectiveScopeId) {
       setJobFiles([]);
       return;
     }
 
     const fetchFiles = async () => {
       try {
-        const res = await fetch(`/api/run/jobs/${activeJobId}/files`);
+        let res = await fetch(`/api/chats/${effectiveScopeId}/files?t=${Date.now()}`);
+        if (!res.ok) {
+          res = await fetch(`/api/run/jobs/${effectiveScopeId}/files?t=${Date.now()}`);
+        }
         if (res.ok) {
           const data = await res.json();
-          const list = data.files || [];
+          const list: { name: string; path: string }[] = data.files || [];
           setJobFiles(list);
 
+          // Auto-select and navigate on initial load
           if (!selectedFilePath && list.length > 0) {
-            const entryFile =
-              list.find((f: any) => f.name.toLowerCase() === "index.html") ||
-              list.find((f: any) => {
+            const webAppFile =
+              list.find((f) => f.name.toLowerCase() === "index.html") ||
+              list.find((f) => {
                 const l = f.name.toLowerCase();
                 return l.endsWith(".html") || l.endsWith(".htm");
               }) ||
-              list.find((f: any) => {
+              list.find((f) => {
                 const l = f.name.toLowerCase();
-                return l.endsWith(".md") || l.endsWith(".markdown");
-              }) ||
-              list.find((f: any) => f.name.toLowerCase().endsWith(".svg")) ||
-              list[0];
+                return l.endsWith(".svg") || l.endsWith(".md") || l.endsWith(".markdown");
+              });
 
-            if (entryFile) {
-              setSelectedFilePath(entryFile.name);
+            if (webAppFile) {
+              setSelectedFilePath(webAppFile.name);
+              setActiveTab("preview");
+              return;
             }
+
+            const mediaFile = list.find((f) => getFileCategory(f.name) === "artifacts");
+            if (mediaFile) {
+              setSelectedFilePath(mediaFile.name);
+              setActiveTab("artifacts");
+              return;
+            }
+
+            setSelectedFilePath(list[0].name);
+            setActiveTab("editor");
           }
         }
       } catch (err) {
@@ -71,48 +178,15 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
     };
 
     fetchFiles();
-    const interval = setInterval(fetchFiles, 4000);
+    const interval = setInterval(fetchFiles, 3500);
     return () => clearInterval(interval);
-  }, [activeJobId, selectedFilePath]);
-
-  const handleSelectArtifact = (filename: string) => {
-    setSelectedFilePath(filename);
-    setDraftContent(null);
-    const lower = filename.toLowerCase();
-    const isPreviewable =
-      lower.endsWith(".html") ||
-      lower.endsWith(".htm") ||
-      lower.endsWith(".md") ||
-      lower.endsWith(".markdown") ||
-      lower.endsWith(".svg");
-
-    if (isPreviewable) {
-      setActiveTab("preview");
-    } else {
-      setActiveTab("editor");
-    }
-  };
-
-  const handleEditorSaved = (savedPath: string) => {
-    setSelectedFilePath(savedPath);
-    const lower = savedPath.toLowerCase();
-    const isPreviewable =
-      lower.endsWith(".html") ||
-      lower.endsWith(".htm") ||
-      lower.endsWith(".md") ||
-      lower.endsWith(".markdown") ||
-      lower.endsWith(".svg");
-
-    if (isPreviewable) {
-      setActiveTab("preview");
-    }
-  };
+  }, [effectiveScopeId, selectedFilePath]);
 
   const handleExportZip = async () => {
-    if (!activeJobId) return;
+    if (!effectiveScopeId) return;
     setExporting(true);
     try {
-      const res = await fetch(`/api/run/jobs/${activeJobId}/download-zip`);
+      const res = await fetch(`/api/run/jobs/${effectiveScopeId}/download-zip`);
       if (!res.ok) {
         throw new Error(`Failed to export ZIP (HTTP ${res.status})`);
       }
@@ -120,7 +194,7 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `workspace_${activeJobId}.zip`;
+      link.download = `workspace_${effectiveScopeId}.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -136,7 +210,7 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
     if (overrideFile) {
       handleSelectArtifact(overrideFile);
     }
-  }, [overrideFile]);
+  }, [overrideFile, handleSelectArtifact]);
 
   useEffect(() => {
     if (overrideDraft) {
@@ -151,8 +225,15 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
     { id: "files", label: "Files", icon: <FolderTree size={14} /> },
     { id: "artifacts", label: "Artifacts", icon: <Package size={14} /> },
     { id: "logs", label: "Logs", icon: <TerminalSquare size={14} /> },
-    ...(selectedFilePath || draftContent ? [{ id: "editor" as TabId, label: "Editor", icon: <FileCode2 size={14} /> }] : []),
+    ...(selectedFilePath || draftContent
+      ? [{ id: "editor" as TabId, label: "Editor", icon: <FileCode2 size={14} /> }]
+      : []),
   ];
+
+  const previewablePath =
+    selectedFilePath && getFileCategory(selectedFilePath) === "preview"
+      ? selectedFilePath
+      : null;
 
   return (
     <div className="flex flex-col h-full bg-background border-l border-border font-sans">
@@ -185,7 +266,7 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
             </span>
           )}
 
-          {activeJobId && jobFiles.length > 0 && (
+          {effectiveScopeId && jobFiles.length > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -212,18 +293,24 @@ export function WorkspacePanel({ activeJobId, overrideFile, overrideDraft }: Wor
 
       <div className="flex-1 min-h-0 overflow-hidden bg-background">
         {activeTab === "preview" && (
-          <PreviewTab currentHtmlPath={selectedFilePath} activeJobId={activeJobId} />
+          <PreviewTab currentHtmlPath={previewablePath} activeJobId={effectiveScopeId} />
         )}
         {activeTab === "files" && (
-          <FilesTab onSelectFile={handleSelectArtifact} activeJobId={activeJobId} />
+          <FilesTab onSelectFile={handleSelectArtifact} activeJobId={effectiveScopeId} />
         )}
-        {activeTab === "artifacts" && <ArtifactsTab />}
+        {activeTab === "artifacts" && (
+          <ArtifactsTab
+            activeJobId={effectiveScopeId}
+            chatId={activeChatId}
+            selectedFile={selectedFilePath}
+          />
+        )}
         {activeTab === "logs" && <LogsTab />}
         {activeTab === "editor" && (
           <EditorTab
             filePath={selectedFilePath}
             initialContent={draftContent}
-            activeJobId={activeJobId}
+            activeJobId={effectiveScopeId}
             onSave={handleEditorSaved}
           />
         )}

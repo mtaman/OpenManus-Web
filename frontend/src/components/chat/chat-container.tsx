@@ -109,8 +109,15 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         });
       }
     };
+        const handleArtifactEvent = () => {
+      setShowRightPanel(true);
+    };
+    window.addEventListener("openmanus:artifact-created", handleArtifactEvent);
     window.addEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
-    return () => window.removeEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
+        return () => {
+      window.removeEventListener("openmanus:artifact-created", handleArtifactEvent);
+      window.removeEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
+    };
   }, []);
 
   useEffect(() => {
@@ -238,7 +245,14 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         setExpandedSteps((prev) => ({ ...prev, [`active-${step}`]: true }));
       } else if (eventType === "observation") {
         const raw = payload.data?.output ?? "Execution completed.";
-        appendStep("observation", raw, step);
+                appendStep("observation", raw, step);
+        if (payload.data?.event === "artifact_created" || payload.data?.artifact) {
+          setShowRightPanel(true);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("openmanus:artifact-created", { detail: payload.data }));
+            window.dispatchEvent(new CustomEvent("openmanus:switch-tab", { detail: "artifacts" }));
+          }
+        }
         fetchJobFiles(jobId);
       } else if (eventType === "final" || eventType === "done") {
         const resText = payload.data?.result ?? payload.data?.content ?? "Task completed successfully.";
@@ -537,6 +551,14 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             onSelectFile={(f) => {
               setSelectedFileForEditor(f);
               setShowRightPanel(true);
+              const lower = (f || "").toLowerCase();
+              const ext = lower.split(".").pop() || "";
+              const isMedia = ["png", "jpg", "jpeg", "webp", "gif", "ico", "bmp", "pdf", "csv", "tsv", "xlsx"].includes(ext);
+              const isWeb = ["html", "htm", "svg", "md", "markdown"].includes(ext);
+              const targetTab = isMedia ? "artifacts" : isWeb ? "preview" : "editor";
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("openmanus:switch-tab", { detail: { tab: targetTab, file: f } }));
+              }
             }}
             showRawTrace={showRawTrace}
             setShowRawTrace={setShowRawTrace}
@@ -561,8 +583,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
       {showRightPanel && (
         <div className="flex-1 h-full min-w-0 transition-all">
-          <WorkspacePanel
-            activeJobId={activeJobId}
+          <WorkspacePanel activeJobId={activeJobId} activeChatId={activeChatId || activeJobId}
             overrideFile={selectedFileForEditor}
             overrideDraft={sandboxDraft}
           />
@@ -573,3 +594,5 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 }
 
 export default ChatContainer;
+
+

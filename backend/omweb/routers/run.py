@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import asyncio
 import mimetypes
@@ -140,7 +140,6 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         turns = []
         agent_prompt = prompt
 
-    # Ensure chat files directory exists
     files_dir = project_manager.get_chat_files_dir(chat_id, project_id)
     files_dir.mkdir(parents=True, exist_ok=True)
 
@@ -323,6 +322,22 @@ async def get_job_raw_file(job_id: str, filepath: str):
         content_type = "application/javascript"
     elif ext in [".html", ".htm"]:
         content_type = "text/html"
+    elif ext == ".png":
+        content_type = "image/png"
+    elif ext in [".jpg", ".jpeg"]:
+        content_type = "image/jpeg"
+    elif ext == ".webp":
+        content_type = "image/webp"
+    elif ext == ".svg":
+        content_type = "image/svg+xml"
+    elif ext == ".pdf":
+        content_type = "application/pdf"
+    elif ext == ".mp4":
+        content_type = "video/mp4"
+    elif ext == ".webm":
+        content_type = "video/webm"
+    elif ext in [".mov", ".quicktime"]:
+        content_type = "video/quicktime"
 
     return FileResponse(target, media_type=content_type or "application/octet-stream")
 

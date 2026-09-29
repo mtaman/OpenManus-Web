@@ -36,6 +36,8 @@ def detect_file_type(filename: str) -> str:
         return "markdown"
     if ext in [".json", ".csv", ".tsv"]:
         return "data"
+    if ext in [".pdf"]:
+        return "pdf"
     if ext in [".py", ".js", ".ts", ".tsx", ".jsx", ".css", ".java", ".cpp", ".c", ".rs", ".go", ".sql", ".sh", ".bat", ".ps1"]:
         return "code"
     return "file"
@@ -147,6 +149,8 @@ async def get_raw_file(filepath: Optional[str] = None, path: Optional[str] = Que
         media_type = "application/javascript"
     elif ext in [".json"]:
         media_type = "application/json"
+    elif ext in [".pdf"]:
+        media_type = "application/pdf"
     
     return FileResponse(path=str(target), media_type=media_type)
 

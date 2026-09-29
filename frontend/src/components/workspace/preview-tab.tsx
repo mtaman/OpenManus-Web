@@ -32,6 +32,7 @@ export function PreviewTab({
   const isMarkdown = lowerFile.endsWith(".md") || lowerFile.endsWith(".markdown");
   const isSvg = lowerFile.endsWith(".svg");
   const isHtml = lowerFile.endsWith(".html") || lowerFile.endsWith(".htm");
+  const isPreviewable = isMarkdown || isSvg || isHtml;
 
   useEffect(() => {
     const handleSaved = (e: Event) => {
@@ -41,13 +42,19 @@ export function PreviewTab({
       }
     };
 
+    const handleArtifact = () => {
+      setRefreshKey((k) => k + 1);
+    };
+
     window.addEventListener("openmanus:file-saved", handleSaved);
+    window.addEventListener("openmanus:artifact-created", handleArtifact);
     return () => {
       window.removeEventListener("openmanus:file-saved", handleSaved);
+      window.removeEventListener("openmanus:artifact-created", handleArtifact);
     };
   }, [effectiveFile]);
 
-  useEffect(() => {
+  const scanForPreviewableDeliverables = useCallback(() => {
     if (effectiveJobId && !explicitFile) {
       fetch(`/api/run/jobs/${effectiveJobId}/files?t=${Date.now()}`, { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
@@ -65,17 +72,24 @@ export function PreviewTab({
               }) ||
               data.files.find((f: any) => f.name.toLowerCase().endsWith(".svg"));
 
-            if (bestFile) {
+            if (bestFile && bestFile.name !== autoFile) {
               setAutoFile(bestFile.name);
             }
           }
         })
         .catch(() => {});
     }
-  }, [effectiveJobId, explicitFile]);
+  }, [effectiveJobId, explicitFile, autoFile]);
+
+  useEffect(() => {
+    scanForPreviewableDeliverables();
+    const interval = setInterval(scanForPreviewableDeliverables, 3500);
+    return () => clearInterval(interval);
+  }, [scanForPreviewableDeliverables]);
 
   const fetchContent = useCallback(async () => {
-    if (!effectiveFile) {
+    // Strictly prevent binary image files from being fetched as text
+    if (!effectiveFile || !isPreviewable) {
       setRawContent("");
       return;
     }
@@ -83,14 +97,12 @@ export function PreviewTab({
     setLoading(true);
     try {
       let res: Response | null = null;
-      // 1. FIRST PRIORITY: Always query the active chat/job storage deliverables
       if (effectiveJobId) {
         res = await fetch(`/api/run/jobs/${effectiveJobId}/content?path=${encodeURIComponent(effectiveFile)}&t=${Date.now()}`, {
           cache: "no-store",
         });
       }
 
-      // 2. FALLBACK ONLY: If not in an active job context or file not found in chat, try workspace root
       if (!res || !res.ok) {
         res = await fetch(`/api/files/content?path=${encodeURIComponent(effectiveFile)}&t=${Date.now()}`, {
           cache: "no-store",
@@ -109,7 +121,7 @@ export function PreviewTab({
     } finally {
       setLoading(false);
     }
-  }, [effectiveFile, effectiveJobId, refreshKey]);
+  }, [effectiveFile, effectiveJobId, isPreviewable, refreshKey]);
 
   useEffect(() => {
     fetchContent();
@@ -126,7 +138,7 @@ export function PreviewTab({
     return `${baseTag}${rawContent}`;
   }, [rawContent, isHtml, effectiveJobId]);
 
-  if (!effectiveFile || (!rawContent && !loading)) {
+  if (!effectiveFile || !isPreviewable || (!rawContent && !loading)) {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full bg-background text-muted-foreground p-8 select-none font-sans">
         <div className="flex flex-col items-center max-w-sm text-center space-y-4">
@@ -227,12 +239,6 @@ export function PreviewTab({
               sandbox="allow-scripts allow-modals allow-forms allow-same-origin"
               className="w-full h-full border-0"
             />
-          </div>
-        )}
-
-        {!isMarkdown && !isSvg && !isHtml && (
-          <div className="w-full h-full overflow-y-auto p-6 font-mono text-xs text-foreground bg-muted/20">
-            <pre className="whitespace-pre-wrap">{rawContent}</pre>
           </div>
         )}
       </div>
