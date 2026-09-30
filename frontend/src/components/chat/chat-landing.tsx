@@ -130,12 +130,7 @@ export function ChatLanding({
           </button>
         </div>
 
-        {/* Agent Selector: Visible ONLY when execMode === 'agent' */}
-        {execMode === "agent" && (
-          <div className="animate-in fade-in duration-200">
-            <AgentSelector />
-          </div>
-        )}
+        
       </div>
 
       <input
@@ -159,7 +154,7 @@ export function ChatLanding({
         className={`w-full bg-white-foreground rounded-2xl border transition-all text-left p-3.5 shadow-manus-md ${
           isLandingDragging
             ? "border-primary ring-2 ring-primary/40 bg-primary/5"
-            : "border-border focus-within:ring-1 focus-within:ring-primary focus-within:border-primary"
+            : "border-border focus-within:ring-1 focus-within:ring-muted focus-within:border-muted"
         }`}
       >
         {landingAttachedFiles.length > 0 && (
@@ -231,6 +226,17 @@ export function ChatLanding({
                 {execMode === "agent" ? "Agent Autonomous Mode" : "Direct Fast Chat"}
               </span>
             </span>
+
+
+
+            {/* Agent Selector: Visible ONLY when execMode === 'agent' */}
+        {execMode === "agent" && (
+          <div className="animate-in fade-in duration-200">
+            <AgentSelector />
+          </div>
+        )}
+
+
           </div>
 
           <button

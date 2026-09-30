@@ -3,6 +3,7 @@ import os
 import platform
 import subprocess
 import winreg
+from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import APIRouter
 from omweb.config import OPENMANUS_ROOT, BACKEND_DIR
@@ -69,6 +70,53 @@ async def get_system_status():
         "python_version": platform.python_version(),
         "platform": platform.platform(),
         "openmanus_linked": OPENMANUS_ROOT.exists()
+    }
+
+@router.get("/health")
+async def get_health_status():
+    openmanus_linked = OPENMANUS_ROOT.exists()
+
+    workspaces_writable = False
+    try:
+        test_file = BACKEND_DIR / ".health_check_tmp"
+        test_file.write_text("ok", encoding="utf-8")
+        test_file.unlink()
+        workspaces_writable = True
+    except Exception:
+        workspaces_writable = False
+
+    llm_configured = False
+    config_file = OPENMANUS_ROOT / "config" / "config.toml"
+    if not config_file.exists():
+        config_file = BACKEND_DIR / "config.toml"
+    if config_file.exists():
+        try:
+            content = config_file.read_text(encoding="utf-8", errors="ignore")
+            if "api_key" in content or "model" in content:
+                llm_configured = True
+        except Exception:
+            pass
+
+    memory_info = get_system_memory()
+    mem_usage = memory_info.get("usage_percent", 0)
+
+    if not openmanus_linked or not workspaces_writable:
+        overall_status = "unhealthy"
+    elif not llm_configured or mem_usage > 95:
+        overall_status = "degraded"
+    else:
+        overall_status = "healthy"
+
+    return {
+        "status": overall_status,
+        "server": "omweb-core",
+        "openmanus_linked": openmanus_linked,
+        "workspaces_writable": workspaces_writable,
+        "llm_configured": llm_configured,
+        "memory_usage_percent": mem_usage,
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @router.get("/system-info")
