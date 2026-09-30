@@ -1,6 +1,9 @@
 ﻿import type { Metadata } from "next";
 import { getServerStorageSnapshot } from "@/lib/storage/server";
 import { StorageProvider } from "@/components/providers/storage-provider";
+import { ThemeProvider } from "@/components/layout/theme-provider";
+import { I18nProvider } from "@/components/providers/i18n-provider";
+import { AppShell } from "@/components/layout/app-shell";
 import "@/app/globals.css";
 
 export const metadata: Metadata = {
@@ -25,7 +28,11 @@ export default async function RootLayout({
         className="min-h-screen bg-background text-foreground antialiased font-sans"
       >
         <StorageProvider cookieSnapshot={cookieSnapshot}>
-          {children}
+          <ThemeProvider>
+            <I18nProvider>
+              <AppShell>{children}</AppShell>
+            </I18nProvider>
+          </ThemeProvider>
         </StorageProvider>
       </body>
     </html>
