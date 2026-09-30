@@ -80,7 +80,6 @@ class ProjectManager:
         """Scans disk storage to recover any missing chats or projects, robust against str and dict formats."""
         index = self._read_index()
 
-        # 1. Normalize existing projects
         normalized_projects = []
         existing_projects = set()
         for p in index.get("projects", []):
@@ -107,7 +106,6 @@ class ProjectManager:
             })
             existing_projects.add("default_project")
 
-        # 2. Normalize existing chats
         normalized_chats = []
         existing_chats = set()
         for c in index.get("chats", []):
@@ -124,13 +122,13 @@ class ProjectManager:
                     "project_id": "default_project",
                     "title": cid,
                     "prompt": "",
+                    "mode": "agent",
                     "status": "completed",
                     "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
                 })
 
         updated = False
 
-        # 3. Discover Projects from Disk
         if self.projects_dir.exists():
             for pdir in self.projects_dir.iterdir():
                 if pdir.is_dir():
@@ -152,7 +150,6 @@ class ProjectManager:
                         existing_projects.add(pid)
                         updated = True
 
-                    # Discover chats inside project
                     p_chats_dir = pdir / "chats"
                     if p_chats_dir.exists():
                         for cdir in p_chats_dir.iterdir():
@@ -166,6 +163,7 @@ class ProjectManager:
                                         "project_id": pid,
                                         "title": cid,
                                         "prompt": "",
+                                        "mode": "agent",
                                         "status": "completed",
                                         "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
                                     }
@@ -181,13 +179,13 @@ class ProjectManager:
                                         "project_id": pid,
                                         "title": s_meta.get("title", cid),
                                         "prompt": s_meta.get("prompt", ""),
+                                        "mode": s_meta.get("mode", "agent"),
                                         "status": s_meta.get("status", "completed"),
                                         "created_at": s_meta.get("created_at", time.strftime("%Y-%m-%d %H:%M:%S"))
                                     })
                                     existing_chats.add(cid)
                                     updated = True
 
-        # 4. Discover root standalone chats
         if self.chats_dir.exists():
             for cdir in self.chats_dir.iterdir():
                 if cdir.is_dir():
@@ -200,6 +198,7 @@ class ProjectManager:
                             "project_id": "default_project",
                             "title": cid,
                             "prompt": "",
+                            "mode": "agent",
                             "status": "completed",
                             "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
                         }
@@ -214,6 +213,7 @@ class ProjectManager:
                             "project_id": "default_project",
                             "title": s_meta.get("title", cid),
                             "prompt": s_meta.get("prompt", ""),
+                            "mode": s_meta.get("mode", "agent"),
                             "status": s_meta.get("status", "completed"),
                             "created_at": s_meta.get("created_at", time.strftime("%Y-%m-%d %H:%M:%S"))
                         })
@@ -253,7 +253,8 @@ class ProjectManager:
         events: list,
         result: str = "",
         status: str = "running",
-        agent_id: str = "manus"
+        agent_id: str = "manus",
+        mode: str = "agent"
     ) -> dict:
         existing = self.get_chat(job_id) or self.get_chat(chat_id)
         if existing:
@@ -262,6 +263,8 @@ class ProjectManager:
                 project_id = prev_pid
             if not agent_id or agent_id == "manus":
                 agent_id = existing.get("agent_id", "manus")
+            if not mode or mode == "agent":
+                mode = existing.get("mode", mode)
 
         resolved_project_id = project_id or "default_project"
         chat_dir = self.get_chat_dir(chat_id, resolved_project_id)
@@ -286,6 +289,8 @@ class ProjectManager:
                     result = old.get("result")
                 if not agent_id or agent_id == "manus":
                     agent_id = old.get("agent_id", "manus")
+                if old.get("mode"):
+                    mode = old.get("mode")
                 if old.get("status") in ["completed", "failed"] and status == "running":
                     status = old.get("status")
             except Exception:
@@ -298,6 +303,7 @@ class ProjectManager:
             "title": title or prompt[:40] or "New Session",
             "prompt": prompt,
             "agent_id": agent_id,
+            "mode": mode,
             "status": status,
             "result": result,
             "created_at": created_at,
@@ -306,7 +312,6 @@ class ProjectManager:
         session_file.write_text(json.dumps(session_data, indent=2, ensure_ascii=False), encoding="utf-8")
         events_file.write_text(json.dumps(final_events, indent=2, ensure_ascii=False), encoding="utf-8")
 
-        # Update central index atomically
         index = self._read_index()
         chats = index.get("chats", [])
         chats = [c for c in chats if c.get("id") != chat_id and c.get("job_id") != job_id]
@@ -317,6 +322,7 @@ class ProjectManager:
             "title": session_data["title"],
             "prompt": prompt,
             "agent_id": agent_id,
+            "mode": mode,
             "status": status,
             "created_at": created_at,
             "updated_at": now_str
@@ -377,6 +383,7 @@ class ProjectManager:
                     "project_id": "default_project",
                     "title": cid,
                     "prompt": "",
+                    "mode": "agent",
                     "status": "completed"
                 })
         if project_id:

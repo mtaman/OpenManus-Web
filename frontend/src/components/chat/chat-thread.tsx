@@ -17,6 +17,7 @@ export interface ChatTurn {
   tokensUsed?: { input: number; output: number; total: number };
   producedFiles?: { name: string; path: string }[];
   model?: string;
+  mode?: "agent" | "chat";
 }
 
 interface ChatThreadProps {
@@ -87,7 +88,6 @@ export function ChatThread({
     (finalResult.includes("Observed output of cmd") || finalResult.startsWith("Step 1:"))
   );
 
-  // Extract latest meaningful thought from active steps
   const activeStepsList = Object.values(activeGroupedSteps).flat();
   const currentLastThought = [...activeStepsList]
     .reverse()
@@ -98,6 +98,8 @@ export function ChatThread({
       <div className="w-full max-w-[900px] mx-auto space-y-6">
         {/* Historical Turns */}
         {historyTurns.map((turn, tIdx) => {
+          const turnMode = turn.mode || (turn.steps && turn.steps.length > 0 ? "agent" : "chat");
+          const isAgentTurn = turnMode === "agent";
           const isTurnRawTrace = Boolean(
             turn.finalResult &&
             (turn.finalResult.includes("Observed output of cmd") || turn.finalResult.startsWith("Step 1:"))
@@ -110,7 +112,7 @@ export function ChatThread({
 
           return (
             <div key={turn.id || `turn-${tIdx}`} className="space-y-4 pb-6 border-b border-border/40">
-              {/* User Prompt (Clean bubble) */}
+              {/* User Prompt */}
               <div className="flex flex-col items-end space-y-1">
                 <div className="max-w-[85%] rounded-2xl bg-muted/80 text-foreground px-4 py-2.5 text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-sans border border-border/50 shadow-xs">
                   {turn.prompt}
@@ -133,7 +135,7 @@ export function ChatThread({
               </div>
 
               {/* Collapsible Execution Steps (Agent Mode Only) */}
-              {execMode === "agent" && turnGrouped && Object.keys(turnGrouped).length > 0 && (
+              {isAgentTurn && turnGrouped && Object.keys(turnGrouped).length > 0 && (
                 <ChatTimeline
                   prefix={`turn-${tIdx}`}
                   groupedSteps={turnGrouped}
@@ -157,7 +159,7 @@ export function ChatThread({
                   onSelectFile={onSelectFile}
                   copiedSection={copiedSection}
                   onCopy={copyText}
-                  execMode={execMode}
+                  execMode={isAgentTurn ? "agent" : "chat"}
                   showRawTrace={showRawTrace}
                   setShowRawTrace={setShowRawTrace}
                   modelName={turn.model || activeModelName}

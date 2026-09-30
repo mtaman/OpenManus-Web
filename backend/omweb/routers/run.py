@@ -156,17 +156,7 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
 
     effective_agent = (req.agent_id or "manus").strip()
 
-    project_manager.save_chat_session(
-        chat_id=chat_id,
-        project_id=project_id,
-        title=title,
-        job_id=actual_job_id,
-        prompt=prompt,
-        events=[],
-        result="",
-        status="running",
-        agent_id=effective_agent
-    )
+    project_manager.save_chat_session(chat_id=chat_id, project_id=project_id, title=title, job_id=actual_job_id, prompt=prompt, events=[], result="", status="running", agent_id=effective_agent, mode=exec_mode)
 
     try:
         session_file = project_manager.get_chat_dir(chat_id, project_id) / "session.json"
@@ -430,8 +420,7 @@ async def stream_job_events(job_id: str):
                     events=collected_events,
                     result=final_res,
                     status=final_status,
-                    agent_id=chat.get("agent_id", "manus")
-                )
+                    agent_id=chat.get("agent_id", "manus"), mode=chat.get("mode", "agent"))
 
                 try:
                     s_file = project_manager.get_chat_dir(chat_id, p_id) / "session.json"
@@ -455,3 +444,4 @@ async def stream_job_events(job_id: str):
             "Connection": "keep-alive"
         }
     )
+

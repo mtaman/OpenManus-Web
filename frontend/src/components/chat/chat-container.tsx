@@ -148,7 +148,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         if (data.chat_id) setActiveChatId(data.chat_id);
         if (data.prompt) setSubmittedPrompt(data.prompt);
         if (data.agent_id) setSelectedAgentId(data.agent_id);
-        if (data.mode) setExecMode(data.mode);
+        if (data.mode) { setExecMode(data.mode); if (typeof window !== "undefined") { localStorage.setItem("omweb_exec_mode", data.mode); } }
         if (data.model) setActiveModelName(data.model);
         if (data.status) setStatus(data.status);
         if (data.result) setFinalResult(safeRender(data.result));

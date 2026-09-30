@@ -17,7 +17,7 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
   if (!content) return null;
 
   return (
-    <div className={`prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed text-foreground font-sans ${className}`}>
+    <div className={`prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed text-foreground   ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}

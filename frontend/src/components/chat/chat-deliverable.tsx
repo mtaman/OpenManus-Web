@@ -69,7 +69,7 @@ export function ChatDeliverable({
       </div>
 
       {/* 2. Primary Markdown Response */}
-      <div className="p-4 rounded-xl bg-card border border-border shadow-xs text-foreground text-sm leading-relaxed">
+      <div className="p-4 rounded-md bg-card border border-border shadow-xs text-foreground text-sm leading-relaxed">
         <MarkdownRenderer content={displayContent} />
       </div>
 
