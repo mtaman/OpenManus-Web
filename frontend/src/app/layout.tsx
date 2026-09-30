@@ -1,74 +1,32 @@
-﻿import type { Metadata, Viewport } from "next";
-import { DM_Sans, Libre_Baskerville, Cairo } from "next/font/google";
-import "./globals.css";
-import { ThemeProvider } from "@/components/layout/theme-provider";
-import { I18nProvider } from "@/components/providers/i18n-provider";
-import { AppShell } from "@/components/layout/app-shell";
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const libreBaskerville = Libre_Baskerville({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-serif",
-  display: "swap",
-});
-
-const cairo = Cairo({
-  subsets: ["arabic", "latin"],
-  variable: "--font-arabic",
-  display: "swap",
-});
+﻿import type { Metadata } from "next";
+import { getServerStorageSnapshot } from "@/lib/storage/server";
+import { StorageProvider } from "@/components/providers/storage-provider";
+import "@/app/globals.css";
 
 export const metadata: Metadata = {
-  title: "Open Manus - Open Autonomous Agent",
-  description: "Next-generation Web Interface for Autonomous AI Agents",
-  icons: {
-    icon: [
-      { url: "/favicon.ico" }, 
-      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
-    ],
-    apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-  },
-  manifest: "/site.webmanifest",
+  title: "OpenManus Web",
+  description: "Autonomous AI workbench",
 };
 
-export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
-    { media: "(prefers-color-scheme: dark)", color: "#0F0F0E" },
-  ],
-};
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieSnapshot = await getServerStorageSnapshot();
+  const sidebarState = cookieSnapshot.sidebar_state ?? "expanded";
+  const theme = cookieSnapshot.theme ?? "system";
+  const locale = cookieSnapshot.locale ?? "en";
+
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={`${dmSans.variable} ${libreBaskerville.variable} ${cairo.variable}`}
-    >
-      <body className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-manus-accent selection:text-white">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <I18nProvider>
-            <AppShell>{children}</AppShell>
-          </I18nProvider>
-        </ThemeProvider>
+    <html lang={locale} data-theme={theme} suppressHydrationWarning>
+      <body
+        data-sidebar={sidebarState}
+        className="min-h-screen bg-background text-foreground antialiased font-sans"
+      >
+        <StorageProvider cookieSnapshot={cookieSnapshot}>
+          {children}
+        </StorageProvider>
       </body>
     </html>
   );

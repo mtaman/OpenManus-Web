@@ -51,7 +51,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [showRawTrace, setShowRawTrace] = useState(false);
 
-  const [showRightPanel, setShowRightPanel] = useState<boolean>(Boolean(initialJobId));
+const [showRightPanel, setShowRightPanel] = useState<boolean>(false);
   const [sandboxDraft, setSandboxDraft] = useState<{ filename: string; content: string } | null>(null);
 
   const [tokensUsed, setTokensUsed] = useState({ input: 0, output: 0, total: 0 });
@@ -136,7 +136,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     if (initialJobId) {
       setActiveJobId(initialJobId);
       fetchJobDetails(initialJobId);
-      setShowRightPanel(true);
+      //setShowRightPanel(true); 
     }
   }, [initialJobId]);
 
