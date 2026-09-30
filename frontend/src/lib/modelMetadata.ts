@@ -26,20 +26,36 @@ export function getLocalMetadataVault(): Record<string, ModelMetadata> {
   }
 }
 
-export function saveLocalMetadataVault(newEntries: Record<string, Partial<ModelMetadata>>) {
+export async function persistMetadataToServer(entries: Record<string, Partial<ModelMetadata>>) {
+  try {
+    await fetch("http://localhost:8088/api/config/models-metadata", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ metadata: entries })
+    });
+  } catch (err) {
+    console.warn("Could not sync metadata with backend storage:", err);
+  }
+}
+
+export function saveLocalMetadataVault(newEntries: Record<string, Partial<ModelMetadata>>, syncServer = true) {
   if (typeof window === "undefined") return;
   try {
     const current = getLocalMetadataVault();
     const updated = { ...current, ...newEntries };
     localStorage.setItem(METADATA_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent("omweb:metadata-updated", { detail: updated }));
+
+    if (syncServer) {
+      persistMetadataToServer(newEntries);
+    }
   } catch (e) {
     console.error("Failed to save models metadata:", e);
   }
 }
 
 /**
- * Toggle reasoning mode manually for any model.
+ * Toggle reasoning mode manually for any model and persist permanently across reloads.
  */
 export function toggleModelReasoning(modelKey: string, forceState?: boolean): boolean {
   if (typeof window === "undefined") return false;
@@ -59,7 +75,7 @@ export function toggleModelReasoning(modelKey: string, forceState?: boolean): bo
     }
   };
 
-  saveLocalMetadataVault({ [modelKey]: updatedMeta });
+  saveLocalMetadataVault({ [modelKey]: updatedMeta }, true);
   return nextState;
 }
 
@@ -69,8 +85,25 @@ export async function fetchServerMetadata(): Promise<Record<string, ModelMetadat
     if (res.ok) {
       const data = await res.json();
       if (data.ok && data.metadata) {
-        saveLocalMetadataVault(data.metadata);
-        return data.metadata;
+        // Merge server metadata with local manual overrides preserving user toggles
+        const localVault = getLocalMetadataVault();
+        const merged: Record<string, ModelMetadata> = { ...data.metadata };
+
+        for (const [key, val] of Object.entries(localVault)) {
+          if (val && typeof val.capabilities?.reasoning === "boolean") {
+            merged[key] = {
+              ...(merged[key] || {}),
+              ...val,
+              capabilities: {
+                ...(merged[key]?.capabilities || {}),
+                ...val.capabilities
+              }
+            };
+          }
+        }
+
+        saveLocalMetadataVault(merged, false);
+        return merged;
       }
     }
   } catch (err) {

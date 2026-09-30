@@ -139,6 +139,18 @@ async def get_models_metadata():
             return {"ok": False, "error": str(e), "metadata": {}}
     return {"ok": True, "metadata": {}}
 
+class UpdateMetadataRequest(BaseModel):
+    metadata: Dict[str, Any]
+
+@router.post("/models-metadata")
+async def update_models_metadata(payload: UpdateMetadataRequest):
+    """Persist manual capability overrides directly into models_metadata.json cache."""
+    try:
+        save_metadata_cache(payload.metadata)
+        return {"ok": True, "message": "Metadata persisted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 class TestLLMRequest(BaseModel):
     base_url: str
     api_key: str
@@ -448,3 +460,4 @@ async def fetch_available_models(payload: FetchModelsRequest):
             return {"ok": False, "error": f"HTTP {resp.status_code}", "models": []}
     except Exception as e:
         return {"ok": False, "error": f"Failed: {str(e)}", "models": []}
+

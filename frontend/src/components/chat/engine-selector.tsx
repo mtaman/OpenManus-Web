@@ -9,8 +9,12 @@ import {
   Server,
   ChevronDown,
   Check,
-  Plus
+  Plus,
+  Brain,
+  Eye,
+  Wrench
 } from "lucide-react";
+import { inferModelCapabilities, fetchServerMetadata } from "@/lib/modelMetadata";
 
 export interface EngineOption {
   id: string;
@@ -44,6 +48,7 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const [lmStudioItem, setLmStudioItem] = useState<any>(null);
   const [localGPUModels, setLocalGPUModels] = useState<string[]>([]);
   const [ollamaItem, setOllamaItem] = useState<any>(null);
+  const [metadataVault, setMetadataVault] = useState<Record<string, any>>({});
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -123,13 +128,21 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   useEffect(() => {
     loadRealProviders();
 
+    // Load metadata and listen for reactive updates
+    fetchServerMetadata().then((data) => setMetadataVault(data || {}));
+    const onMetadataUpdate = (e: any) => setMetadataVault(e.detail || {});
+    window.addEventListener("omweb:metadata-updated", onMetadataUpdate);
+
     const onModelChange = (e: any) => {
       if (e.detail?.model) setActiveModel(e.detail.model);
       if (e.detail?.provider_name) setActiveProvider(e.detail.provider_name);
     };
 
     window.addEventListener("omweb:model-change", onModelChange);
-    return () => window.removeEventListener("omweb:model-change", onModelChange);
+    return () => {
+      window.removeEventListener("omweb:model-change", onModelChange);
+      window.removeEventListener("omweb:metadata-updated", onMetadataUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -145,6 +158,7 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const handleToggle = () => {
     if (!isOpen) {
       loadRealProviders();
+      fetchServerMetadata().then((data) => setMetadataVault(data || {}));
       if (direction === "up") {
         setOpenUpward(true);
       } else if (direction === "down") {
@@ -152,7 +166,7 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
       } else if (buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom;
-        setOpenUpward(spaceBelow < 360);
+        setOpenUpward(spaceBelow < 380);
       }
     }
     setIsOpen(!isOpen);
@@ -171,6 +185,39 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
     setIsOpen(false);
   };
 
+  const renderModelBadges = (modelKey: string) => {
+    const caps = inferModelCapabilities(modelKey, metadataVault[modelKey]);
+    if (!caps.isReasoning && !caps.isVision && !caps.isTools) return null;
+    return (
+      <span className="inline-flex items-center gap-1 shrink-0 ml-1 font-sans">
+        {caps.isReasoning && (
+          <span
+            title="Reasoning / Deep Thinking"
+            className="flex items-center justify-center p-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+          >
+            <Brain size={10} />
+          </span>
+        )}
+        {caps.isVision && (
+          <span
+            title="Vision & Multimodal"
+            className="flex items-center justify-center p-0.5 rounded bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30"
+          >
+            <Eye size={10} />
+          </span>
+        )}
+        {caps.isTools && (
+          <span
+            title="Tools & Function Calling"
+            className="flex items-center justify-center p-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30"
+          >
+            <Wrench size={10} />
+          </span>
+        )}
+      </span>
+    );
+  };
+
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
@@ -186,12 +233,13 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
         </span>
         <span className="font-semibold text-primary truncate max-w-[130px]">{activeProvider}:</span>
         <span className="text-foreground truncate max-w-[140px]">{activeModel}</span>
+        {renderModelBadges(activeModel)}
         <ChevronDown size={11} className={`text-muted-foreground transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
         <div
-          className={`absolute left-0 w-88 bg-card border border-border rounded-lg shadow-xl p-2 z-50 space-y-2.5 max-h-96 overflow-y-auto font-sans animate-in fade-in ${
+          className={`absolute left-0 w-96 bg-card border border-border rounded-lg shadow-xl p-2 z-50 space-y-2.5 max-h-96 overflow-y-auto font-sans animate-in fade-in ${
             openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
           }`}
         >
@@ -235,7 +283,10 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
                         : "hover:bg-muted text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <span className="font-mono truncate">{m}</span>
+                    <div className="flex items-center gap-1.5 truncate flex-1 min-w-0 mr-1.5">
+                      <span className="font-mono truncate">{m}</span>
+                      {renderModelBadges(m)}
+                    </div>
                     {isSelected && <Check size={12} className="text-primary shrink-0 ml-1" />}
                   </button>
                 );
@@ -280,7 +331,10 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
                           : "hover:bg-muted text-muted-foreground hover:text-foreground"
                       }`}
                     >
-                      <span className="font-mono truncate">{m}</span>
+                      <div className="flex items-center gap-1.5 truncate flex-1 min-w-0 mr-1.5">
+                        <span className="font-mono truncate">{m}</span>
+                        {renderModelBadges(m)}
+                      </div>
                       {isSelected && <Check size={12} className="text-primary shrink-0 ml-1" />}
                     </button>
                   );
@@ -332,7 +386,10 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
                                 : "hover:bg-muted text-muted-foreground hover:text-foreground"
                             }`}
                           >
-                            <span className="font-mono truncate">{m}</span>
+                            <div className="flex items-center gap-1.5 truncate flex-1 min-w-0 mr-1.5">
+                              <span className="font-mono truncate">{m}</span>
+                              {renderModelBadges(m)}
+                            </div>
                             {isSelected && <Check size={12} className="text-primary shrink-0 ml-1" />}
                           </button>
                         );
@@ -387,7 +444,10 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
                                 : "hover:bg-muted text-muted-foreground hover:text-foreground"
                             }`}
                           >
-                            <span className="font-mono truncate">{m}</span>
+                            <div className="flex items-center gap-1.5 truncate flex-1 min-w-0 mr-1.5">
+                              <span className="font-mono truncate">{m}</span>
+                              {renderModelBadges(m)}
+                            </div>
                             {isSelected && <Check size={12} className="text-primary shrink-0 ml-1" />}
                           </button>
                         );
