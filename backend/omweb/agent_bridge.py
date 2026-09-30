@@ -1,4 +1,25 @@
-﻿import os
+from __future__ import annotations
+import os
+import json
+import asyncio
+from typing import Any, Dict, Optional, List, Union
+
+def scope_mcp_servers(agent: Any, manifest: Dict[str, Any]) -> None:
+    """
+    Isolates and bypasses MCP server initialization if the agent's
+    permitted tools do not require browser automation or MCP extensions.
+    Silences 'Browser Use CLI 3.0: Tool object has no attribute inputSchema'.
+    """
+    allowed = [t.lower() for t in manifest.get("tools", [])]
+    needs_mcp = any("browser" in t or "mcp" in t for t in allowed)
+
+    if not needs_mcp and hasattr(agent, "initialize_mcp_servers"):
+        async def dummy_init_mcp():
+            return None
+        agent.initialize_mcp_servers = dummy_init_mcp
+        print(f"[BRIDGE] MCP Scoping: Bypassed MCP servers for agent '{manifest.get('name')}' (Least Privilege)")
+
+import os
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -12,7 +33,6 @@ import json
 import asyncio
 import traceback
 from pathlib import Path
-from typing import Any, Dict, Optional, Set, List
 
 from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
 from omweb.job_manager import job_manager
@@ -272,6 +292,7 @@ async def run_instrumented(
     print(f"[BRIDGE] Activating agent '{manifest['name']}' (ID: {agent_id})")
 
     agent = Manus()
+    scope_mcp_servers(agent, manifest)
 
     # Scope tools according to manifest, always preserving vital core tools
     allowed_tools = [t.lower() for t in manifest.get("tools", [])]
