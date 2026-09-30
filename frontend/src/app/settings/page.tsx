@@ -1,4 +1,5 @@
 ﻿"use client";
+import { saveLocalMetadataVault, fetchServerMetadata } from "@/lib/modelMetadata";
 
 import React, { useState, useEffect, useRef } from "react";
 import { Sidebar } from "./setup/Sidebar";
@@ -290,6 +291,7 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchConfig();
     fetchSystemInfo();
+    fetchServerMetadata();
   }, []);
 
   const handleReset = () => {
@@ -378,6 +380,7 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
+        if (data.models_metadata) saveLocalMetadataVault(data.models_metadata);
         setAvailableModels(data.models);
         if (typeof window !== "undefined") {
           localStorage.setItem("omweb_scanned_models", JSON.stringify(data.models));
@@ -599,3 +602,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

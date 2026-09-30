@@ -110,3 +110,37 @@ export interface AgentUpsertPayload {
   tools: string[];
   max_steps?: number;
 }
+
+// ==========================================
+// Model Metadata Interfaces
+// ==========================================
+export interface ModelQuantization {
+  name: string | null;
+  bits_per_weight: number | null;
+}
+export interface ModelInstanceConfig {
+  context_length: number;
+  eval_batch_size?: number;
+  flash_attention?: boolean;
+  num_experts?: number;
+  offload_kv_cache_to_gpu?: boolean;
+}
+export interface ModelCapabilities {
+  vision: boolean;
+  trained_for_tool_use: boolean;
+}
+export interface ModelMetadata {
+  type: string;
+  publisher?: string | null;
+  key: string;
+  display_name?: string | null;
+  architecture?: string | null;
+  quantization?: ModelQuantization | null;
+  size_bytes?: number | null;
+  params_string?: string | null;
+  loaded_instances?: Array<{ id: string; config: ModelInstanceConfig }>;
+  max_context_length?: number | null;
+  format?: string | null;
+  capabilities?: ModelCapabilities | null;
+  description?: string | null;
+}

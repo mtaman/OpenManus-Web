@@ -12,7 +12,12 @@ import {
   Terminal,
   Save,
   CheckSquare,
-  Square
+  Square,
+  Brain,
+  Eye,
+  Wrench,
+  Database,
+  Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -41,6 +46,7 @@ export function ModelDiscoveryModal({
 }: ModelDiscoveryModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
+  const [modelsMetadata, setModelsMetadata] = useState<Record<string, any>>({});
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set(initialSavedModels));
   const [defaultModel, setDefaultModel] = useState<string>(initialSavedModels[0] || "");
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +69,7 @@ export function ModelDiscoveryModal({
       const data = await res.json();
       if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
         setDiscoveredModels(data.models);
+        if (data.models_metadata) setModelsMetadata(data.models_metadata);
         // Pre-select models if already saved, or select first 3 if none saved
         if (initialSavedModels.length === 0) {
           const topFew = data.models.slice(0, 3);
@@ -250,42 +257,62 @@ export function ModelDiscoveryModal({
             filteredModels.map((modelId) => {
               const isSelected = selectedModels.has(modelId);
               const isDefault = defaultModel === modelId;
+              const meta = modelsMetadata[modelId] || {};
+              
+              const isVision = meta.capabilities?.vision || modelId.toLowerCase().includes("vision") || modelId.toLowerCase().includes("-vl");
+              const isTools = meta.capabilities?.trained_for_tool_use || modelId.toLowerCase().includes("instruct") || modelId.toLowerCase().includes("tool");
+              const isReasoning = modelId.toLowerCase().includes("think") || modelId.toLowerCase().includes("reason") || modelId.toLowerCase().includes("-r1") || modelId.toLowerCase().includes("o1") || modelId.toLowerCase().includes("o3") || modelId.toLowerCase().includes("deepseek");
+              
               return (
                 <div
                   key={modelId}
                   onClick={() => toggleModelSelection(modelId)}
-                  className={`flex items-center justify-between p-2 rounded-lg text-xs font-mono transition-all cursor-pointer border ${
+                  className={`flex flex-col p-2.5 rounded-lg text-xs font-mono transition-all cursor-pointer border gap-2 ${
                     isSelected
                       ? "bg-primary/5 border-primary/40 text-foreground shadow-2xs"
                       : "bg-card/60 hover:bg-muted/60 border-border/40 text-muted-foreground"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 truncate flex-1 mr-2">
-                    <span className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
-                      isSelected ? "bg-primary text-primary-foreground border-primary" : "border-border bg-background"
-                    }`}>
-                      {isSelected && <Check size={11} />}
-                    </span>
-                    <span className="truncate text-xs font-medium" title={modelId}>
-                      {modelId}
-                    </span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2.5 truncate flex-1 mr-2">
+                      <span className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${
+                        isSelected ? "bg-primary text-primary-foreground border-primary" : "border-border bg-background"
+                      }`}>
+                        {isSelected && <Check size={11} />}
+                      </span>
+                      <span className="truncate text-xs font-bold" title={meta.display_name || modelId}>
+                        {meta.display_name || modelId}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {isSelected && (
+                        <button
+                          type="button"
+                          onClick={() => setDefaultModel(modelId)}
+                          className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-sans font-semibold transition-all ${
+                            isDefault
+                              ? "bg-emerald-500 text-white shadow-2xs"
+                              : "bg-muted text-muted-foreground hover:text-foreground"
+                          }`}
+                          title="Set as Default Model for this Provider"
+                        >
+                          {isDefault ? "Default" : "Set Default"}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    {isSelected && (
-                      <button
-                        type="button"
-                        onClick={() => setDefaultModel(modelId)}
-                        className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-sans font-semibold transition-all ${
-                          isDefault
-                            ? "bg-emerald-500 text-white shadow-2xs"
-                            : "bg-muted text-muted-foreground hover:text-foreground"
-                        }`}
-                        title="Set as Default Model for this Provider"
-                      >
-                        {isDefault ? "Default" : "Set Default"}
-                      </button>
-                    )}
+                  {/* Badges Row */}
+                  <div className="flex flex-wrap items-center gap-1.5 pl-6 font-sans">
+                     {isReasoning && <span className="flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20" title="Reasoning Model"><Brain size={10}/> Reasoning</span>}
+                     {isVision && <span className="flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20" title="Vision Capable"><Eye size={10}/> Vision</span>}
+                     {isTools && <span className="flex items-center gap-1 text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20" title="Tool Calling"><Wrench size={10}/> Tools</span>}
+                     
+                     {meta.params_string && <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"><Cpu size={9}/> {meta.params_string}</span>}
+                     {meta.max_context_length && <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"><Database size={9}/> {Math.round(meta.max_context_length / 1024)}K ctx</span>}
+                     {meta.quantization?.name && <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border"><Layers size={9}/> {meta.quantization.name}</span>}
+                     {meta.publisher && <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">{meta.publisher}</span>}
                   </div>
                 </div>
               );
@@ -320,3 +347,4 @@ export function ModelDiscoveryModal({
 }
 
 export default ModelDiscoveryModal;
+

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import {
-  Sparkles, Layers, RefreshCw, Check, AlertTriangle,
+  Sparkles, Layers, Info, Brain, Wrench, Database, RefreshCw, Check, AlertTriangle,
   Zap, Bot, Plus, ArrowUpCircle, Trash2, Eye, EyeOff, Sliders,
   Search, CheckCircle2, ShieldCheck, KeyRound, Globe, Server, Radio,
   HelpCircle, XCircle, ShieldAlert, Cpu, Cloud, Terminal, RotateCcw,
@@ -11,6 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { showToast } from "@/components/ui/ToastNotification";
 import { ModelDiscoveryModal } from "../ModelDiscoveryModal";
+import { ModelInfoModal } from "@/components/models/ModelInfoModal";
+import { inferModelCapabilities, saveLocalMetadataVault, fetchServerMetadata } from "@/lib/modelMetadata";
 import type {
   HubSubTab,
   CustomEndpoint,
@@ -70,6 +72,17 @@ export function LLMTab({
   const [newLMModelInput, setNewLMModelInput] = useState("");
   const [newOllamaModelInput, setNewOllamaModelInput] = useState("");
   const [scanningOllama, setScanningOllama] = useState(false);
+  const [infoModalModel, setInfoModalModel] = useState<string | null>(null);
+  const [metadataVault, setMetadataVault] = useState<Record<string, any>>({});
+
+  React.useEffect(() => {
+    fetchServerMetadata().then((data) => setMetadataVault(data || {}));
+    const onUpdate = (e: any) => setMetadataVault(e.detail || {});
+    window.addEventListener("omweb:metadata-updated", onUpdate);
+    return () => window.removeEventListener("omweb:metadata-updated", onUpdate);
+  }, []);
+
+  React.useEffect(() => { fetchServerMetadata(); }, []);
 
   // Model Discovery Target State (For Cloud & Custom Endpoints)
   const [discoveryTarget, setDiscoveryTarget] = useState<{
@@ -206,6 +219,7 @@ export function LLMTab({
       });
       const data = await res.json();
       if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
+        if (data.models_metadata) saveLocalMetadataVault(data.models_metadata);
         const defaultMod = ollamaSettings.model || data.models[0];
         setOllamaSettings((prev) => {
           const updated: OllamaSettings = {
@@ -955,38 +969,81 @@ export function LLMTab({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-0.5">
                   {availableModels.map((m) => {
                     const isCurrentPrimary = config.llm.provider === "lmstudio" && config.llm.model === m;
+                    const caps = inferModelCapabilities(m, metadataVault[m]);
                     return (
                       <div
                         key={m}
-                        className={`p-2 rounded border text-xs font-mono flex items-center justify-between ${
-                          isCurrentPrimary ? "bg-primary/10 border-primary/40" : "bg-card border-border/70"
+                        className={`p-2.5 rounded-lg border text-xs font-mono flex flex-col gap-1.5 transition-all ${
+                          isCurrentPrimary ? "bg-primary/10 border-primary/40 shadow-xs" : "bg-card border-border/70 hover:border-border"
                         }`}
                       >
-                        <span className="truncate pr-2 font-medium" title={m}>{m}</span>
-                        <div className="flex items-center gap-1 shrink-0 font-sans">
-                          <button
-                            type="button"
-                            onClick={() => assignDetectedModel(m, "primary")}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
-                              isCurrentPrimary ? "bg-emerald-500 text-white" : "bg-primary/15 text-primary hover:bg-primary/25"
-                            }`}
-                          >
-                            {isCurrentPrimary ? "Active" : "Primary"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => assignDetectedModel(m, "vision")}
-                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-500 hover:bg-violet-500/25 cursor-pointer"
-                          >
-                            Vision
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLMModel(m)}
-                            className="p-1 rounded text-muted-foreground hover:text-rose-500 cursor-pointer"
-                          >
-                            <Trash2 size={11} />
-                          </button>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
+                            <span className="truncate font-semibold text-foreground" title={m}>{m}</span>
+                            <button
+                              type="button"
+                              onClick={() => setInfoModalModel(m)}
+                              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition cursor-pointer"
+                              title="View Model Technical Specs & Capabilities"
+                            >
+                              <Info size={12} />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0 font-sans">
+                            <button
+                              type="button"
+                              onClick={() => assignDetectedModel(m, "primary")}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
+                                isCurrentPrimary ? "bg-emerald-500 text-white" : "bg-primary/15 text-primary hover:bg-primary/25"
+                              }`}
+                            >
+                              {isCurrentPrimary ? "Active" : "Primary"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => assignDetectedModel(m, "vision")}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-500 hover:bg-violet-500/25 cursor-pointer"
+                            >
+                              Vision
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLMModel(m)}
+                              className="p-1 rounded text-muted-foreground hover:text-rose-500 cursor-pointer"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Exterior Badges */}
+                        <div className="flex flex-wrap items-center gap-1 font-sans">
+                          {caps.isReasoning && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              <Brain size={9} /> Reasoning
+                            </span>
+                          )}
+                          {caps.isVision && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+                              <Eye size={9} /> Vision
+                            </span>
+                          )}
+                          {caps.isTools && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                              <Wrench size={9} /> Tools
+                            </span>
+                          )}
+                          {caps.contextDisplay && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-mono">
+                              {caps.contextDisplay}
+                            </span>
+                          )}
+                          {caps.quantDisplay && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-mono">
+                              {caps.quantDisplay}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -1149,35 +1206,78 @@ export function LLMTab({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-0.5">
                   {ollamaSettings.savedModels.map((m) => {
                     const isCurrentPrimary = config.llm.provider === "ollama" && config.llm.model === m;
+                    const caps = inferModelCapabilities(m, metadataVault[m]);
                     return (
                       <div
                         key={m}
-                        className={`p-2 rounded border text-xs font-mono flex items-center justify-between ${
-                          isCurrentPrimary ? "bg-amber-500/10 border-amber-500/40" : "bg-card border-border/70"
+                        className={`p-2.5 rounded-lg border text-xs font-mono flex flex-col gap-1.5 transition-all ${
+                          isCurrentPrimary ? "bg-amber-500/10 border-amber-500/40 shadow-xs" : "bg-card border-border/70 hover:border-border"
                         }`}
                       >
-                        <span className="truncate pr-2 font-medium" title={m}>{m}</span>
-                        <div className="flex items-center gap-1 shrink-0 font-sans">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const b = ollamaSettings.baseUrl.endsWith("/v1") ? ollamaSettings.baseUrl : `${ollamaSettings.baseUrl}/v1`;
-                              setOllamaSettings((p) => ({ ...p, model: m }));
-                              activateEngine("ollama", "Ollama (Local)", m, b, "", "");
-                            }}
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
-                              isCurrentPrimary ? "bg-emerald-500 text-white" : "bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25"
-                            }`}
-                          >
-                            {isCurrentPrimary ? "Active" : "Primary"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveOllamaModel(m)}
-                            className="p-1 rounded text-muted-foreground hover:text-rose-500 cursor-pointer"
-                          >
-                            <Trash2 size={11} />
-                          </button>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
+                            <span className="truncate font-semibold text-foreground" title={m}>{m}</span>
+                            <button
+                              type="button"
+                              onClick={() => setInfoModalModel(m)}
+                              className="p-1 rounded text-muted-foreground hover:text-amber-500 hover:bg-muted transition cursor-pointer"
+                              title="View Model Technical Specs & Capabilities"
+                            >
+                              <Info size={12} />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0 font-sans">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const b = ollamaSettings.baseUrl.endsWith("/v1") ? ollamaSettings.baseUrl : `${ollamaSettings.baseUrl}/v1`;
+                                setOllamaSettings((p) => ({ ...p, model: m }));
+                                activateEngine("ollama", "Ollama (Local)", m, b, "", "");
+                              }}
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
+                                isCurrentPrimary ? "bg-emerald-500 text-white" : "bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25"
+                              }`}
+                            >
+                              {isCurrentPrimary ? "Active" : "Primary"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveOllamaModel(m)}
+                              className="p-1 rounded text-muted-foreground hover:text-rose-500 cursor-pointer"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Exterior Badges */}
+                        <div className="flex flex-wrap items-center gap-1 font-sans">
+                          {caps.isReasoning && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              <Brain size={9} /> Reasoning
+                            </span>
+                          )}
+                          {caps.isVision && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+                              <Eye size={9} /> Vision
+                            </span>
+                          )}
+                          {caps.isTools && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                              <Wrench size={9} /> Tools
+                            </span>
+                          )}
+                          {caps.paramsDisplay && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-mono">
+                              {caps.paramsDisplay}
+                            </span>
+                          )}
+                          {caps.quantDisplay && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-mono">
+                              {caps.quantDisplay}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -1634,6 +1734,7 @@ export function LLMTab({
       )}
 
       {/* Model Discovery Modal */}
+      <ModelInfoModal isOpen={Boolean(infoModalModel)} onClose={() => setInfoModalModel(null)} modelKey={infoModalModel || ""} explicitMeta={infoModalModel ? metadataVault[infoModalModel] : null} />
       {discoveryTarget && (
         <ModelDiscoveryModal
           isOpen={Boolean(discoveryTarget)}
@@ -1650,4 +1751,6 @@ export function LLMTab({
     </div>
   );
 }
+
+
 
