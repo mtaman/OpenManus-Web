@@ -40,7 +40,7 @@ export function ModelInfoModal({ isOpen, onClose, modelKey, explicitMeta }: Mode
   const loadedConfig = meta.loaded_instances && meta.loaded_instances[0]?.config;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+    <div className="fixed inset-0 z-[60] bg-background/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
       <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col font-sans">
         {/* Header */}
         <div className="px-5 py-4 border-b border-border/80 flex items-center justify-between bg-muted/30">
@@ -185,3 +185,4 @@ export function ModelInfoModal({ isOpen, onClose, modelKey, explicitMeta }: Mode
 }
 
 export default ModelInfoModal;
+

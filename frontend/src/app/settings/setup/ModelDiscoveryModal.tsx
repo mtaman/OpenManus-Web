@@ -1,5 +1,5 @@
 ﻿"use client";
-
+import { ModelInfoModal } from "@/components/models/ModelInfoModal";
 import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
@@ -11,6 +11,7 @@ import {
   Cloud,
   Terminal,
   Save,
+  Info,
   CheckSquare,
   Square,
   Brain,
@@ -50,6 +51,7 @@ export function ModelDiscoveryModal({
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set(initialSavedModels));
   const [defaultModel, setDefaultModel] = useState<string>(initialSavedModels[0] || "");
   const [isLoading, setIsLoading] = useState(false);
+  const [infoModalModel, setInfoModalModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchModelsFromApi = async () => {
@@ -283,6 +285,17 @@ export function ModelDiscoveryModal({
                       <span className="truncate text-xs font-bold" title={meta.display_name || modelId}>
                         {meta.display_name || modelId}
                       </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInfoModalModel(modelId);
+                        }}
+                        className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition cursor-pointer shrink-0"
+                        title="View Model Technical Specs & Capabilities"
+                      >
+                        <Info size={12} />
+                      </button>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -341,10 +354,28 @@ export function ModelDiscoveryModal({
             <span>Save Selected ({selectedModels.size})</span>
           </Button>
         </div>
-      </div>
-    </div>
-  );
+            {/* Nested Technical Specs Modal */}
+
+            <ModelInfoModal
+
+              isOpen={Boolean(infoModalModel)}
+
+              onClose={() => setInfoModalModel(null)}
+
+              modelKey={infoModalModel || ""}
+
+              explicitMeta={infoModalModel ? modelsMetadata[infoModalModel] : null}
+
+            />
+
+          </div>
+
+        </div>
+
+        );
 }
 
 export default ModelDiscoveryModal;
+
+
 
