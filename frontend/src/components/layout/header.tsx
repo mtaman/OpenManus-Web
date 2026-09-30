@@ -20,7 +20,7 @@ export function Header({
       {/* Left: Session Title & Agent Status Indicator */}
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex items-center gap-2 truncate">
-          <Cpu className="h-4 w-4 text-accent shrink-0" />
+          <Cpu className="h-4 w-4 text-manus-accent shrink-0" />
           <span className="font-heading font-medium text-xs sm:text-sm text-foreground truncate max-w-[200px] sm:max-w-md">
             {sessionTitle}
           </span>

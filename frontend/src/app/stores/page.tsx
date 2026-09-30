@@ -262,7 +262,7 @@ export default function StoresPage() {
               onClick={() => setActiveTab("agents")}
               className={`primary flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                 activeTab === "agents"
-                  ? "border-manus-accent text-manus-accent bg-accent/5"
+                  ? "border-manus-accent text-manus-accent bg-manus-accent/5"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -277,7 +277,7 @@ export default function StoresPage() {
               onClick={() => setActiveTab("tools")}
               className={`primary flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                 activeTab === "tools"
-                  ? "border-manus-accent text-manus-accent bg-accent/5"
+                  ? "border-manus-accent text-manus-accent bg-manus-accent/5"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -292,7 +292,7 @@ export default function StoresPage() {
               onClick={() => setActiveTab("extensions")}
               className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                 activeTab === "extensions"
-                  ? "border-accent text-manus-accent bg-accent/5"
+                  ? "border-accent text-manus-accent bg-manus-accent/5"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
