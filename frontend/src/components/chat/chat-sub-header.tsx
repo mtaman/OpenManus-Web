@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { Plus, History, Coins, Square, PanelRightClose, PanelRightOpen } from "lucide-react";
@@ -14,6 +14,7 @@ interface ChatSubHeaderProps {
   status: "idle" | "running" | "completed" | "failed";
   tokensUsed: { input: number; output: number; total: number };
   currentStepNum: number;
+  maxSteps?: number;
   execMode: "agent" | "chat";
   selectedEngineId?: string;
   onSelectEngine?: (engine: EngineOption) => void;
@@ -32,6 +33,7 @@ export function ChatSubHeader({
   status,
   tokensUsed,
   currentStepNum,
+  maxSteps = 30,
   execMode,
   selectedEngineId,
   onSelectEngine,
@@ -41,7 +43,7 @@ export function ChatSubHeader({
   onToggleRightPanel,
 }: ChatSubHeaderProps) {
   return (
-    <div className="h-12 flex items-center justify-between px-5 border-border bg-[#ffffff]/1 backdrop-blur-sm shrink-0">
+    <div className="h-12 flex items-center justify-between px-5 border-b border-border bg-[#ffffff]/1 backdrop-blur-sm shrink-0 font-sans">
       <div className="flex items-center gap-2.5">
         {isFreshSession ? (
           <EngineSelector />
@@ -69,8 +71,8 @@ export function ChatSubHeader({
         )}
 
         {status === "running" && (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-manus-warning/15 text-manus-warning border border-manus-warning/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-manus-warning animate-pulse" />
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
             <span>RUNNING</span>
           </span>
         )}
@@ -84,9 +86,10 @@ export function ChatSubHeader({
           </span>
         )}
 
-        {currentStepNum > 0 && execMode === "agent" && (
-          <span className="text-xs font-mono text-foreground font-semibold px-2 py-0.5 bg-muted rounded-md border border-border/60">
-            Step {currentStepNum} / 20
+        {/* STEP COUNTER: Strict Isolation - Visible ONLY when execMode === 'agent' */}
+        {execMode === "agent" && (status === "running" || currentStepNum > 0) && (
+          <span className="text-xs font-mono text-foreground font-semibold px-2 py-0.5 bg-muted rounded-md border border-border/60 animate-in fade-in">
+            Step {currentStepNum} / {maxSteps}
           </span>
         )}
 

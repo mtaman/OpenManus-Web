@@ -19,7 +19,7 @@ interface AgentSelectorProps {
 }
 
 export function AgentSelector({ disabled = false }: AgentSelectorProps) {
-  const { selectedAgentId, setSelectedAgentId } = useChatStore();
+  const { selectedAgentId, setSelectedAgentId, setAvailableAgents } = useChatStore();
   const [agents, setAgents] = useState<AgentManifest[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,6 +30,7 @@ export function AgentSelector({ disabled = false }: AgentSelectorProps) {
       .then((data) => {
         if (isMounted && data.length > 0) {
           setAgents(data);
+          setAvailableAgents(data);
         }
       })
       .catch(console.error);
@@ -37,7 +38,7 @@ export function AgentSelector({ disabled = false }: AgentSelectorProps) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [setAvailableAgents]);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -57,7 +58,8 @@ export function AgentSelector({ disabled = false }: AgentSelectorProps) {
     id: "manus",
     name: "Manus Generalist",
     role: "General Autonomous Specialist",
-    icon: "Bot"
+    icon: "Bot",
+    max_steps: 30
   };
 
   const renderIcon = (iconName?: string) => {
@@ -86,7 +88,7 @@ export function AgentSelector({ disabled = false }: AgentSelectorProps) {
             ? "opacity-50 cursor-not-allowed bg-muted/40 border-border text-muted-foreground"
             : "bg-card hover:bg-muted border-border text-foreground shadow-manus-xs cursor-pointer"
         }`}
-        title="Select Autonomous Agent"
+        title={`Active: ${activeAgent.name} (Max${activeAgent.max_steps || 30} Steps)`}
       >
         <span className="p-0.5 rounded-sm bg-muted">{renderIcon(activeAgent.icon)}</span>
         <span className="font-semibold truncate max-w-[110px]">{activeAgent.name}</span>
@@ -94,8 +96,8 @@ export function AgentSelector({ disabled = false }: AgentSelectorProps) {
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 bottom-full mb-1.5 w-60 rounded-xl border border-border bg-card/95 backdrop-blur-md shadow-2xl z-50 overflow-hidden font-sans text-xs animate-in fade-in zoom-in-95 duration-100">
-          <div className="px-3 py-1.5 border-b border-border bg-muted/30">
+        <div className="absolute left-0 bottom-full mb-1.5 w-64 rounded-xl border border-border bg-card/95 backdrop-blur-md shadow-2xl z-50 overflow-hidden font-sans text-xs animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-3 py-1.5 border-b border-border bg-muted/30 flex items-center justify-between">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Select Agent Persona
             </span>
@@ -124,10 +126,11 @@ export function AgentSelector({ disabled = false }: AgentSelectorProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-xs text-foreground truncate">{ag.name}</span>
-                      {isSelected && <Check size={12} className="text-primary shrink-0" />}
+                      <span className="text-[10px] text-muted-foreground font-mono">{ag.max_steps || 30} steps</span>
                     </div>
                     <span className="text-[10px] text-muted-foreground block truncate">{ag.role || "Autonomous Agent"}</span>
                   </div>
+                  {isSelected && <Check size={12} className="text-primary shrink-0 self-center ml-1" />}
                 </button>
               );
             })}

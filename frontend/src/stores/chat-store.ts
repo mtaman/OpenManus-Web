@@ -1,5 +1,8 @@
-﻿import { create } from "zustand";
+"use client";
+
+import { create } from "zustand";
 import { fetchChats, ChatSession, deleteAllChats } from "@/lib/chatsApi";
+import { AgentManifest } from "@/lib/types";
 
 export interface AgentStep {
   id: string;
@@ -24,9 +27,13 @@ interface ChatState {
   currentJobId: string | null;
   isRunning: boolean;
   selectedAgentId: string;
+  availableAgents: AgentManifest[];
   activeSteps: AgentStep[];
   sessions: ChatSession[];
   setSelectedAgentId: (agentId: string) => void;
+  setAvailableAgents: (agents: AgentManifest[]) => void;
+  getAgentMaxSteps: (id?: string) => number;
+  syncSessionAgentMetadata: (chatData: any) => void;
   loadSessions: () => Promise<void>;
   loadSessionDetail: (chatId: string) => Promise<void>;
   clearAllSessions: () => Promise<void>;
@@ -39,15 +46,46 @@ interface ChatState {
   resetChat: () => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   currentJobId: null,
   isRunning: false,
   selectedAgentId: "manus",
+  availableAgents: [],
   activeSteps: [],
   sessions: [],
 
   setSelectedAgentId: (agentId: string) => set({ selectedAgentId: agentId || "manus" }),
+  setAvailableAgents: (agents: AgentManifest[]) => set({ availableAgents: agents }),
+
+    syncSessionAgentMetadata: (chatData: any) => {
+    if (!chatData) return;
+    const agentId = chatData.agent_id || "manus";
+    const mode = (chatData.mode === "chat" || chatData.mode === "agent") ? chatData.mode : "agent";
+    set({ selectedAgentId: agentId });
+    if (typeof window !== "undefined") {
+      localStorage.setItem("omweb_exec_mode", mode);
+      window.dispatchEvent(new CustomEvent("omweb:mode-change", { detail: mode }));
+    }
+  },
+
+  getAgentMaxSteps: (id?: string) => {
+    const targetId = id || get().selectedAgentId;
+    const found = get().availableAgents.find((a) => a.id === targetId);
+    if (found && found.max_steps) return found.max_steps;
+
+    // Built-in manifest boundary matching backend registry
+    switch (targetId) {
+      case "deep_researcher":
+        return 35;
+      case "data_scientist":
+        return 25;
+      case "code_architect":
+      case "manus":
+      default:
+        return 30;
+    }
+  },
 
   loadSessions: async () => {
     try {

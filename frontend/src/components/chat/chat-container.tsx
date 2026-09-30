@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -34,7 +34,7 @@ export interface ChatContainerProps {
 
 export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const router = useRouter();
-  const { selectedAgentId, setSelectedAgentId } = useChatStore();
+  const { selectedAgentId, setSelectedAgentId, getAgentMaxSteps } = useChatStore();
   const [inputValue, setInputValue] = useState("");
   const [landingAttachedFiles, setLandingAttachedFiles] = useState<File[]>([]);
   const [submittedPrompt, setSubmittedPrompt] = useState("");
@@ -138,6 +138,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         if (data.chat_id) setActiveChatId(data.chat_id);
         if (data.prompt) setSubmittedPrompt(data.prompt);
         if (data.agent_id) setSelectedAgentId(data.agent_id);
+        if (data.mode) setExecMode(data.mode);
         if (data.status) setStatus(data.status);
         if (data.result) setFinalResult(safeRender(data.result));
         setSessionTimestamp(data.created_at || data.timestamp || new Date().toLocaleString());
@@ -442,7 +443,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
           prompt: finalPrompt,
-          max_steps: 20,
+          max_steps: effectiveMode === "agent" ? getAgentMaxSteps(selectedAgentId) : 1,
           chat_id: targetChatId,
           agent_id: selectedAgentId || "manus",
           mode: effectiveMode,
@@ -512,6 +513,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           status={status}
           tokensUsed={tokensUsed}
           currentStepNum={currentStepNum}
+          maxSteps={getAgentMaxSteps(selectedAgentId)}
           execMode={execMode}
           selectedEngineId={selectedEngineId}
           onSelectEngine={handleSelectEngine}
@@ -542,7 +544,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             setHumanAnswer={setHumanAnswer}
             onSendHumanAnswer={handleSendHumanAnswer}
             execMode={execMode}
-            activeGroupedSteps={groupStepEvents(steps)}
+            activeGroupedSteps={execMode === "agent" ? groupStepEvents(steps) : {}}
             currentStepNum={currentStepNum}
             status={status}
             elapsedSeconds={elapsedSeconds}
