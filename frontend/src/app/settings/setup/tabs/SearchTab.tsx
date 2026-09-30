@@ -43,7 +43,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
       </div>
 
       <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
-        <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+        <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-medium text-muted-foreground block mb-1">Primary Search Engine</label>

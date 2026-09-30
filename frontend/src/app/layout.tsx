@@ -1,5 +1,6 @@
 ﻿import type { Metadata, Viewport } from "next";
 import { DM_Sans, Libre_Baskerville, Cairo } from "next/font/google";
+// @ts-expect-error Next.js handles global stylesheet imports during build.
 import "./globals.css";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { I18nProvider } from "@/components/providers/i18n-provider";
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
   description: "Next-generation Web Interface for Autonomous AI Agents",
   icons: {
     icon: [
-      { url: "/favicon.ico" },
+      { url: "/favicon.ico" }, 
       { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
       { url: "/favicon.svg", type: "image/svg+xml" },
     ],

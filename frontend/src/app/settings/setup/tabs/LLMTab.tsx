@@ -506,7 +506,7 @@ export function LLMTab({
       {activeSubTab === "overview" && (
         <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border border-primary/50 bg-primary/5 space-y-2 shadow-xs ring-1 ring-primary/20">
+            <div className="p-4 rounded-md border border-primary/50 bg-primary/5 space-y-2 shadow-xs ring-1 ring-primary/20">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-primary uppercase tracking-wider block">
                   Primary Autonomous Engine [llm]
@@ -526,7 +526,7 @@ export function LLMTab({
               </span>
             </div>
 
-            <div className="p-4 rounded-xl border border-border bg-card space-y-2 shadow-xs">
+            <div className="p-4 rounded-md border border-border bg-card space-y-2 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                   Visual Perception Engine [llm.vision]
@@ -547,7 +547,7 @@ export function LLMTab({
             </div>
           </div>
 
-          <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+          <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div>
                 <span className="text-xs font-bold text-foreground uppercase tracking-wider block">
@@ -751,7 +751,7 @@ export function LLMTab({
           </div>
 
           {/* Hyperparameters */}
-          <div className="p-4 rounded-xl border border-border bg-card grid grid-cols-1 md:grid-cols-2 gap-4 shadow-xs">
+          <div className="p-4 rounded-md border border-border bg-card grid grid-cols-1 md:grid-cols-2 gap-4 shadow-xs">
             <div>
               <label className="text-[11px] font-medium text-muted-foreground block mb-1">Context Window (max_tokens)</label>
               <input
@@ -785,7 +785,7 @@ export function LLMTab({
       {activeSubTab === "lmstudio" && (
         <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
           {/* 1. LM STUDIO CARD */}
-          <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+          <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
                 <Cpu size={16} className="text-primary" />
@@ -997,7 +997,7 @@ export function LLMTab({
           </div>
 
           {/* 2. OLLAMA LOCAL SERVER CARD */}
-          <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+          <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
                 <Terminal size={16} className="text-amber-500" />
@@ -1204,7 +1204,7 @@ export function LLMTab({
             const isVision = config.llm_vision.provider === cp.id || config.llm_vision.base_url === cp.baseUrl;
 
             return (
-              <div key={cp.id} className="p-4 rounded-xl border border-border bg-card space-y-3.5 shadow-xs">
+              <div key={cp.id} className="p-4 rounded-md border border-border bg-card space-y-3.5 shadow-xs">
                 <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-foreground">{cp.name}</span>
@@ -1433,7 +1433,7 @@ export function LLMTab({
 
           <div className="space-y-3">
             {customEndpoints.map((ce) => (
-              <div key={ce.id} className="p-4 rounded-xl border border-border bg-card shadow-xs flex items-center justify-between">
+              <div key={ce.id} className="p-4 rounded-md border border-border bg-card shadow-xs flex items-center justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-foreground">{ce.name}</span>
@@ -1495,7 +1495,7 @@ export function LLMTab({
             ))}
           </div>
 
-          <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+          <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center gap-2 pb-2 border-b border-border/60">
               <Plus size={14} className="text-primary" />
               <span className="text-xs font-bold text-foreground uppercase tracking-wider">

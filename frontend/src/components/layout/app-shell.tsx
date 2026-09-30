@@ -28,7 +28,7 @@ const navItems = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Standalone Fullscreen Mode for Setup Wizard
   if (pathname === "/setup") {
@@ -64,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-            className="w-10 h-10 flex items-center justify-center rounded-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+            className="w-10 h-10 flex items-center justify-center rounded-xs text-black hover:bg-muted hover:text-foreground transition-all cursor-pointer"
           >
             {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
           </button>
@@ -85,8 +85,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   title={item.label}
                   className={`w-10 h-10 rounded-xs flex items-center justify-center transition-all ${
                     active
-                      ? "bg-muted text-black-foreground shadow-manus-xs" 
-                      : "text-muted-foreground/80 hover:bg-muted hover:text-foreground"
+                      ? "bg-muted text-black shadow-manus-xs" 
+                      : "text-black  hover:bg-muted hover:text-foreground"
                   }`}
                 >
                   <Icon size={18} />
@@ -104,8 +104,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             title="Settings"
             className={`w-10 h-10 mb-1 flex items-center justify-center rounded-xs transition-all ${
               isSettingsActive
-                ? "bg-muted text-black-foreground shadow-manus-xs"
-                : "text-muted-foreground/80 hover:bg-muted hover:text-foreground"
+                ? "bg-muted text-black shadow-manus-xs"
+                : "text-black  hover:bg-muted hover:text-foreground"
             }`}
           >
             <Settings size={18} />

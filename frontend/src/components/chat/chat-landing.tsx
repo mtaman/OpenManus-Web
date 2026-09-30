@@ -90,7 +90,7 @@ export function ChatLanding({
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full font-sans">
-      <h1 className="font-serif text-3xl sm:text-4xl font-normal text-foreground tracking-tight mb-4">
+      <h1 className="font-serif text-3xl sm:text-5xl font-normal text-black tracking-tight mb-4">
         What can I do for you?
       </h1>
 

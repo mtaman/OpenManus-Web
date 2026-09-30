@@ -24,7 +24,7 @@ export function MCPTab({ config, setConfig }: MCPTabProps) {
       </div>
 
       <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
-        <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+        <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
           <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">
             Agent Delegation [runflow]
           </span>
@@ -43,7 +43,7 @@ export function MCPTab({ config, setConfig }: MCPTabProps) {
           </label>
         </div>
 
-        <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+        <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
           <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">
             Model Context Protocol [mcp]
           </span>

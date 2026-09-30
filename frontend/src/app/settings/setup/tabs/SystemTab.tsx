@@ -40,7 +40,7 @@ export function SystemTab({ systemInfo, fetchSystemInfo }: SystemTabProps) {
       <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
         {systemInfo ? (
           <div className="space-y-4">
-            <div className="p-5 rounded-xl bg-card border border-border space-y-3 shadow-sm">
+            <div className="p-5 rounded-md bg-card border border-border space-y-3 shadow-sm">
               <div className="flex items-center gap-2">
                 <Cpu size={15} className="text-primary" />
                 <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
@@ -64,9 +64,9 @@ export function SystemTab({ systemInfo, fetchSystemInfo }: SystemTabProps) {
                       {systemInfo.os?.memory?.available_gb} GB free / {systemInfo.os?.memory?.total_gb} GB total ({systemInfo.os?.memory?.usage_percent}% load)
                     </span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden mt-1">
+                  <div className="w-full bg-card rounded-full h-1.5 overflow-hidden mt-1">
                     <div
-                      className="bg-primary h-full transition-all duration-300"
+                      className="bg-manus-accent h-full transition-all duration-300"
                       style={{ width: `${systemInfo.os?.memory?.usage_percent || 0}%` }}
                     />
                   </div>
@@ -74,7 +74,7 @@ export function SystemTab({ systemInfo, fetchSystemInfo }: SystemTabProps) {
               </div>
             </div>
 
-            <div className="p-5 rounded-xl bg-card border border-border space-y-3 shadow-sm">
+            <div className="p-5 rounded-md bg-card border border-border space-y-3 shadow-sm">
               <div className="flex items-center gap-2">
                 <Activity size={15} className="text-amber-500" />
                 <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
@@ -95,7 +95,7 @@ export function SystemTab({ systemInfo, fetchSystemInfo }: SystemTabProps) {
             </div>
           </div>
         ) : (
-          <div className="p-8 text-center text-xs text-muted-foreground bg-card border border-border rounded-xl shadow-sm">
+          <div className="p-8 text-center text-xs text-muted-foreground bg-card border border-border rounded-md shadow-sm">
             Loading hardware telemetry...
           </div>
         )}

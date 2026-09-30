@@ -27,7 +27,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
       </div>
 
       <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
-        <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+        <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">
               Local Docker Sandbox [sandbox]
@@ -97,7 +97,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
           </div>
         </div>
 
-        <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
+        <div className="p-5 rounded-md border border-border bg-card space-y-4 shadow-sm">
           <div className="flex items-center gap-2 border-b border-border/60 pb-3">
             <Cloud size={14} className="text-primary" />
             <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">
