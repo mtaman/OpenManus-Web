@@ -292,7 +292,7 @@ export default function ProjectWorkspacePage() {
                           type="button"
                           onClick={(e) => handleDeleteChat(e, chat.id, chat.job_id)}
                           title="Delete session"
-                          className="p-1.5 rounded-md bg-muted hover:bg-manus-error/20 text-muted-foreground hover:text-manus-error border border-border transition cursor-pointer"
+                          className="p-1.5 rounded-md bg-white-foreground hover:bg-manus-error/20 text-muted-foreground hover:text-manus-error border border-border transition cursor-pointer"
                         >
                           <Trash2 size={12} />
                         </button>

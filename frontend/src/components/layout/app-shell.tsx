@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground font-sans">
       {/* 64px Primary Icon Rail (Manus Architecture) */}
-      <aside className="w-16 h-full flex flex-col items-center justify-between py-3 border-r border-border bg-card/60 backdrop-blur-md z-30 shrink-0 select-none">
+      <aside className="w-16 h-full flex flex-col items-center justify-between py-3 border-r border-border bg-custom backdrop-blur-md z-30 shrink-0 select-none">
         {/* Brand Logo, Sidebar Toggle & Top Navigation */}
         <div className="flex flex-col items-center gap-3">
           <Link

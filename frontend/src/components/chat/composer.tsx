@@ -1,16 +1,10 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import {
   Send,
   Paperclip,
   StopCircle,
-  ChevronDown,
-  Check,
-  Server,
-  Terminal,
-  Cpu,
-  Cloud,
   Bot,
   MessageSquare,
   FileText,
@@ -18,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AgentSelector } from "./agent-selector";
+import { EngineSelector } from "./engine-selector";
 import { useChatStore } from "@/stores/chat-store";
 
 interface ComposerProps {
@@ -35,10 +30,6 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   const [activeModel, setActiveModel] = useState<string>("qwen3-vl-8b-instruct");
   const [activeProvider, setActiveProvider] = useState<string>("LM Studio (Local)");
   const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
-  const [customList, setCustomList] = useState<any[]>([]);
-  const [cloudList, setCloudList] = useState<any[]>([]);
-  const [lmStudioItem, setLmStudioItem] = useState<any>(null);
-  const [showModelMenu, setShowModelMenu] = useState(false);
 
   const { selectedAgentId } = useChatStore();
 
@@ -57,20 +48,13 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
         setExecMode(savedMode);
       }
 
-      try {
-        const storedLM = JSON.parse(localStorage.getItem("omweb_lmstudio_vault") || "null");
-        if (storedLM) setLmStudioItem(storedLM);
-      } catch (e) {}
+      const onModelChange = (e: any) => {
+        if (e.detail?.model) setActiveModel(e.detail.model);
+        if (e.detail?.provider_name) setActiveProvider(e.detail.provider_name);
+      };
 
-      try {
-        const storedCloud = JSON.parse(localStorage.getItem("omweb_cloud_vault") || "[]");
-        if (Array.isArray(storedCloud)) setCloudList(storedCloud);
-      } catch (e) {}
-
-      try {
-        const storedCustom = JSON.parse(localStorage.getItem("omweb_custom_endpoints") || "[]");
-        if (Array.isArray(storedCustom)) setCustomList(storedCustom);
-      } catch (e) {}
+      window.addEventListener("omweb:model-change", onModelChange);
+      return () => window.removeEventListener("omweb:model-change", onModelChange);
     }
   }, []);
 
@@ -82,32 +66,13 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
     }
   };
 
-  const handleSelectEngine = (payload: {
-    model: string;
-    provider: string;
-    provider_name: string;
-    base_url: string;
-    api_key: string;
-    api_type: string;
-  }) => {
-    setActiveModel(payload.model);
-    setActiveProvider(payload.provider_name);
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("omweb_active_model", payload.model);
-      localStorage.setItem("omweb_active_provider", payload.provider_name);
-      localStorage.setItem("omweb_active_llm_override", JSON.stringify(payload));
-    }
-    setShowModelMenu(false);
-  };
-
   const getActivePayload = () => {
     let base = {
       model: activeModel,
       provider: activeProvider.toLowerCase().replace(/[^a-z0-9]/g, ""),
       provider_name: activeProvider,
-      base_url: lmStudioItem?.baseUrl || "http://127.0.0.1:1234/v1",
-      api_key: lmStudioItem?.apiKey || "",
+      base_url: "http://127.0.0.1:1234/v1",
+      api_key: "",
       api_type: "",
       mode: execMode,
       agent_id: execMode === "agent" ? (selectedAgentId || "manus") : "manus"
@@ -201,125 +166,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
 
       {/* Top Model & Engine Switcher Bar */}
       <div className="flex items-center justify-between mb-1.5 px-1">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowModelMenu(!showModelMenu)}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-[11px] font-mono bg-card hover:bg-muted border border-border text-foreground transition-all cursor-pointer shadow-xs"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="font-semibold text-primary">{activeProvider}:</span>
-            <span className="text-foreground">{activeModel}</span>
-            <ChevronDown size={11} className="text-muted-foreground ml-0.5" />
-          </button>
-
-          {showModelMenu && (
-            <div className="absolute bottom-full mb-1.5 left-0 w-80 bg-card border border-border rounded-lg shadow-xl p-2 z-50 space-y-2 max-h-80 overflow-y-auto">
-              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/60 flex items-center justify-between">
-                <span>Select AI Provider</span>
-                <Server size={11} />
-              </div>
-
-              {/* Local LM Studio Option */}
-              <button
-                type="button"
-                onClick={() =>
-                  handleSelectEngine({
-                    model: lmStudioItem?.model || "qwen3-vl-8b-instruct",
-                    provider: "lmstudio",
-                    provider_name: "LM Studio (Local)",
-                    base_url: lmStudioItem?.baseUrl || "http://127.0.0.1:1234/v1",
-                    api_key: lmStudioItem?.apiKey || "",
-                    api_type: ""
-                  })
-                }
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
-              >
-                <div>
-                  <span className="font-semibold flex items-center gap-1.5">
-                    <Cpu size={12} className="text-primary" /> LM Studio (Local GPU)
-                  </span>
-                  <span className="text-[10px] text-muted-foreground font-mono block pl-4">
-                    {lmStudioItem?.model || "qwen3-vl-8b-instruct"}
-                  </span>
-                </div>
-                {activeProvider.includes("LM Studio") && <Check size={13} className="text-emerald-500 shrink-0" />}
-              </button>
-
-              {/* Cloud Providers List */}
-              {cloudList.length > 0 && (
-                <div className="pt-1 border-t border-border/40">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
-                    Cloud Providers
-                  </span>
-                  {cloudList.map((cp) => (
-                    <button
-                      key={cp.id}
-                      type="button"
-                      onClick={() =>
-                        handleSelectEngine({
-                          model: cp.model,
-                          provider: cp.id,
-                          provider_name: cp.name,
-                          base_url: cp.baseUrl,
-                          api_key: cp.apiKey,
-                          api_type: cp.type || ""
-                        })
-                      }
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
-                    >
-                      <div>
-                        <span className="font-medium flex items-center gap-1.5">
-                          <Cloud size={12} className="text-sky-500" /> {cp.name}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-mono block pl-4">{cp.model}</span>
-                      </div>
-                      {activeProvider === cp.name && <Check size={13} className="text-emerald-500 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Custom Endpoints List */}
-              {customList.length > 0 && (
-                <div className="pt-1 border-t border-border/40">
-                  <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
-                    Custom Endpoints
-                  </span>
-                  {customList.map((ce) => (
-                    <button
-                      key={ce.id}
-                      type="button"
-                      onClick={() =>
-                        handleSelectEngine({
-                          model: ce.defaultModel,
-                          provider: ce.providerId,
-                          provider_name: ce.name,
-                          base_url: ce.endpointUrl,
-                          api_key: ce.apiKey || "",
-                          api_type: ""
-                        })
-                      }
-                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs text-left hover:bg-muted text-foreground cursor-pointer"
-                    >
-                      <div>
-                        <span className="font-medium flex items-center gap-1.5">
-                          <Terminal size={12} className="text-amber-500" /> {ce.name}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-mono block pl-4">{ce.defaultModel}</span>
-                      </div>
-                      {activeProvider === ce.name && <Check size={13} className="text-emerald-500 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
+        <EngineSelector direction="up" />
         <span className="text-[10px] text-muted-foreground">Press Enter to send, Shift+Enter for new line</span>
       </div>
 
@@ -328,10 +175,10 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`relative flex flex-col w-full rounded-xl border bg-card shadow-lg transition-all ${
+        className={`relative flex flex-col w-full rounded-xl border bg-white-foreground shadow-lg transition-all ${
           isDragging
             ? "border-primary ring-2 ring-primary/40 bg-primary/5"
-            : "border-border focus-within:ring-1 focus-within:ring-primary focus-within:border-primary"
+            : "border-border focus-within:ring-1 focus-within:ring-muted focus-within:border-muted "
         }`}
       >
         {/* Attached Files Badges Container */}
@@ -423,7 +270,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
               </button>
             </div>
 
-            {/* Agent Selector: CONDITIONAL (Visible ONLY when execMode === 'agent') */}
+            {/* Agent Selector: Visible ONLY when execMode === 'agent' */}
             {execMode === "agent" && (
               <div className="animate-in fade-in duration-150">
                 <AgentSelector disabled={disabled || isRunning} />

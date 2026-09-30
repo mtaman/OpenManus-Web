@@ -21,7 +21,7 @@ interface QuickPill {
   icon: React.ReactNode;
   prompt: string;
 }
-
+ 
 const QUICK_PILLS: QuickPill[] = [
   { label: "Create slides", icon: <Layout size={13} />, prompt: "Create an interactive presentation in HTML with modern slide navigation and CSS styling, then terminate." },
   { label: "Build website", icon: <Globe size={13} />, prompt: "Build a responsive modern single-page website in HTML and Tailwind CSS with a clean hero section and pricing cards, then terminate." },
@@ -156,7 +156,7 @@ export function ChatLanding({
             setLandingAttachedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
           }
         }}
-        className={`w-full bg-card rounded-2xl border transition-all text-left p-3.5 shadow-manus-md ${
+        className={`w-full bg-white-foreground rounded-2xl border transition-all text-left p-3.5 shadow-manus-md ${
           isLandingDragging
             ? "border-primary ring-2 ring-primary/40 bg-primary/5"
             : "border-border focus-within:ring-1 focus-within:ring-primary focus-within:border-primary"

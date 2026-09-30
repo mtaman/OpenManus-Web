@@ -208,11 +208,11 @@ export function LLMTab({
       if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
         const defaultMod = ollamaSettings.model || data.models[0];
         setOllamaSettings((prev) => {
-          const updated = {
+          const updated: OllamaSettings = {
             ...prev,
             savedModels: data.models,
             model: defaultMod,
-            status: "online"
+            status: "online" as const
           };
           if (typeof window !== "undefined") {
             localStorage.setItem("omweb_ollama_vault", JSON.stringify(updated));
@@ -1650,3 +1650,4 @@ export function LLMTab({
     </div>
   );
 }
+

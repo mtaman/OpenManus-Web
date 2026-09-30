@@ -10,6 +10,16 @@
 
 export type RunStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
+export interface Step {
+  id: string;
+  step_number: number;
+  type: string;
+  content: string;
+  timestamp: string;
+  tool_name?: string;
+  tool_args?: Record<string, any>;
+}
+
 export interface ToolPair {
   kind: "tool";
   id: string;

@@ -71,6 +71,9 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+
+        custom: "var(--custom-color)",
+        
         manus: {
           black: "#34322D",
           gray: "#F8F8F8",

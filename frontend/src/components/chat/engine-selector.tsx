@@ -12,7 +12,16 @@ import {
   Plus
 } from "lucide-react";
 
-interface ProviderPayload {
+export interface EngineOption {
+  id: string;
+  name: string;
+  mode: "agent" | "chat";
+  description?: string;
+  icon?: any;
+  [key: string]: any;
+}
+
+export interface ProviderPayload {
   model: string;
   provider: string;
   provider_name: string;
@@ -21,8 +30,13 @@ interface ProviderPayload {
   api_type: string;
 }
 
-export function EngineSelector() {
+export interface EngineSelectorProps {
+  direction?: "up" | "down" | "auto";
+}
+
+export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const [activeModel, setActiveModel] = useState<string>("qwen3-vl-8b-instruct");
   const [activeProvider, setActiveProvider] = useState<string>("LM Studio (Local)");
   const [activeCloudProviders, setActiveCloudProviders] = useState<any[]>([]);
@@ -32,6 +46,7 @@ export function EngineSelector() {
   const [ollamaItem, setOllamaItem] = useState<any>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const loadRealProviders = () => {
     if (typeof window === "undefined") return;
@@ -68,7 +83,7 @@ export function EngineSelector() {
       setOllamaItem(null);
     }
 
-    // 3. Load Cloud Providers (STRICT: API Key must be non-empty, and NOT Ollama)
+    // 3. Load Cloud Providers
     try {
       const storedCloud = JSON.parse(localStorage.getItem("omweb_cloud_vault") || "[]");
       if (Array.isArray(storedCloud)) {
@@ -86,7 +101,7 @@ export function EngineSelector() {
       setActiveCloudProviders([]);
     }
 
-    // 4. Load Custom Endpoints configured by user
+    // 4. Load Custom Endpoints
     try {
       const storedCustom = JSON.parse(localStorage.getItem("omweb_custom_endpoints") || "[]");
       if (Array.isArray(storedCustom)) {
@@ -127,6 +142,22 @@ export function EngineSelector() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleToggle = () => {
+    if (!isOpen) {
+      loadRealProviders();
+      if (direction === "up") {
+        setOpenUpward(true);
+      } else if (direction === "down") {
+        setOpenUpward(false);
+      } else if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        setOpenUpward(spaceBelow < 360);
+      }
+    }
+    setIsOpen(!isOpen);
+  };
+
   const handleSelectEngine = (payload: ProviderPayload) => {
     setActiveModel(payload.model);
     setActiveProvider(payload.provider_name);
@@ -143,11 +174,9 @@ export function EngineSelector() {
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => {
-          loadRealProviders();
-          setIsOpen(!isOpen);
-        }}
+        onClick={handleToggle}
         className="inline-flex items-center gap-2 h-7 px-2.5 text-xs font-mono rounded-md border border-border bg-card hover:bg-muted text-foreground transition-all shadow-manus-xs cursor-pointer"
         title="Select Active AI Provider & Model"
       >
@@ -157,11 +186,15 @@ export function EngineSelector() {
         </span>
         <span className="font-semibold text-primary truncate max-w-[130px]">{activeProvider}:</span>
         <span className="text-foreground truncate max-w-[140px]">{activeModel}</span>
-        <ChevronDown size={11} className={`text-muted-foreground transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+        <ChevronDown size={11} className={`text-muted-foreground transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-1.5 left-0 w-88 bg-card border border-border rounded-lg shadow-xl p-2 z-50 space-y-2.5 max-h-96 overflow-y-auto font-sans animate-in fade-in">
+        <div
+          className={`absolute left-0 w-88 bg-card border border-border rounded-lg shadow-xl p-2 z-50 space-y-2.5 max-h-96 overflow-y-auto font-sans animate-in fade-in ${
+            openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+          }`}
+        >
           <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/60 flex items-center justify-between">
             <span>Verified AI Providers & Models</span>
             <Server size={11} />
@@ -210,7 +243,7 @@ export function EngineSelector() {
             </div>
           </div>
 
-          {/* 2. OLLAMA LOCAL SECTION (STRICT: RENDERED ONLY IF MODELS ARE SAVED) */}
+          {/* 2. OLLAMA LOCAL SECTION */}
           {ollamaItem && ollamaItem.savedModels && ollamaItem.savedModels.length > 0 && (
             <div className="rounded-md bg-muted/20 border border-border/40 p-1.5 space-y-1">
               <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-semibold text-foreground">
@@ -256,7 +289,7 @@ export function EngineSelector() {
             </div>
           )}
 
-          {/* 3. ACTIVE CLOUD PROVIDERS (Grouped Hierarchically) */}
+          {/* 3. ACTIVE CLOUD PROVIDERS */}
           {activeCloudProviders.length > 0 && (
             <div className="pt-1 border-t border-border/40 space-y-1.5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
@@ -289,7 +322,7 @@ export function EngineSelector() {
                                 provider: cp.id,
                                 provider_name: cp.name,
                                 base_url: cp.baseUrl,
-                                apiKey: cp.apiKey,
+                                api_key: cp.apiKey,
                                 api_type: cp.type || ""
                               })
                             }
@@ -344,7 +377,7 @@ export function EngineSelector() {
                                 provider: ce.providerId,
                                 provider_name: ce.name,
                                 base_url: ce.endpointUrl,
-                                apiKey: ce.apiKey || "",
+                                api_key: ce.apiKey || "",
                                 api_type: ""
                               })
                             }

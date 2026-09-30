@@ -3,7 +3,7 @@
 import React from "react";
 import { Plus, History, Coins, Square, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EngineSelector } from "./engine-selector";
+import { EngineOption, EngineSelector } from "./engine-selector";
 
 interface ChatSubHeaderProps {
   isFreshSession: boolean;
@@ -15,6 +15,8 @@ interface ChatSubHeaderProps {
   tokensUsed: { input: number; output: number; total: number };
   currentStepNum: number;
   execMode: "agent" | "chat";
+  selectedEngineId?: string;
+  onSelectEngine?: (engine: EngineOption) => void;
   onNewSession: () => void;
   onStopTask: () => void;
   showRightPanel: boolean;
@@ -31,13 +33,15 @@ export function ChatSubHeader({
   tokensUsed,
   currentStepNum,
   execMode,
+  selectedEngineId,
+  onSelectEngine,
   onNewSession,
   onStopTask,
   showRightPanel,
   onToggleRightPanel,
 }: ChatSubHeaderProps) {
   return (
-    <div className="h-12 flex items-center justify-between px-5  border-border bg-[#ffffff]/1 backdrop-blur-sm shrink-0">
+    <div className="h-12 flex items-center justify-between px-5 border-border bg-[#ffffff]/1 backdrop-blur-sm shrink-0">
       <div className="flex items-center gap-2.5">
         {isFreshSession ? (
           <EngineSelector />

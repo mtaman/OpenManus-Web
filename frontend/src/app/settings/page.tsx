@@ -462,7 +462,7 @@ export default function SettingsPage() {
         activeLlm.provider_name = "LM Studio (Local)";
       } else if (activeLlm.provider === "ollama") {
         activeLlm.model = ollamaSettings.model;
-        const b = ollamaSettings.baseUrl.trim().rstrip ? ollamaSettings.baseUrl.trim().replace(/\/+$/, "") : ollamaSettings.baseUrl.trim();
+        const b = ollamaSettings.baseUrl.trim().replace(/\/+$/, "");
         activeLlm.base_url = b.endsWith("/v1") ? b : `${b}/v1`;
         activeLlm.api_key = "";
         activeLlm.provider_name = "Ollama (Local)";

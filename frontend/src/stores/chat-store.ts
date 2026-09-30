@@ -7,6 +7,8 @@ export interface AgentStep {
   type: "thought" | "tool_call" | "observation" | "plan";
   content: string;
   timestamp: string;
+  tool_name?: string;
+  tool_args?: Record<string, any>;
 }
 
 export interface ChatMessage {
@@ -86,7 +88,9 @@ export const useChatStore = create<ChatState>((set) => ({
             step_number: idx + 1,
             type: ev.type || "thought",
             content: typeof ev.data === "string" ? ev.data : (ev.data?.content || JSON.stringify(ev.data)),
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            tool_name: ev.data?.name || ev.data?.tool_name || ev.tool_name,
+            tool_args: ev.data?.arguments || ev.data?.tool_args || ev.tool_args
           }))
         });
       }
