@@ -1,7 +1,21 @@
 ﻿"use client";
 
 import React from "react";
-import { Save, RefreshCw, Cpu, Globe, Search, Box, Share2, Info, RotateCcw, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import {
+  Save,
+  RefreshCw,
+  Cpu,
+  Globe,
+  Search,
+  Box,
+  Share2,
+  Info,
+  RotateCcw,
+  AlertCircle,
+  Activity,
+  ExternalLink
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SettingsTab } from "./types";
 
@@ -67,6 +81,24 @@ export function Sidebar({
             </button>
           );
         })}
+
+        {/* Dedicated Live Monitoring Link */}
+        <div className="pt-2.5 mt-2.5 border-t border-border/60">
+          <span className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider px-3 mb-1.5 block">
+            Live Monitoring
+          </span>
+          <Link
+            href="/status"
+            title="Open real-time system health and runtime diagnostics"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center gap-2.5">
+              <Activity size={14} className="text-manus-accent group-hover:scale-110 transition-transform" />
+              <span className="group-hover:text-foreground transition-colors">System Health</span>
+            </div>
+            <ExternalLink size={12} className="text-muted-foreground/50 group-hover:text-foreground transition-colors" />
+          </Link>
+        </div>
       </div>
 
       <div className="pt-3 border-t border-border space-y-2">
