@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   X,
   Cpu,
@@ -11,9 +11,10 @@ import {
   Layers,
   HardDrive,
   FileCode,
-  Zap
+  Zap,
+  Sparkles
 } from "lucide-react";
-import { inferModelCapabilities, getModelMetadata } from "@/lib/modelMetadata";
+import { inferModelCapabilities, getModelMetadata, toggleModelReasoning } from "@/lib/modelMetadata";
 import type { ModelMetadata } from "@/lib/types";
 
 interface ModelInfoModalProps {
@@ -26,8 +27,24 @@ interface ModelInfoModalProps {
 export function ModelInfoModal({ isOpen, onClose, modelKey, explicitMeta }: ModelInfoModalProps) {
   if (!isOpen || !modelKey) return null;
 
-  const meta = explicitMeta || getModelMetadata(modelKey) || { key: modelKey, type: "llm" };
+  const [meta, setMeta] = useState<ModelMetadata>(() => {
+    return explicitMeta || getModelMetadata(modelKey) || { key: modelKey, type: "llm" };
+  });
+
   const caps = inferModelCapabilities(modelKey, meta);
+
+  const handleToggleReasoning = () => {
+    const nextState = toggleModelReasoning(modelKey);
+    setMeta((prev) => ({
+      ...prev,
+      capabilities: {
+        vision: caps.isVision,
+        trained_for_tool_use: caps.isTools,
+        ...prev.capabilities,
+        reasoning: nextState
+      }
+    }));
+  };
 
   const formatBytes = (bytes?: number | null) => {
     if (!bytes || bytes <= 0) return null;
@@ -66,27 +83,50 @@ export function ModelInfoModal({ isOpen, onClose, modelKey, explicitMeta }: Mode
           </button>
         </div>
 
-        {/* Capabilities Pill Row */}
-        <div className="px-5 py-3 border-b border-border/60 bg-background/50 flex flex-wrap items-center gap-2">
-          {caps.isReasoning && (
-            <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-              <Brain size={13} /> Reasoning / Deep Thinking
-            </span>
-          )}
-          {caps.isVision && (
-            <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30">
-              <Eye size={13} /> Vision & Multimodal
-            </span>
-          )}
-          {caps.isTools && (
-            <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
-              <Wrench size={13} /> Tool Calling / Function Use
-            </span>
-          )}
+        {/* Interactive Capabilities & Reasoning Switch */}
+        <div className="px-5 py-3 border-b border-border/60 bg-background/50 space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {caps.isVision && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30">
+                <Eye size={13} /> Vision & Multimodal
+              </span>
+            )}
+            {caps.isTools && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                <Wrench size={13} /> Tool Calling / Function Use
+              </span>
+            )}
+          </div>
+
+          {/* Reasoning Toggle Box */}
+          <div className="flex items-center justify-between p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5">
+            <div className="flex items-center gap-2">
+              <Brain size={16} className={caps.isReasoning ? "text-amber-500" : "text-muted-foreground"} />
+              <div>
+                <span className="text-xs font-semibold text-foreground block">
+                  Reasoning / Thinking Mode
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {caps.isReasoning ? "Thinking enabled for this model" : "Standard instruct mode (click to enable)"}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleReasoning}
+              className={`px-3 py-1 rounded text-xs font-semibold transition-all cursor-pointer ${
+                caps.isReasoning
+                  ? "bg-amber-500 text-white shadow-xs hover:bg-amber-600"
+                  : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              }`}
+            >
+              {caps.isReasoning ? "Active" : "Enable"}
+            </button>
+          </div>
         </div>
 
         {/* Technical Specs Grid */}
-        <div className="p-5 space-y-3.5 text-xs overflow-y-auto max-h-[60vh]">
+        <div className="p-5 space-y-3.5 text-xs overflow-y-auto max-h-[55vh]">
           <div className="grid grid-cols-2 gap-3">
             <div className="p-2.5 rounded-lg border border-border/70 bg-card/60 space-y-1">
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold block flex items-center gap-1">
@@ -185,4 +225,3 @@ export function ModelInfoModal({ isOpen, onClose, modelKey, explicitMeta }: Mode
 }
 
 export default ModelInfoModal;
-

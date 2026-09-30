@@ -128,6 +128,7 @@ export interface ModelInstanceConfig {
 export interface ModelCapabilities {
   vision: boolean;
   trained_for_tool_use: boolean;
+  reasoning?: boolean;
 }
 export interface ModelMetadata {
   type: string;
@@ -144,3 +145,4 @@ export interface ModelMetadata {
   capabilities?: ModelCapabilities | null;
   description?: string | null;
 }
+

@@ -38,6 +38,31 @@ export function saveLocalMetadataVault(newEntries: Record<string, Partial<ModelM
   }
 }
 
+/**
+ * Toggle reasoning mode manually for any model.
+ */
+export function toggleModelReasoning(modelKey: string, forceState?: boolean): boolean {
+  if (typeof window === "undefined") return false;
+  const currentVault = getLocalMetadataVault();
+  const currentMeta = currentVault[modelKey] || { key: modelKey, type: "llm" };
+  const currentCaps = inferModelCapabilities(modelKey, currentMeta);
+
+  const nextState = typeof forceState === "boolean" ? forceState : !currentCaps.isReasoning;
+
+  const updatedMeta: ModelMetadata = {
+    ...currentMeta,
+    capabilities: {
+      vision: currentCaps.isVision,
+      trained_for_tool_use: currentCaps.isTools,
+      ...currentMeta.capabilities,
+      reasoning: nextState
+    }
+  };
+
+  saveLocalMetadataVault({ [modelKey]: updatedMeta });
+  return nextState;
+}
+
 export async function fetchServerMetadata(): Promise<Record<string, ModelMetadata>> {
   try {
     const res = await fetch("http://localhost:8088/api/config/models-metadata");
@@ -59,6 +84,9 @@ export function getModelMetadata(modelKey: string): ModelMetadata | null {
   return vault[modelKey] || null;
 }
 
+/**
+ * Universal capability inference function conforming to 2026 AI industry standards.
+ */
 export function inferModelCapabilities(modelKey: string, explicitMeta?: Partial<ModelMetadata> | null): InferredCapabilities {
   const meta = explicitMeta || getModelMetadata(modelKey) || {};
   const lowerKey = (modelKey || "").toLowerCase();
@@ -91,26 +119,35 @@ export function inferModelCapabilities(modelKey: string, explicitMeta?: Partial<
   );
 
   // 3. Reasoning / Deep Thinking Capability
-  const isReasoning = Boolean(
-    lowerKey.includes("think") ||
-    lowerKey.includes("reason") ||
-    lowerKey.includes("-r1") ||
-    lowerKey.includes("deepseek-r1") ||
-    lowerKey.includes("o1") ||
-    lowerKey.includes("o3") ||
-    lowerKey.includes("qwq")
-  );
+  // Explicit manual toggle takes precedence, followed by modern heuristics
+  const isReasoning = typeof meta.capabilities?.reasoning === "boolean"
+    ? meta.capabilities.reasoning
+    : Boolean(
+        lowerKey.includes("think") ||
+        lowerKey.includes("reason") ||
+        lowerKey.includes("-r1") ||
+        lowerKey.includes("deepseek-r1") ||
+        lowerKey.includes("claude-3-7") ||
+        lowerKey.includes("claude-3.7") ||
+        lowerKey.includes("gemini-2.0-flash") ||
+        lowerKey.includes("gemini-2.5") ||
+        lowerKey.includes("qwen-max") ||
+        lowerKey.includes("qwq") ||
+        lowerKey.includes("o1") ||
+        lowerKey.includes("o3") ||
+        lowerKey.includes("o4")
+      );
 
-  // 4. Context Window resolution
+  // 4. Context Window resolution with fallback to known standard model specifications
   const loadedContext = meta.loaded_instances && meta.loaded_instances[0]?.config?.context_length
     ? meta.loaded_instances[0].config.context_length
     : null;
 
   let maxContext = meta.max_context_length || null;
   if (!maxContext) {
-    if (lowerKey.includes("gemini-1.5") || lowerKey.includes("gemini-2.0")) maxContext = 1048576;
-    else if (lowerKey.includes("claude-3") || lowerKey.includes("claude-3-5")) maxContext = 200000;
-    else if (lowerKey.includes("gpt-4o") || lowerKey.includes("o1") || lowerKey.includes("o3")) maxContext = 128000;
+    if (lowerKey.includes("gemini-1.5") || lowerKey.includes("gemini-2.0") || lowerKey.includes("gemini-2.5")) maxContext = 1048576;
+    else if (lowerKey.includes("claude-3-7") || lowerKey.includes("claude-3.7") || lowerKey.includes("claude-3-5")) maxContext = 200000;
+    else if (lowerKey.includes("gpt-4o") || lowerKey.includes("o1") || lowerKey.includes("o3") || lowerKey.includes("o4")) maxContext = 128000;
     else if (lowerKey.includes("deepseek")) maxContext = 131072;
     else if (lowerKey.includes("llama-3.1") || lowerKey.includes("llama-3.2") || lowerKey.includes("llama-3.3")) maxContext = 131072;
     else if (lowerKey.includes("qwen3")) maxContext = 262144;
