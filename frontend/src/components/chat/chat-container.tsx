@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { WorkspacePanel } from "@/components/workspace/workspace-panel";
+import { WorkspacePanel, getFileCategory } from "@/components/workspace/workspace-panel";
 import { Composer } from "@/components/chat/composer";
 import { ChatSubHeader } from "./chat-sub-header";
 import { ChatLanding } from "./chat-landing";
@@ -61,6 +61,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
   const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
   const [selectedEngineId, setSelectedEngineId] = useState<string>("manus-agent");
+  const [activeModelName, setActiveModelName] = useState<string>("Assistant");
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const chatScrollBottomRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +76,15 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       if (savedEngine) {
         setSelectedEngineId(savedEngine);
       }
+      const savedModel = localStorage.getItem("omweb_active_model");
+      if (savedModel) {
+        setActiveModelName(savedModel);
+      }
+      const onModelChange = (e: any) => {
+        if (e.detail?.model) setActiveModelName(e.detail.model);
+      };
+      window.addEventListener("omweb:model-change", onModelChange);
+      return () => window.removeEventListener("omweb:model-change", onModelChange);
     }
   }, []);
 
@@ -111,12 +121,12 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         });
       }
     };
-        const handleArtifactEvent = () => {
+    const handleArtifactEvent = () => {
       setShowRightPanel(true);
     };
     window.addEventListener("openmanus:artifact-created", handleArtifactEvent);
     window.addEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
-        return () => {
+    return () => {
       window.removeEventListener("openmanus:artifact-created", handleArtifactEvent);
       window.removeEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
     };
@@ -139,6 +149,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         if (data.prompt) setSubmittedPrompt(data.prompt);
         if (data.agent_id) setSelectedAgentId(data.agent_id);
         if (data.mode) setExecMode(data.mode);
+        if (data.model) setActiveModelName(data.model);
         if (data.status) setStatus(data.status);
         if (data.result) setFinalResult(safeRender(data.result));
         setSessionTimestamp(data.created_at || data.timestamp || new Date().toLocaleString());
@@ -164,6 +175,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               steps: replayedSteps,
               finalResult: safeRender(t.result),
               status: t.status || "completed",
+              model: t.model,
+              producedFiles: t.produced_files,
             };
           });
           setHistoryTurns(loadedTurns);
@@ -232,6 +245,10 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       const step = payload.step || payload.data?.step || currentStepNum || 1;
       setCurrentStepNum(step);
 
+      if (payload.data?.model) {
+        setActiveModelName(payload.data.model);
+      }
+
       if (eventType === "thought") {
         const raw = payload.data?.thought ?? payload.data?.content ?? payload.data;
         if (safeRender(raw).trim() !== "") {
@@ -249,12 +266,17 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         setExpandedSteps((prev) => ({ ...prev, [`active-${step}`]: true }));
       } else if (eventType === "observation") {
         const raw = payload.data?.output ?? "Execution completed.";
-                appendStep("observation", raw, step);
+        appendStep("observation", raw, step);
+
+        // Smart Artifact Auto-Routing
         if (payload.data?.event === "artifact_created" || payload.data?.artifact) {
           setShowRightPanel(true);
+          const artName = payload.data?.artifact || payload.data?.path || "";
+          const targetTab = getFileCategory(artName);
+
           if (typeof window !== "undefined") {
             window.dispatchEvent(new CustomEvent("openmanus:artifact-created", { detail: payload.data }));
-            window.dispatchEvent(new CustomEvent("openmanus:switch-tab", { detail: "artifacts" }));
+            window.dispatchEvent(new CustomEvent("openmanus:switch-tab", { detail: { tab: targetTab, file: artName } }));
           }
         }
         fetchJobFiles(jobId);
@@ -418,6 +440,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           status: status === "failed" ? "failed" : "completed",
           tokensUsed: { ...tokensUsed },
           producedFiles: [...producedFiles],
+          model: activeModelName,
         },
       ]);
     }
@@ -441,7 +464,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+        body: JSON.stringify({
           prompt: finalPrompt,
           max_steps: effectiveMode === "agent" ? getAgentMaxSteps(selectedAgentId) : 1,
           chat_id: targetChatId,
@@ -557,11 +580,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             onSelectFile={(f) => {
               setSelectedFileForEditor(f);
               setShowRightPanel(true);
-              const lower = (f || "").toLowerCase();
-              const ext = lower.split(".").pop() || "";
-              const isMedia = ["png", "jpg", "jpeg", "webp", "gif", "ico", "bmp", "pdf", "csv", "tsv", "xlsx"].includes(ext);
-              const isWeb = ["html", "htm", "svg", "md", "markdown"].includes(ext);
-              const targetTab = isMedia ? "artifacts" : isWeb ? "preview" : "editor";
+              const targetTab = getFileCategory(f);
               if (typeof window !== "undefined") {
                 window.dispatchEvent(new CustomEvent("openmanus:switch-tab", { detail: { tab: targetTab, file: f } }));
               }
@@ -569,6 +588,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             showRawTrace={showRawTrace}
             setShowRawTrace={setShowRawTrace}
             getLiveStatusMessage={getLiveStatusMessage}
+            activeModelName={activeModelName}
             chatScrollBottomRef={chatScrollBottomRef}
           />
         )}
@@ -589,7 +609,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
       {showRightPanel && (
         <div className="flex-1 h-full min-w-0 transition-all">
-          <WorkspacePanel activeJobId={activeJobId} activeChatId={activeChatId || activeJobId}
+          <WorkspacePanel
+            activeJobId={activeJobId}
+            activeChatId={activeChatId || activeJobId}
             overrideFile={selectedFileForEditor}
             overrideDraft={sandboxDraft}
           />
@@ -600,5 +622,3 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 }
 
 export default ChatContainer;
-
-

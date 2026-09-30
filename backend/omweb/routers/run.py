@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import asyncio
 import mimetypes
@@ -16,7 +16,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from omweb.config import get_storage_root
 from omweb.job_manager import job_manager
 from omweb.sse_events import subscribe_events, SSEEventType
-from omweb.agent_bridge import run_instrumented, run_direct_chat, active_tasks, human_answers, human_data
+from omweb.agent_bridge import run_instrumented, run_direct_chat, active_tasks, human_answers, human_data, job_scoped_artifacts
 from omweb.project_manager import project_manager
 
 router = APIRouter()
@@ -129,13 +129,15 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
                     "result": prev_r,
                     "events": prev_ev,
                     "status": existing_chat.get("status", "completed"),
-                    "created_at": existing_chat.get("updated_at") or existing_chat.get("created_at")
+                    "created_at": existing_chat.get("updated_at") or existing_chat.get("created_at"),
+                    "produced_files": job_scoped_artifacts.get(prev_jid, []),
+                    "model": existing_chat.get("model")
                 })
 
         agent_prompt = prompt
         if prev_r:
             clean_prev = prev_r[:350].replace("\n", " ").strip()
-            agent_prompt = f"[Context: In the previous turn, the user requested: '{prev_p}'. Result: '{clean_prev}']. Follow-up task: {prompt}"
+            agent_prompt = f"[Context: In previous turn, user asked: '{prev_p}'. Result: '{clean_prev}']. Follow-up task: {prompt}"
     else:
         chat_id = req.chat_id.strip() if req.chat_id and req.chat_id.strip() else f"chat_{uuid.uuid4().hex[:10]}"
         project_id = req.project_id or "default_project"
@@ -171,6 +173,7 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         if session_file.exists():
             s_data = json.loads(session_file.read_text(encoding="utf-8"))
             s_data["turns"] = turns
+            s_data["mode"] = exec_mode
             if llm_override:
                 s_data["model"] = llm_override.get("model")
                 s_data["provider"] = llm_override.get("provider")
@@ -233,24 +236,11 @@ async def get_job_detail(job_id: str):
         "events": effective_events,
         "turns": chat.get("turns", []),
         "created_at": chat.get("created_at"),
-        "agent_id": chat.get("agent_id", "manus")
+        "agent_id": chat.get("agent_id", "manus"),
+        "model": chat.get("model"),
+        "mode": chat.get("mode", "agent"),
+        "produced_files": job_scoped_artifacts.get(job_id, [])
     }
-
-@router.post("/jobs/{job_id}/stop")
-async def stop_job(job_id: str):
-    task = active_tasks.get(job_id)
-    if task and not task.done():
-        task.cancel()
-    job_manager.fail_job(job_id, "Job stopped by user.")
-    return {"status": "cancelled", "job_id": job_id}
-
-@router.post("/jobs/{job_id}/respond")
-async def respond_job(job_id: str, payload: HumanResponsePayload):
-    human_data[job_id] = payload.answer
-    event = human_answers.get(job_id)
-    if event:
-        event.set()
-    return {"status": "ok", "job_id": job_id}
 
 @router.get("/jobs/{job_id}/files")
 async def get_job_files(job_id: str):
@@ -260,19 +250,32 @@ async def get_job_files(job_id: str):
     files_dir = project_manager.get_chat_files_dir(chat_id, project_id)
 
     if not files_dir.exists():
-        return {"job_id": job_id, "chat_id": chat_id, "files": []}
+        return {"job_id": job_id, "chat_id": chat_id, "files": [], "all_files": []}
 
-    job_files = []
+    all_files_list = []
     for root, dirs, files in os.walk(files_dir):
         for f in files:
             p = Path(root) / f
             rel = p.relative_to(files_dir)
-            job_files.append({
+            all_files_list.append({
                 "name": f,
                 "path": str(rel).replace("\\", "/"),
                 "size": p.stat().st_size
             })
-    return {"job_id": job_id, "chat_id": chat_id, "files": job_files}
+
+    # Strict isolation: filter files produced ONLY in this job if recorded
+    turn_files = job_scoped_artifacts.get(job_id)
+    if turn_files is not None:
+        scoped_list = [f for f in all_files_list if f["name"] in turn_files]
+    else:
+        scoped_list = all_files_list
+
+    return {
+        "job_id": job_id,
+        "chat_id": chat_id,
+        "files": scoped_list,
+        "all_files": all_files_list
+    }
 
 @router.get("/jobs/{job_id}/content")
 async def get_job_file_content(job_id: str, path: str = Query(...)):
@@ -291,25 +294,6 @@ async def get_job_file_content(job_id: str, path: str = Query(...)):
         return {"path": path, "content": content}
     except Exception as e:
         return {"path": path, "content": f"Binary content: {str(e)}"}
-
-@router.post("/jobs/{job_id}/content")
-async def save_job_file_content(job_id: str, payload: FileContentPayload):
-    _, chat_id = resolve_chat(job_id)
-    chat = project_manager.get_chat(chat_id) or {}
-    project_id = chat.get("project_id", "default_project")
-    files_dir = project_manager.get_chat_files_dir(chat_id, project_id)
-
-    clean_rel = payload.path.lstrip("/\\")
-    target = (files_dir / clean_rel).resolve()
-    if not target.is_relative_to(files_dir):
-        raise HTTPException(status_code=400, detail="Invalid file destination path")
-
-    try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(payload.content, encoding="utf-8")
-        return {"status": "ok", "path": payload.path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to write file: {str(e)}")
 
 @router.get("/jobs/{job_id}/raw/{filepath:path}")
 async def get_job_raw_file(job_id: str, filepath: str):
@@ -343,10 +327,6 @@ async def get_job_raw_file(job_id: str, filepath: str):
         content_type = "application/pdf"
     elif ext == ".mp4":
         content_type = "video/mp4"
-    elif ext == ".webm":
-        content_type = "video/webm"
-    elif ext in [".mov", ".quicktime"]:
-        content_type = "video/quicktime"
 
     return FileResponse(target, media_type=content_type or "application/octet-stream")
 
@@ -458,6 +438,7 @@ async def stream_job_events(job_id: str):
                     if s_file.exists():
                         c_json = json.loads(s_file.read_text(encoding="utf-8"))
                         c_json["turns"] = chat.get("turns", [])
+                        c_json["produced_files"] = job_scoped_artifacts.get(job_id, [])
                         s_file.write_text(json.dumps(c_json, indent=2, ensure_ascii=False), encoding="utf-8")
                 except Exception:
                     pass

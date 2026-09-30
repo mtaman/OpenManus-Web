@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 import os
 import sys
 import json
@@ -25,6 +25,7 @@ human_answers: Dict[str, asyncio.Event] = {}
 human_data: Dict[str, str] = {}
 active_tasks: Dict[str, asyncio.Task] = {}
 current_active_job_id: Dict[str, str] = {}
+job_scoped_artifacts: Dict[str, List[str]] = {}
 
 
 def read_active_toml_config() -> Dict[str, Any]:
@@ -92,14 +93,8 @@ def format_smart_error(err: Exception, model_name: str, provider_name: str) -> s
     if "failed to load model" in lower_err or "failed to load" in lower_err:
         return _err_card(
             title=f"Model `{model_name}` is not loaded in LM Studio",
-            description=(
-                "The model is either not loaded in LM Studio or has exceeded the available memory limit."
-            ),
-            hint=(
-                "Open LM Studio, go to the **Local Server** section, and load the model manually "
-                "with a context length of **8K-16K (8,192 to 16,384)** instead of the maximum "
-                "context to avoid filling up VRAM."
-            ),
+            description="The model is either not loaded in LM Studio or has exceeded the available memory limit.",
+            hint="Open LM Studio, go to the Local Server section, and load the model manually.",
         )
 
     if "connection refused" in lower_err or "connecterror" in lower_err or "10061" in lower_err:
@@ -107,10 +102,7 @@ def format_smart_error(err: Exception, model_name: str, provider_name: str) -> s
             return _err_card(
                 title="Could not connect to the local LM Studio server",
                 description="The LM Studio local server on **port 1234** is unreachable.",
-                hint=(
-                    "Make sure the LM Studio application is running and the **Local Server** "
-                    "is enabled from the sidebar."
-                ),
+                hint="Make sure the LM Studio application is running and the Local Server is enabled.",
             )
         if "11434" in err_str or "ollama" in provider_name.lower():
             return _err_card(
@@ -130,7 +122,7 @@ def format_smart_error(err: Exception, model_name: str, provider_name: str) -> s
         return _err_card(
             title=f"API key authentication failed for provider `{provider_name}`",
             description="The API key was rejected by the provider.",
-            hint="Verify the key is correct in **Settings > Cloud Providers**.",
+            hint="Verify the key is correct in Settings > Cloud Providers.",
         )
 
     return _err_card(
@@ -339,6 +331,7 @@ async def run_instrumented(
 
     print(f"\n[BRIDGE] Initializing agent for job: {job_id}")
     current_active_job_id["current"] = job_id
+    job_scoped_artifacts[job_id] = []
 
     toml_cfg = read_active_toml_config()
     active_llm = dict(toml_cfg.get("llm", {}))
@@ -353,35 +346,22 @@ async def run_instrumented(
 
     print(f"[BRIDGE] Target LLM: [{provider_name}] Model: '{model_name}' | URL: '{base_url}'")
 
-    # Pre-flight check for LM Studio
     if "1234" in base_url or "lmstudio" in provider_name.lower():
         readiness = await check_lmstudio_model_readiness(base_url, model_name, active_llm.get("api_key", ""))
         if readiness.get("unreachable"):
             err_msg = format_smart_error(Exception("Connection refused (Port 1234)"), model_name, provider_name)
             job_manager.fail_job(job_id, err_msg)
-            await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": err_msg}))
+            await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": err_msg, "model": model_name}))
             return
-        if not readiness.get("is_loaded"):
-            await dispatch_event(
-                job_id,
-                SSEEvent(
-                    type=SSEEventType.THOUGHT,
-                    step=1,
-                    data={"thought": f"⚠️ LM Studio notice: model '{model_name}' is not pre-loaded in VRAM. Attempting to load and run it now..."}
-                )
-            )
-        else:
-            ctx_len = readiness.get("context_length")
-            print(f"[BRIDGE] Verified model '{model_name}' is loaded in LM Studio (Context: {ctx_len})")
 
     try:
         from app.agent.manus import Manus
     except ImportError as e:
         print(f"[BRIDGE ERROR] Failed to import OpenManus core: {e}")
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": str(e)}))
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": str(e), "model": model_name}))
         return
 
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(0.1)
     await dispatch_event(
         job_id,
         SSEEvent(
@@ -390,7 +370,8 @@ async def run_instrumented(
             data={
                 "status": "running",
                 "model": model_name,
-                "provider": provider_name
+                "provider": provider_name,
+                "mode": "agent"
             }
         )
     )
@@ -435,11 +416,15 @@ async def run_instrumented(
     project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
     project_dir.mkdir(parents=True, exist_ok=True)
 
+    files_baseline: Set[str] = {p.name for p in project_dir.iterdir() if p.is_file()} if project_dir.exists() else set()
+    latest_meaningful_thought: str = ""
+
     original_step = agent.step
 
     async def instrumented_step():
+        nonlocal latest_meaningful_thought
         curr_step = getattr(agent, "current_step", 1)
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=curr_step, data={"step": curr_step}))
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=curr_step, data={"step": curr_step, "model": model_name}))
         result = await original_step()
 
         if hasattr(agent, "memory") and hasattr(agent.memory, "messages"):
@@ -447,7 +432,10 @@ async def run_instrumented(
                 role = getattr(m, "role", "")
                 content = getattr(m, "content", "")
                 if role == "assistant" and content:
-                    await dispatch_event(job_id, SSEEvent(type=SSEEventType.THOUGHT, step=curr_step, data={"thought": content}))
+                    clean_c = content.strip()
+                    if clean_c and not clean_c.startswith("terminate(") and not clean_c.startswith("```"):
+                        latest_meaningful_thought = clean_c
+                    await dispatch_event(job_id, SSEEvent(type=SSEEventType.THOUGHT, step=curr_step, data={"thought": content, "model": model_name}))
                     break
         return result
 
@@ -479,10 +467,7 @@ async def run_instrumented(
                         "    pass\n\n"
                     )
                     args_dict["code"] = safe_head + orig_code
-                    if isinstance(raw_args, str):
-                        command.function.arguments = json.dumps(args_dict)
-                    else:
-                        command.function.arguments = args_dict
+                    command.function.arguments = json.dumps(args_dict) if isinstance(raw_args, str) else args_dict
             except Exception as patch_err:
                 print(f"[BRIDGE WARNING] Could not inject headless wrapper: {patch_err}")
 
@@ -491,7 +476,7 @@ async def run_instrumented(
             SSEEvent(
                 type=SSEEventType.TOOL_CALL,
                 step=curr_step,
-                data={"name": tool_name, "arguments": raw_args}
+                data={"name": tool_name, "arguments": raw_args, "model": model_name}
             )
         )
 
@@ -511,7 +496,9 @@ async def run_instrumented(
             files_after = {p.name for p in project_dir.iterdir() if p.is_file()}
             new_files = files_after - files_before
             for nf in new_files:
-                print(f"[BRIDGE] New artifact generated: {nf}")
+                print(f"[BRIDGE] New artifact generated in this turn: {nf}")
+                if nf not in job_scoped_artifacts[job_id]:
+                    job_scoped_artifacts[job_id].append(nf)
                 await dispatch_event(
                     job_id,
                     SSEEvent(
@@ -520,7 +507,9 @@ async def run_instrumented(
                         data={
                             "artifact": nf,
                             "path": nf,
-                            "chat_id": chat_id, "event": "artifact_created"
+                            "chat_id": chat_id,
+                            "event": "artifact_created",
+                            "model": model_name
                         }
                     )
                 )
@@ -530,7 +519,7 @@ async def run_instrumented(
             SSEEvent(
                 type=SSEEventType.OBSERVATION,
                 step=curr_step,
-                data={"output": obs_output}
+                data={"output": obs_output, "model": model_name}
             )
         )
         return obs_output
@@ -550,9 +539,46 @@ async def run_instrumented(
         )
         final_out = await agent.run(scoped_prompt)
         print(f"[BRIDGE] Execution completed successfully for job: {job_id}")
-        result_text = str(final_out) if final_out else "Task completed successfully."
+
+        # Check total newly generated files in this job
+        if project_dir.exists():
+            current_files = {p.name for p in project_dir.iterdir() if p.is_file()}
+            for f_name in (current_files - files_baseline):
+                if f_name not in job_scoped_artifacts[job_id]:
+                    job_scoped_artifacts[job_id].append(f_name)
+
+        new_turn_files = job_scoped_artifacts.get(job_id, [])
+
+        # Construct beautiful Markdown final result
+        if new_turn_files:
+            file_bullets = "\n".join([f"- `{f}`" for f in new_turn_files])
+            result_text = (
+                f"### Deliverables Created Successfully\n\n"
+                f"The requested project files have been built and saved in your workspace:\n\n"
+                f"{file_bullets}\n\n"
+                f"You can preview and interact with the application live in the **Preview** panel."
+            )
+        elif latest_meaningful_thought:
+            result_text = latest_meaningful_thought
+        else:
+            raw_final = str(final_out) if final_out else ""
+            for stop_tag in ["terminate(status=\"success\")", "terminate(status='success')", "</tool_call>"]:
+                raw_final = raw_final.replace(stop_tag, "").strip()
+            result_text = raw_final if raw_final else "Task completed successfully."
+
         job_manager.complete_job(job_id, result_text)
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.FINAL, step=getattr(agent, "current_step", 1), data={"result": result_text}))
+        await dispatch_event(
+            job_id,
+            SSEEvent(
+                type=SSEEventType.FINAL,
+                step=getattr(agent, "current_step", 1),
+                data={
+                    "result": result_text,
+                    "model": model_name,
+                    "produced_files": new_turn_files
+                }
+            )
+        )
     except asyncio.CancelledError:
         print(f"[BRIDGE] Job was aborted: {job_id}")
     except Exception as err:
@@ -560,7 +586,14 @@ async def run_instrumented(
         print(f"[BRIDGE ERROR] {err}\n{tb}")
         err_msg = format_smart_error(err, model_name, provider_name)
         job_manager.fail_job(job_id, err_msg)
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=getattr(agent, "current_step", 1), data={"message": err_msg}))
+        await dispatch_event(
+            job_id,
+            SSEEvent(
+                type=SSEEventType.ERROR,
+                step=getattr(agent, "current_step", 1),
+                data={"message": err_msg, "model": model_name}
+            )
+        )
     finally:
         human_answers.pop(job_id, None)
         human_data.pop(job_id, None)
@@ -577,6 +610,7 @@ async def run_direct_chat(
     """Execute fast direct chat without launching autonomous agent loops or system tools."""
     print(f"\n[BRIDGE DIRECT CHAT] Initializing direct chat for job: {job_id}")
     current_active_job_id["current"] = job_id
+    job_scoped_artifacts[job_id] = []
 
     toml_cfg = read_active_toml_config()
     active_llm = dict(toml_cfg.get("llm", {}))
@@ -587,31 +621,18 @@ async def run_direct_chat(
 
     provider_name = active_llm.get("provider_name") or active_llm.get("provider") or "Active Primary"
     model_name = active_llm.get("model") or "default"
-    base_url = active_llm.get("base_url") or "http://127.0.0.1:1234/v1"
+    base_url = active_llm.get("base_url") or "[http://127.0.0.1:1234/v1](http://127.0.0.1:1234/v1)"
     api_key = active_llm.get("api_key") or "EMPTY"
 
-    # Pre-flight readiness check for LM Studio
     if "1234" in base_url or "lmstudio" in provider_name.lower():
         readiness = await check_lmstudio_model_readiness(base_url, model_name, api_key)
         if readiness.get("unreachable"):
             err_msg = format_smart_error(Exception("Connection refused (Port 1234)"), model_name, provider_name)
             job_manager.fail_job(job_id, err_msg)
-            await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": err_msg}))
+            await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": err_msg, "model": model_name}))
             return
-        if not readiness.get("is_loaded"):
-            await dispatch_event(
-                job_id,
-                SSEEvent(
-                    type=SSEEventType.THOUGHT,
-                    step=1,
-                    data={"thought": f"⚠️ LM Studio notice: model '{model_name}' is not pre-loaded in VRAM. Attempting to load and run it now..."}
-                )
-            )
-        else:
-            ctx_len = readiness.get("context_length")
-            print(f"[BRIDGE DIRECT CHAT] Verified model '{model_name}' is loaded (Context: {ctx_len})")
 
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.05)
     await dispatch_event(
         job_id,
         SSEEvent(
@@ -636,7 +657,7 @@ async def run_direct_chat(
         messages = [
             {
                 "role": "system",
-                "content": "You are a helpful, direct, and conversational AI assistant. Respond directly, accurately, and naturally to the user."
+                "content": "You are a helpful, direct, and conversational AI assistant. Respond directly, accurately, and naturally to the user using Markdown."
             }
         ]
 
@@ -675,7 +696,19 @@ async def run_direct_chat(
 
         print(f"[BRIDGE DIRECT CHAT] Completed successfully for job: {job_id}")
         job_manager.complete_job(job_id, result_text)
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.FINAL, step=1, data={"result": result_text}))
+        await dispatch_event(
+            job_id,
+            SSEEvent(
+                type=SSEEventType.FINAL,
+                step=1,
+                data={
+                    "result": result_text,
+                    "model": model_name,
+                    "mode": "chat",
+                    "produced_files": []
+                }
+            )
+        )
 
     except asyncio.CancelledError:
         print(f"[BRIDGE DIRECT CHAT] Job was cancelled: {job_id}")
@@ -684,7 +717,14 @@ async def run_direct_chat(
         print(f"[BRIDGE DIRECT CHAT ERROR] {err}\n{tb}")
         err_msg = format_smart_error(err, model_name, provider_name)
         job_manager.fail_job(job_id, err_msg)
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": err_msg}))
+        await dispatch_event(
+            job_id,
+            SSEEvent(
+                type=SSEEventType.ERROR,
+                step=1,
+                data={"message": err_msg, "model": model_name}
+            )
+        )
     finally:
         human_answers.pop(job_id, None)
         human_data.pop(job_id, None)

@@ -1,14 +1,14 @@
 ﻿"use client";
 
 import React from "react";
-import { FileText, ExternalLink, Activity, Check, Copy } from "lucide-react";
+import { FileText, ExternalLink, Activity, Check, Copy, Bot, AlertCircle } from "lucide-react";
 import { MarkdownRenderer } from "@/components/chat/markdown-renderer";
 
 interface ChatDeliverableProps {
   finalResult: string;
   status: "completed" | "failed";
   turnIndex?: number;
-  isTurnRawTrace: boolean;
+  isTurnRawTrace?: boolean;
   lastThoughtContent?: string;
   producedFiles?: { name: string; path: string }[];
   onSelectFile: (fileName: string) => void;
@@ -17,13 +17,15 @@ interface ChatDeliverableProps {
   execMode?: "agent" | "chat";
   showRawTrace: boolean;
   setShowRawTrace: (show: boolean) => void;
+  modelName?: string;
+  timestamp?: string;
 }
 
 export function ChatDeliverable({
   finalResult,
   status,
   turnIndex,
-  isTurnRawTrace,
+  isTurnRawTrace = false,
   lastThoughtContent,
   producedFiles = [],
   onSelectFile,
@@ -32,100 +34,127 @@ export function ChatDeliverable({
   execMode = "agent",
   showRawTrace,
   setShowRawTrace,
+  modelName = "Assistant",
+  timestamp,
 }: ChatDeliverableProps) {
   const copyId = typeof turnIndex === "number" ? `turn-res-${turnIndex}` : "final-result";
-  const title =
-    status === "failed"
-      ? "EXECUTION STATUS"
-      : typeof turnIndex === "number"
-      ? `DELIVERABLE COMPLETED #${turnIndex + 1}`
-      : execMode === "chat"
-      ? "RESPONSE"
-      : "TASK DELIVERABLE COMPLETED";
+  const hasFiles = producedFiles && producedFiles.length > 0;
+
+  // Synthesize clean message if finalResult is just raw execution logs
+  let displayContent = finalResult;
+  if (isTurnRawTrace) {
+    if (lastThoughtContent && lastThoughtContent.trim()) {
+      displayContent = lastThoughtContent;
+    } else if (hasFiles) {
+      displayContent = "Task deliverables and files have been generated successfully in your workspace.";
+    } else {
+      displayContent = "Task completed successfully.";
+    }
+  }
 
   return (
-    <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs font-sans">
-      <div className="flex items-center justify-between">
-        <span className="text-manus-success font-semibold tracking-wide text-xs">
-          {title}
-        </span>
-        <button
-          type="button"
-          onClick={() => onCopy(finalResult, copyId)}
-          className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-background text-foreground cursor-pointer transition-all border border-border/40"
-        >
-          {copiedSection === copyId ? (
-            <>
-              <Check size={12} className="text-manus-success" />
-              <span className="text-manus-success">Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy size={12} />
-              <span>Copy Result</span>
-            </>
+    <div className="space-y-3 font-sans">
+      {/* 1. Assistant Identity Header */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+        <div className="flex items-center gap-1.5 font-medium text-foreground">
+          <Bot size={15} className="text-primary shrink-0" />
+          <span className="font-semibold text-xs font-mono">{modelName}</span>
+          {execMode === "agent" && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-mono">
+              Agent
+            </span>
           )}
-        </button>
+          {timestamp && <span className="text-[10px] text-muted-foreground font-normal">({timestamp})</span>}
+        </div>
       </div>
 
-      {isTurnRawTrace ? (
-        <div className="space-y-3">
-          {lastThoughtContent ? (
-            <div className="bg-background/60 p-3 rounded-lg border border-border/50 text-foreground leading-relaxed">
-              <MarkdownRenderer content={lastThoughtContent} />
-            </div>
-          ) : (
-            <p className="text-foreground/90 font-medium">
-              Autonomous execution completed successfully. All artifacts and output files are prepared below.
-            </p>
-          )}
+      {/* 2. Primary Markdown Response */}
+      <div className="p-4 rounded-xl bg-card border border-border shadow-xs text-foreground text-sm leading-relaxed">
+        <MarkdownRenderer content={displayContent} />
+      </div>
 
-          <div className="border border-border/60 rounded-lg overflow-hidden bg-background/40">
-            <button
-              type="button"
-              onClick={() => setShowRawTrace(!showRawTrace)}
-              className="w-full flex items-center justify-between px-3 py-1.5 text-muted-foreground hover:text-foreground text-[11px] font-mono cursor-pointer"
-            >
-              <span className="flex items-center gap-1.5">
-                <Activity size={12} />
-                <span>Execution Trace & Observations</span>
-              </span>
-              <span>{showRawTrace ? "Hide trace" : "View diagnostic trace"}</span>
-            </button>
-            {showRawTrace && (
-              <div className="p-2.5 border-t border-border/40 font-mono text-[11px] text-muted-foreground bg-muted/30 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                {finalResult}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="text-foreground leading-relaxed">
-          <MarkdownRenderer content={finalResult} />
+      {/* 3. Diagnostic Trace Toggle (Keeps raw command logs isolated) */}
+      {isTurnRawTrace && (
+        <div className="border border-border/60 rounded-lg overflow-hidden bg-background/40">
+          <button
+            type="button"
+            onClick={() => setShowRawTrace(!showRawTrace)}
+            className="w-full flex items-center justify-between px-3 py-1.5 text-muted-foreground hover:text-foreground text-[11px] font-mono cursor-pointer"
+          >
+            <span className="flex items-center gap-1.5">
+              <Activity size={13} className="shrink-0" />
+              <span>Execution Trace & Observations</span>
+            </span>
+            <span>{showRawTrace ? "Hide diagnostic trace" : "View diagnostic trace"}</span>
+          </button>
+          {showRawTrace && (
+            <div className="p-2.5 border-t border-border/40 font-mono text-[11px] text-muted-foreground bg-muted/30 whitespace-pre-wrap max-h-48 overflow-y-auto">
+              {finalResult}
+            </div>
+          )}
         </div>
       )}
 
-      {producedFiles && producedFiles.length > 0 && (
-        <div className="pt-2.5 border-t border-manus-success/20">
-          <span className="text-[11px] font-semibold text-foreground block mb-1.5">
-            Generated Files:
-          </span>
+      {/* 4. Adaptive Deliverable Box: Error Alert */}
+      {status === "failed" && (
+        <div className="p-3.5 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs flex items-start gap-2.5">
+          <AlertCircle size={15} className="shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-semibold block">Execution Terminated with Error</span>
+            <p className="text-[11px] opacity-90 leading-relaxed font-mono whitespace-pre-wrap">
+              {finalResult || "Execution was aborted or encountered an error."}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Adaptive Deliverable Box: Generated Files (Strictly rendered ONLY when files exist) */}
+      {execMode === "agent" && status === "completed" && hasFiles && (
+        <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-emerald-500 font-semibold tracking-wide text-xs">
+              TASK DELIVERABLES & OUTPUT FILES ({producedFiles.length})
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {producedFiles.map((f) => (
               <button
-                key={f.path}
+                key={f.path || f.name}
                 type="button"
                 onClick={() => onSelectFile(f.name)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-xs transition-all"
+                title="Preview file in Workspace"
               >
-                <FileText size={12} className="text-manus-accent" />
-                <span>{f.name}</span>
-                <ExternalLink size={10} className="opacity-60" />
+                <FileText size={13} className="text-primary shrink-0" />
+                <span className="font-medium font-mono">{f.name}</span>
+                <ExternalLink size={10} className="opacity-60 shrink-0" />
               </button>
             ))}
           </div>
         </div>
       )}
+
+      {/* 6. Bottom Action Toolbar with Copy Button */}
+      <div className="flex items-center justify-end gap-2 pt-1 text-xs">
+        <button
+          type="button"
+          onClick={() => onCopy(displayContent, copyId)}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-all border border-border/40 text-[11px]"
+          title="Copy Response"
+        >
+          {copiedSection === copyId ? (
+            <>
+              <Check size={12} className="text-emerald-500 shrink-0" />
+              <span className="text-emerald-500 font-medium font-mono">Copied!</span>
+            </>
+          ) : (
+            <>
+              <Copy size={12} className="shrink-0" />
+              <span className="font-mono">Copy</span>
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 }

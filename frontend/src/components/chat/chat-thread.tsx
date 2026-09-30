@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import React from "react";
-import { User, Copy, Check, HelpCircle, Loader2 } from "lucide-react";
+import { Copy, Check, HelpCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatTimeline, StepEvent } from "./chat-timeline";
 import { ChatDeliverable } from "./chat-deliverable";
@@ -16,6 +16,7 @@ export interface ChatTurn {
   status: "completed" | "failed";
   tokensUsed?: { input: number; output: number; total: number };
   producedFiles?: { name: string; path: string }[];
+  model?: string;
 }
 
 interface ChatThreadProps {
@@ -42,6 +43,7 @@ interface ChatThreadProps {
   setShowRawTrace: (val: boolean) => void;
   getLiveStatusMessage: () => string;
   chatScrollBottomRef: React.RefObject<HTMLDivElement | null>;
+  activeModelName?: string;
 }
 
 export function ChatThread({
@@ -68,6 +70,7 @@ export function ChatThread({
   setShowRawTrace,
   getLiveStatusMessage,
   chatScrollBottomRef,
+  activeModelName = "Assistant",
 }: ChatThreadProps) {
   const groupStepEvents = (evts: StepEvent[]) => {
     return evts.reduce((acc, s) => {
@@ -84,10 +87,16 @@ export function ChatThread({
     (finalResult.includes("Observed output of cmd") || finalResult.startsWith("Step 1:"))
   );
 
+  // Extract latest meaningful thought from active steps
+  const activeStepsList = Object.values(activeGroupedSteps).flat();
+  const currentLastThought = [...activeStepsList]
+    .reverse()
+    .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step ") && !s.content.startsWith("terminate("));
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-      <div className="w-full max-w-[1000px] mx-auto space-y-6">
-        {/* Historical Completed Turns */}
+    <div className="flex-1 overflow-y-auto p-4 sm:p-5 font-sans">
+      <div className="w-full max-w-[900px] mx-auto space-y-6">
+        {/* Historical Turns */}
         {historyTurns.map((turn, tIdx) => {
           const isTurnRawTrace = Boolean(
             turn.finalResult &&
@@ -95,43 +104,36 @@ export function ChatThread({
           );
           const turnLastThought = [...turn.steps]
             .reverse()
-            .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step "));
+            .find((s) => s.type === "thought" && s.content && !s.content.startsWith("Step ") && !s.content.startsWith("terminate("));
 
           const turnGrouped = groupStepEvents(turn.steps);
 
           return (
-            <div key={turn.id || tIdx} className="space-y-3 pb-4 border-b border-border/40">
-              <div className="py-2 px-1 space-y-1.5">
-                <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-                  <span className="flex items-center gap-1.5 font-medium text-foreground">
-                    <User size={13} className="text-primary" />
-                    <span>User Request #{tIdx + 1}</span>
-                    {turn.timestamp && <span className="text-[10px] text-muted-foreground font-normal">({turn.timestamp})</span>}
-                  </span>
+            <div key={turn.id || `turn-${tIdx}`} className="space-y-4 pb-6 border-b border-border/40">
+              {/* User Prompt (Clean bubble) */}
+              <div className="flex flex-col items-end space-y-1">
+                <div className="max-w-[85%] rounded-2xl bg-muted/80 text-foreground px-4 py-2.5 text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-sans border border-border/50 shadow-xs">
+                  {turn.prompt}
+                </div>
+                <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground font-mono">
+                  {turn.timestamp && <span>{turn.timestamp}</span>}
                   <button
                     type="button"
                     onClick={() => copyText(turn.prompt, `turn-prompt-${tIdx}`)}
-                    className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                    className="p-1 hover:text-foreground text-muted-foreground transition-all cursor-pointer rounded"
+                    title="Copy prompt"
                   >
                     {copiedSection === `turn-prompt-${tIdx}` ? (
-                      <>
-                        <Check size={11} className="text-manus-success" />
-                        <span className="text-manus-success">Copied</span>
-                      </>
+                      <Check size={11} className="text-emerald-500" />
                     ) : (
-                      <>
-                        <Copy size={11} />
-                        <span>Copy</span>
-                      </>
+                      <Copy size={11} />
                     )}
                   </button>
                 </div>
-                <div className="text-foreground text-sm sm:text-base font-normal leading-relaxed whitespace-pre-wrap font-sans">
-                  {turn.prompt}
-                </div>
               </div>
 
-              {turnGrouped && Object.keys(turnGrouped).length > 0 && (
+              {/* Collapsible Execution Steps (Agent Mode Only) */}
+              {execMode === "agent" && turnGrouped && Object.keys(turnGrouped).length > 0 && (
                 <ChatTimeline
                   prefix={`turn-${tIdx}`}
                   groupedSteps={turnGrouped}
@@ -143,6 +145,7 @@ export function ChatThread({
                 />
               )}
 
+              {/* Assistant Deliverable Response */}
               {turn.finalResult && (
                 <ChatDeliverable
                   finalResult={turn.finalResult}
@@ -157,6 +160,8 @@ export function ChatThread({
                   execMode={execMode}
                   showRawTrace={showRawTrace}
                   setShowRawTrace={setShowRawTrace}
+                  modelName={turn.model || activeModelName}
+                  timestamp={turn.timestamp}
                 />
               )}
             </div>
@@ -165,45 +170,33 @@ export function ChatThread({
 
         {/* Current Active Turn Prompt */}
         {submittedPrompt && (
-          <div className="py-2 px-1 space-y-1.5">
-            <div className="flex items-center justify-between text-muted-foreground text-[11px]">
-              <span className="flex items-center gap-1.5 font-medium text-foreground">
-                <User size={13} className="text-primary" />
-                <span>User Request {historyTurns.length > 0 ? `#${historyTurns.length + 1}` : ""}</span>
-                {sessionTimestamp && <span className="text-[10px] text-muted-foreground font-normal">({sessionTimestamp})</span>}
-              </span>
-
+          <div className="flex flex-col items-end space-y-1">
+            <div className="max-w-[85%] rounded-2xl bg-muted/80 text-foreground px-4 py-2.5 text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-sans border border-border/50 shadow-xs">
+              {submittedPrompt}
+            </div>
+            <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground font-mono">
+              {sessionTimestamp && <span>{sessionTimestamp}</span>}
               <button
                 type="button"
                 onClick={() => copyText(submittedPrompt, "user-prompt")}
-                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                title="Copy Task Prompt"
+                className="p-1 hover:text-foreground text-muted-foreground transition-all cursor-pointer rounded"
+                title="Copy prompt"
               >
                 {copiedSection === "user-prompt" ? (
-                  <>
-                    <Check size={11} className="text-manus-success" />
-                    <span className="text-manus-success">Copied</span>
-                  </>
+                  <Check size={11} className="text-emerald-500" />
                 ) : (
-                  <>
-                    <Copy size={11} />
-                    <span>Copy</span>
-                  </>
+                  <Copy size={11} />
                 )}
               </button>
-            </div>
-
-            <div className="text-foreground text-sm sm:text-base font-normal leading-relaxed whitespace-pre-wrap font-sans">
-              {submittedPrompt}
             </div>
           </div>
         )}
 
-        {/* Human Intervention Box */}
+        {/* Human Feedback Box */}
         {humanQuery && (
-          <div className="p-4 rounded-sm bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
-            <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
-              <HelpCircle size={14} />
+          <div className="p-4 rounded-lg bg-warning/10 border border-warning/30 text-xs space-y-2.5 animate-pulse">
+            <div className="flex items-center gap-2 text-warning font-semibold text-xs">
+              <HelpCircle size={14} className="shrink-0" />
               <span>Agent Requires Human Input:</span>
             </div>
             <div className="p-2.5 rounded-md bg-background border border-border text-foreground">
@@ -229,7 +222,7 @@ export function ChatThread({
           </div>
         )}
 
-        {/* Active Connected Stepper */}
+        {/* Active Stepper (Agent Mode Only) */}
         {execMode === "agent" && activeGroupedSteps && Object.keys(activeGroupedSteps).length > 0 && (
           <ChatTimeline
             prefix="active"
@@ -242,11 +235,11 @@ export function ChatThread({
           />
         )}
 
-        {/* Live Running Indicator */}
+        {/* Live Running Status */}
         {status === "running" && (
           <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-primary/20 bg-muted/40 text-foreground transition-all">
             <div className="flex items-center gap-2.5 text-xs">
-              <Loader2 size={14} className="animate-spin text-manus-accent" />
+              <Loader2 size={14} className="animate-spin text-primary shrink-0" />
               <span className="font-medium">{getLiveStatusMessage()}</span>
             </div>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
@@ -255,12 +248,13 @@ export function ChatThread({
           </div>
         )}
 
-        {/* Final Result Deliverable */}
+        {/* Current Turn Deliverable */}
         {finalResult && (
           <ChatDeliverable
             finalResult={finalResult}
             status={status === "failed" ? "failed" : "completed"}
             isTurnRawTrace={isCurrentRawTrace}
+            lastThoughtContent={currentLastThought ? currentLastThought.content : undefined}
             producedFiles={producedFiles}
             onSelectFile={onSelectFile}
             copiedSection={copiedSection}
@@ -268,6 +262,8 @@ export function ChatThread({
             execMode={execMode}
             showRawTrace={showRawTrace}
             setShowRawTrace={setShowRawTrace}
+            modelName={activeModelName}
+            timestamp={sessionTimestamp}
           />
         )}
 
