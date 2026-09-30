@@ -5,9 +5,9 @@
 @layer base {
   :root {
     /* Manus Light Mode (Official Brand Palette) */
-    --background: 0 0% 100%;             /* #FFFFFF */
+    --background: 60 6.67% 97.06%;             /* #f8f8f7 */
     --foreground: 43 7% 19%;             /* #34322D */
-    --card: 0 0% 97.3%;                  /* #F8F8F8 */
+    --card: 0 0% 100%;                  /* #ffffff */
     --card-foreground: 43 7% 19%;        /* #34322D */
     --popover: 0 0% 100%;                /* #FFFFFF */
     --popover-foreground: 43 7% 19%;     /* #34322D */

@@ -95,7 +95,7 @@ export function ChatLanding({
       </h1>
 
       <div className="flex items-center justify-center mb-6 gap-3">
-        <div className="inline-flex items-center bg-card/80 p-1.5 rounded-full border border-border/80 shadow-md backdrop-blur-md gap-1">
+        <div className="inline-flex items-center bg-white-foreground p-1.5 rounded-full border border-border/80 shadow-md backdrop-blur-md gap-1">
           <button
             type="button"
             onClick={() => handleModeChange("agent")}
@@ -106,7 +106,7 @@ export function ChatLanding({
             }`}
             title="Autonomous Agent: multi-step planning, tools & execution"
           >
-            <Bot size={14} className={execMode === "agent" ? "text-emerald-500 animate-pulse" : ""} />
+            <Bot size={12} className={execMode === "agent" ? "text-emerald-500 animate-pulse" : ""} />
             <span>Agent</span>
             {execMode === "agent" && (
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse" />
@@ -151,7 +151,7 @@ export function ChatLanding({
             setLandingAttachedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
           }
         }}
-        className={`w-full bg-white-foreground rounded-2xl border transition-all text-left p-3.5 shadow-manus-md ${
+        className={`w-full bg-card rounded-2xl border transition-all text-left p-3.5 shadow-manus-md ${
           isLandingDragging
             ? "border-primary ring-2 ring-primary/40 bg-primary/5"
             : "border-border focus-within:ring-1 focus-within:ring-muted focus-within:border-muted"
@@ -246,7 +246,7 @@ export function ChatLanding({
               setLandingAttachedFiles([]);
             }}
             disabled={!inputValue.trim() && landingAttachedFiles.length === 0}
-            className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs cursor-pointer hover:bg-primary/90"
+            className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all disabled:opacity-90 disabled:cursor-not-allowed shadow-manus-xs cursor-pointer hover:bg-primary/90"
             title="Dispatch Task (Enter)"
           >
             <ArrowUp size={15} />

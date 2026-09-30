@@ -48,7 +48,7 @@ export function Sidebar({
   ];
 
   return (
-    <div className="w-60 border-r border-border bg-card/60 flex flex-col p-3 space-y-1 shrink-0 select-none">
+    <div className="w-60 border-r border-border bg-custom flex flex-col p-0 pt-4 pb-4 space-y-1 shrink-0 select-none">
       <div className="flex items-center justify-between px-3 py-2">
         <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
           Configuration
@@ -68,7 +68,7 @@ export function Sidebar({
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-0 text-xs font-medium transition-all cursor-pointer ${
                 isActive
                   ? "bg-primary text-primary-foreground shadow-manus-xs"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -90,7 +90,7 @@ export function Sidebar({
           <Link
             href="/status"
             title="Open real-time system health and runtime diagnostics"
-            className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all cursor-pointer group"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-0 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-2.5">
               <Activity size={14} className="text-manus-accent group-hover:scale-110 transition-transform" />
@@ -101,12 +101,12 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="pt-3 border-t border-border space-y-2">
+      <div className="pl-3 pr-3 pt-3 border-t border-border space-y-2">
         <div className="flex items-center gap-2">
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 flex items-center justify-center gap-1.5 h-8 bg-primary text-primary-foreground font-medium text-xs rounded-md shadow-manus-xs cursor-pointer hover:opacity-90"
+            className="primary flex-1 flex items-center justify-center gap-1.5 h-8 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs rounded-0 shadow-manus-xs cursor-pointer hover:opacity-90"
           >
             {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
             <span>{saving ? "Saving..." : "Save Config"}</span>
@@ -127,7 +127,7 @@ export function Sidebar({
 
         {saveStatus && (
           <div
-            className={`p-2 rounded-md text-[11px] leading-tight border flex items-start gap-1.5 ${
+            className={`p-2 rounded-0 text-[11px] leading-tight border flex items-start gap-1.5 ${
               saveStatus.ok
                 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
                 : "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400"

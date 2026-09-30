@@ -4,7 +4,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   fetchFullDiagnostics,
-  DiagnosticsReport
+  probeAllEndpoints,
+  DiagnosticsReport,
+  EndpointProbeResult
 } from "@/lib/statusApi";
 import {
   Activity,
@@ -15,26 +17,28 @@ import {
   AlertCircle,
   XCircle,
   RefreshCw,
-  ArrowRight,
-  ShieldCheck,
-  ShieldAlert,
-  Layers,
   Terminal,
   Settings,
   Sparkles,
-  ExternalLink
+  ShieldCheck,
+  WifiOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function SystemStatusPage() {
   const [report, setReport] = useState<DiagnosticsReport | null>(null);
+  const [probes, setProbes] = useState<EndpointProbeResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const loadDiagnostics = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchFullDiagnostics();
-      setReport(data);
+      const [diagData, probeData] = await Promise.all([
+        fetchFullDiagnostics(),
+        probeAllEndpoints()
+      ]);
+      setReport(diagData);
+      setProbes(probeData);
     } catch (e) {
       console.error("Failed to load diagnostics:", e);
     } finally {
@@ -49,7 +53,7 @@ export default function SystemStatusPage() {
   const mem = report?.systemInfo?.os?.memory;
   const totalGb = mem?.total_gb || 0;
   const availGb = mem?.available_gb || 0;
-  const usedGb = Math.max(0, +(totalGb - availGb).toFixed(1));
+  const usedGb = totalGb > 0 ? Math.max(0, +(totalGb - availGb).toFixed(1)) : 0;
   const memUsagePercent = mem?.usage_percent || (totalGb > 0 ? Math.round((usedGb / totalGb) * 100) : 0);
 
   const overallStatus = !report?.isOnline
@@ -63,8 +67,8 @@ export default function SystemStatusPage() {
   return (
     <div className="w-full h-full flex flex-col flex-1 bg-background text-foreground overflow-hidden">
       {/* Header Bar */}
-      <header className="w-full border-b border-border bg-card/75 backdrop-blur-md sticky top-0 z-10">
-        <div className=" mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
+      <header className="w-full border-b border-border bg-custom backdrop-blur-md sticky top-0 z-10">
+        <div className=" w-full px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-manus-accent/10 text-manus-accent border border-accent/20 shadow-sm">
               <Activity className="h-5 w-5" />
@@ -91,7 +95,7 @@ export default function SystemStatusPage() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Runtime Engine Readiness, Hardware Resource Monitor & Integrity Probes
+                Runtime Engine Readiness, Hardware Resource Monitor & Real-Time Probes
               </p>
             </div>
           </div>
@@ -107,7 +111,7 @@ export default function SystemStatusPage() {
               size="sm"
               onClick={loadDiagnostics}
               disabled={loading}
-              className="primary text-xs border-border bg-muted hover:bg-primary hover:text-primary-foreground text-primary transition shadow-sm h-8"
+              className="text-xs border-border bg-muted hover:bg-primary hover:text-primary-foreground text-primary transition shadow-sm h-8"
             >
               <RefreshCw size={13} className={`mr-1.5 ${loading ? "animate-spin" : ""}`} />
               Run Diagnostics
@@ -144,7 +148,7 @@ export default function SystemStatusPage() {
               </div>
               <div className="text-lg font-bold text-foreground capitalize">{overallStatus}</div>
               <span className="text-[11px] text-muted-foreground mt-1">
-                {report?.health?.server || "omweb-core"}
+                {report?.health?.server || (report?.isOnline ? "Connected" : "Disconnected")}
               </span>
             </div>
 
@@ -155,21 +159,23 @@ export default function SystemStatusPage() {
                 <HardDrive size={16} className="text-manus-accent" />
               </div>
               <div className="text-lg font-bold text-foreground">
-                {memUsagePercent}%
-                <span className="text-xs font-normal text-muted-foreground ml-2">
-                  ({usedGb} / {totalGb} GB)
-                </span>
+                {totalGb > 0 ? `${memUsagePercent}%` : "-"}
+                {totalGb > 0 && (
+                  <span className="text-xs font-normal text-muted-foreground ml-2">
+                    ({usedGb} / {totalGb} GB)
+                  </span>
+                )}
               </div>
               <div className="w-full bg-custom rounded-full h-1.5 mt-2 overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
                     memUsagePercent > 90
-                      ? "bg-custom"
+                      ? "bg-destructive"
                       : memUsagePercent > 70
-                      ? "bg-custom"
+                      ? "bg-amber-500"
                       : "bg-manus-accent"
                   }`}
-                  style={{ width: `${Math.min(100, memUsagePercent)}%` }}
+                  style={{ width: totalGb > 0 ? `${Math.min(100, memUsagePercent)}%` : "0%" }}
                 />
               </div>
             </div>
@@ -180,11 +186,11 @@ export default function SystemStatusPage() {
                 <span className="text-xs font-medium text-muted-foreground">CPU Processor</span>
                 <Cpu size={16} className="text-manus-accent" />
               </div>
-              <div className="text-xs font-bold text-foreground truncate" title={report?.systemInfo?.os?.cpu_brand}>
-                {report?.systemInfo?.os?.cpu_brand || "Multi-Core Processor"}
+              <div className="text-xs font-bold text-foreground truncate" title={report?.systemInfo?.os?.cpu_brand || "-"}>
+                {report?.systemInfo?.os?.cpu_brand || "-"}
               </div>
               <span className="text-[11px] text-muted-foreground mt-1">
-                {report?.systemInfo?.os?.cores || 4} Physical/Logical Cores
+                {report?.systemInfo?.os?.cores !== undefined ? `${report.systemInfo.os.cores} Physical/Logical Cores` : "-"}
               </span>
             </div>
 
@@ -195,12 +201,18 @@ export default function SystemStatusPage() {
                 <Sparkles size={16} className="text-manus-accent" />
               </div>
               <div className="text-sm font-bold text-foreground">
-                {report?.health?.llm_configured ? "Configured" : "Unset"}
+                {report?.health?.llm_configured !== undefined
+                  ? report.health.llm_configured
+                    ? "Configured"
+                    : "Not Configured"
+                  : "-"}
               </div>
               <span className="text-[11px] text-muted-foreground mt-1">
                 {report?.health?.llm_configured
                   ? "Keys & Models Verified"
-                  : "Requires Configuration"}
+                  : report?.isOnline
+                  ? "Requires Setup in Settings"
+                  : "Offline"}
               </span>
             </div>
           </div>
@@ -223,16 +235,18 @@ export default function SystemStatusPage() {
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
                   <span className="text-muted-foreground">OpenManus Engine Linked:</span>
                   <span className="flex items-center gap-1.5 font-semibold text-foreground">
-                    {report?.health?.openmanus_linked ? (
+                    {report?.health?.openmanus_linked === true ? (
                       <>
                         <CheckCircle2 size={13} className="text-emerald-500" />
                         Linked & Mounted
                       </>
-                    ) : (
+                    ) : report?.health?.openmanus_linked === false ? (
                       <>
                         <XCircle size={13} className="text-destructive" />
                         Unlinked
                       </>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </span>
                 </div>
@@ -240,16 +254,18 @@ export default function SystemStatusPage() {
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
                   <span className="text-muted-foreground">Workspaces Storage Access:</span>
                   <span className="flex items-center gap-1.5 font-semibold text-foreground">
-                    {report?.health?.workspaces_writable ? (
+                    {report?.health?.workspaces_writable === true ? (
                       <>
                         <CheckCircle2 size={13} className="text-emerald-500" />
                         Read & Write Enabled
                       </>
-                    ) : (
+                    ) : report?.health?.workspaces_writable === false ? (
                       <>
                         <AlertCircle size={13} className="text-amber-500" />
                         Restricted / Read Only
                       </>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </span>
                 </div>
@@ -257,15 +273,16 @@ export default function SystemStatusPage() {
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
                   <span className="text-muted-foreground">Core Git Commit:</span>
                   <span className="text-foreground font-semibold">
-                    {report?.systemInfo?.repositories?.openmanus?.commit || "3309bf4"}
+                    {report?.systemInfo?.repositories?.openmanus?.commit || "-"}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
                   <span className="text-muted-foreground">Web Gateway Version:</span>
                   <span className="text-foreground font-semibold">
-                    v{report?.systemInfo?.repositories?.openmanus_web?.version || "2.0.0"} (
-                    {report?.systemInfo?.repositories?.openmanus_web?.commit || "latest"})
+                    {report?.systemInfo?.repositories?.openmanus_web?.version
+                      ? `v${report.systemInfo.repositories.openmanus_web.version} (${report.systemInfo.repositories.openmanus_web.commit || "-"})`
+                      : "-"}
                   </span>
                 </div>
               </div>
@@ -287,36 +304,41 @@ export default function SystemStatusPage() {
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
                   <span className="text-muted-foreground">Operating System:</span>
                   <span className="text-foreground font-semibold">
-                    {report?.systemInfo?.os?.system} {report?.systemInfo?.os?.release} (
-                    {report?.systemInfo?.os?.machine})
+                    {report?.systemInfo?.os?.system
+                      ? `${report.systemInfo.os.system} ${report.systemInfo.os.release} (${report.systemInfo.os.machine})`
+                      : "-"}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
                   <span className="text-muted-foreground">Python Runtime:</span>
                   <span className="text-foreground font-semibold">
-                    v{report?.systemInfo?.software?.python || report?.health?.python_version || "3.12"}
+                    {report?.systemInfo?.software?.python
+                      ? `v${report.systemInfo.software.python}`
+                      : report?.health?.python_version
+                      ? `v${report.health.python_version}`
+                      : "-"}
                   </span>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-muted/40 border border-border space-y-1">
                   <span className="text-muted-foreground block text-[11px]">Interpreter Executable:</span>
-                  <span className="text-foreground block truncate text-[11px]" title={report?.systemInfo?.software?.python_executable}>
-                    {report?.systemInfo?.software?.python_executable || "Active venv"}
+                  <span className="text-foreground block truncate text-[11px]" title={report?.systemInfo?.software?.python_executable || "-"}>
+                    {report?.systemInfo?.software?.python_executable || "-"}
                   </span>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-muted/40 border border-border space-y-1">
                   <span className="text-muted-foreground block text-[11px]">Core Repository Path:</span>
-                  <span className="text-foreground block truncate text-[11px]" title={report?.systemInfo?.repositories?.openmanus?.path}>
-                    {report?.systemInfo?.repositories?.openmanus?.path || "D:\\AI\\OpenManus"}
+                  <span className="text-foreground block truncate text-[11px]" title={report?.systemInfo?.repositories?.openmanus?.path || "-"}>
+                    {report?.systemInfo?.repositories?.openmanus?.path || "-"}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Quick Endpoints Status Table */}
+          {/* 100% Live Dynamic Network Probes Table */}
           <div className="p-6 rounded-2xl border border-border bg-card shadow-sm space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
@@ -324,12 +346,14 @@ export default function SystemStatusPage() {
                   <ShieldCheck size={16} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">API Probe Audit</h3>
-                  <p className="text-xs text-muted-foreground">Real-time health of primary operational endpoints</p>
+                  <h3 className="text-sm font-bold text-foreground">Live API Probe Audit</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Real-time network response and latency tests across core endpoints
+                  </p>
                 </div>
               </div>
               <span className="text-xs font-mono text-muted-foreground">
-                Probed: {new Date(report?.timestamp || Date.now()).toLocaleTimeString()}
+                Last Tested: {report?.timestamp ? new Date(report.timestamp).toLocaleTimeString() : "-"}
               </span>
             </div>
 
@@ -340,40 +364,39 @@ export default function SystemStatusPage() {
                     <th className="pb-2.5 font-semibold">Endpoint</th>
                     <th className="pb-2.5 font-semibold">Purpose</th>
                     <th className="pb-2.5 font-semibold">Target Subsystem</th>
-                    <th className="pb-2.5 font-semibold text-right">Status</th>
+                    <th className="pb-2.5 font-semibold text-right">Live Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  <tr>
-                    <td className="py-2.5 text-foreground">GET /api/status/health</td>
-                    <td className="py-2.5 text-muted-foreground">Runtime Health & Readiness</td>
-                    <td className="py-2.5 text-muted-foreground">Core Watchdog</td>
-                    <td className="py-2.5 text-right">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                        200 OK
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 text-foreground">GET /api/status/system-info</td>
-                    <td className="py-2.5 text-muted-foreground">Hardware, CPU & RAM Metrics</td>
-                    <td className="py-2.5 text-muted-foreground">System Prober</td>
-                    <td className="py-2.5 text-right">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                        200 OK
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2.5 text-foreground">GET /api/chats</td>
-                    <td className="py-2.5 text-muted-foreground">Chat Sessions & Projects</td>
-                    <td className="py-2.5 text-muted-foreground">Session Store</td>
-                    <td className="py-2.5 text-right">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                        200 OK
-                      </span>
-                    </td>
-                  </tr>
+                  {probes.length === 0 && loading ? (
+                    <tr>
+                      <td colSpan={4} className="py-6 text-center text-muted-foreground">
+                        <RefreshCw size={14} className="animate-spin inline mr-2 text-manus-accent" />
+                        Running live network probes...
+                      </td>
+                    </tr>
+                  ) : (
+                    probes.map((p) => (
+                      <tr key={p.endpoint}>
+                        <td className="py-2.5 text-foreground font-semibold">{p.endpoint}</td>
+                        <td className="py-2.5 text-muted-foreground">{p.purpose}</td>
+                        <td className="py-2.5 text-muted-foreground">{p.target}</td>
+                        <td className="py-2.5 text-right">
+                          {p.ok ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              {p.status} {p.statusText} ({p.latency}ms)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-destructive/10 text-destructive border border-destructive/30">
+                              <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                              {p.status ? `${p.status}${p.statusText}` : p.statusText} ({p.latency}ms)
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

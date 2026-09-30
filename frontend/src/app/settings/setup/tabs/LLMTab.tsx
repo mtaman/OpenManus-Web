@@ -431,21 +431,21 @@ export function LLMTab({
   };
 
   return (
-    <div className="space-y-6 max-w-4xl font-sans">
+    <div className="llm-tab w-full space-y-6 max-auto font-sans pb-6">
       {/* Header */}
-      <div className="border-b border-border pb-4">
-        <div className="flex items-center gap-2">
+      <div className="border-b border-border w-full pb-0 pt-4  bg-custom ">
+        <div className="flex items-center gap-2  pr-4 pl-4">
           <Sparkles size={16} className="text-primary" />
           <h2 className="text-sm font-semibold font-heading text-foreground uppercase tracking-wide">
             Model Hub & Multi-Provider Architecture
           </h2>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5 pr-4 pl-4">
           Dedicated engines for local GPUs, Ollama, cloud credentials, custom endpoints, and role routing.
         </p>
 
         {/* 4 Professional Sub-Tabs */}
-        <div className="flex items-center gap-2 mt-4 border-b border-border/60">
+        <div className="flex items-center gap-2 mt-4 border-b border-border/60 w-full bg-card">
           <button
             type="button"
             onClick={() => setActiveSubTab("overview")}
@@ -504,7 +504,7 @@ export function LLMTab({
       {/* SUB-TAB 1: OVERVIEW & OPS */}
       {/* ========================================================================= */}
       {activeSubTab === "overview" && (
-        <div className="space-y-5">
+        <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-4 rounded-xl border border-primary/50 bg-primary/5 space-y-2 shadow-xs ring-1 ring-primary/20">
               <div className="flex items-center justify-between">
@@ -783,7 +783,7 @@ export function LLMTab({
       {/* SUB-TAB 2: LOCAL ENGINES (LM STUDIO & OLLAMA) */}
       {/* ========================================================================= */}
       {activeSubTab === "lmstudio" && (
-        <div className="space-y-6">
+        <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
           {/* 1. LM STUDIO CARD */}
           <div className="p-5 rounded-xl border border-border bg-card space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
@@ -1197,7 +1197,7 @@ export function LLMTab({
       {/* SUB-TAB 3: CLOUD PROVIDERS */}
       {/* ========================================================================= */}
       {activeSubTab === "cloud" && (
-        <div className="space-y-4">
+        <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
           {cloudProviders.map((cp) => {
             const isTestingThis = testingId === cp.id;
             const isPrimary = config.llm.provider === cp.id || config.llm.base_url === cp.baseUrl;
@@ -1422,7 +1422,7 @@ export function LLMTab({
       {/* SUB-TAB 4: CUSTOM ENDPOINTS */}
       {/* ========================================================================= */}
       {activeSubTab === "custom" && (
-        <div className="space-y-6">
+        <div className="w-full max-w-7xl space-y-9 pt-8 m-auto">
           <div className="text-xs text-muted-foreground flex items-center gap-1 font-mono">
             <span>Settings</span>
             <span>&gt;</span>

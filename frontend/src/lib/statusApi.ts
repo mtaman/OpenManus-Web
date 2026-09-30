@@ -53,6 +53,17 @@ export interface ServerStatusResult {
   error?: string;
 }
 
+export interface EndpointProbeResult {
+  endpoint: string;
+  purpose: string;
+  target: string;
+  status: number | null;
+  statusText: string;
+  ok: boolean;
+  latency: number;
+  error?: string;
+}
+
 export interface DiagnosticsReport {
   health: ServerHealthResponse | null;
   systemInfo: SystemInfoResponse | null;
@@ -119,6 +130,64 @@ export async function checkServerHealth(timeoutMs = 4000): Promise<ServerStatusR
       error: err?.name === "AbortError" ? "Timeout" : (err?.message || "Network Error")
     };
   }
+}
+
+export async function probeSingleEndpoint(
+  endpoint: string,
+  purpose: string,
+  target: string,
+  timeoutMs = 4000
+): Promise<EndpointProbeResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const startTime = performance.now();
+
+  try {
+    const res = await fetch(endpoint, {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" }
+    });
+
+    clearTimeout(timeoutId);
+    const latency = Math.round(performance.now() - startTime);
+
+    return {
+      endpoint,
+      purpose,
+      target,
+      status: res.status,
+      statusText: res.statusText || (res.ok ? "OK" : "Error"),
+      ok: res.ok,
+      latency
+    };
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    const latency = Math.round(performance.now() - startTime);
+    return {
+      endpoint,
+      purpose,
+      target,
+      status: null,
+      statusText: err?.name === "AbortError" ? "Timeout" : "Connection Failed",
+      ok: false,
+      latency,
+      error: err?.message || "Network Error"
+    };
+  }
+}
+
+export async function probeAllEndpoints(): Promise<EndpointProbeResult[]> {
+  const targets = [
+    { endpoint: "/api/status/health", purpose: "Runtime Health & Watchdog", target: "Core Watchdog" },
+    { endpoint: "/api/status/system-info", purpose: "Hardware, CPU & RAM Metrics", target: "System Prober" },
+    { endpoint: "/api/chats", purpose: "Chat Sessions & Projects", target: "Session Store" },
+    { endpoint: "/api/config", purpose: "Runtime Configuration Vault", target: "Config Engine" }
+  ];
+
+  return Promise.all(
+    targets.map((t) => probeSingleEndpoint(t.endpoint, t.purpose, t.target))
+  );
 }
 
 export async function fetchFullDiagnostics(timeoutMs = 6000): Promise<DiagnosticsReport> {

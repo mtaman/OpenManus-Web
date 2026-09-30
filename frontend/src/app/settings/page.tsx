@@ -563,7 +563,8 @@ export default function SettingsPage() {
         saveStatus={saveStatus}
       />
 
-      <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-background">
+      <div className="taman w-full flex-1 overflow-y-auto p-0 space-y-6 bg-background ">
+        
         {activeTab === "llm" && (
           <LLMTab
             config={config}
@@ -587,11 +588,13 @@ export default function SettingsPage() {
             testEndpoint={testEndpoint}
           />
         )}
+         
         {activeTab === "browser" && <BrowserTab config={config} setConfig={setConfig} />}
         {activeTab === "search" && <SearchTab config={config} setConfig={setConfig} />}
         {activeTab === "sandbox" && <SandboxTab config={config} setConfig={setConfig} />}
         {activeTab === "mcp" && <MCPTab config={config} setConfig={setConfig} />}
         {activeTab === "system" && <SystemTab systemInfo={systemInfo} fetchSystemInfo={fetchSystemInfo} />}
+        
       </div>
     </div>
   );
