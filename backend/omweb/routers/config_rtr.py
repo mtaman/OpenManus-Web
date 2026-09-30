@@ -58,9 +58,9 @@ def mask_secrets(data: dict) -> dict:
             masked[key] = mask_secrets(val)
         elif any(s in key.lower() for s in ["key", "password", "secret", "token"]):
             if isinstance(val, str) and len(val) > 8:
-                masked[key] = val[:4] + "••••••••" + val[-4:]
+                masked[key] = val[:4] + "" + val[-4:]
             elif isinstance(val, str) and val:
-                masked[key] = "••••••••"
+                masked[key] = ""
             else:
                 masked[key] = val
         else:
@@ -72,7 +72,7 @@ def merge_unmasked(new_dict: dict, old_dict: dict) -> dict:
     for k, v in new_dict.items():
         if isinstance(v, dict) and isinstance(old_dict.get(k), dict):
             result[k] = merge_unmasked(v, old_dict[k])
-        elif isinstance(v, str) and "••••" in v:
+        elif isinstance(v, str) and "" in v:
             result[k] = old_dict.get(k, "")
         else:
             result[k] = v
@@ -148,7 +148,7 @@ class TestLLMRequest(BaseModel):
 @router.post("/test-llm")
 async def test_llm_connection(payload: TestLLMRequest):
     api_key = payload.api_key
-    if "••••" in api_key:
+    if "" in api_key:
         current = read_raw_config()
         api_key = current.get("llm", {}).get("api_key", "")
 
@@ -178,16 +178,18 @@ class FetchModelsRequest(BaseModel):
 
 @router.post("/fetch-models")
 async def fetch_available_models(payload: FetchModelsRequest):
-    """Fetch live available model IDs & full Metadata conforming to 2026 API standards."""
+    """Fetch live available model IDs & full Metadata conforming to strict provider-scoped APIs."""
     api_key = payload.api_key or ""
-    if api_key and "••••" in api_key:
+    if api_key and "" in api_key:
         current = read_raw_config()
         api_key = current.get("llm", {}).get("api_key", "")
 
     base = payload.base_url.strip().rstrip("/")
     p_id = (payload.provider_id or "").lower()
     p_type = (payload.provider_type or "").lower()
-    headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"} if api_key else {"Accept": "application/json"}
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
 
     # 1. LM STUDIO PROTOCOL (/api/v1/models priority)
     if "lmstudio" in p_id or "lmstudio" in p_type or "1234" in base:
@@ -235,7 +237,7 @@ async def fetch_available_models(payload: FetchModelsRequest):
                                         "loaded_instances": m.get("loaded_instances") or [],
                                         "capabilities": {
                                             "vision": bool(caps.get("vision", False) or "vision" in mid_str.lower() or "vl" in mid_str.lower()),
-                                            "trained_for_tool_use": bool(caps.get("trained_for_tool_use", False) or "instruct" in mid_str.lower() or "tool" in mid_str.lower())
+                                            "trained_for_tool_use": bool(caps.get("trained_for_tool_use", False) or "instruct" in mid_str.lower() or "tool" in mid_str.lower() or "-it" in mid_str.lower() or "nemotron" in mid_str.lower())
                                         }
                                     }
                             save_metadata_cache(metadata)
@@ -243,7 +245,45 @@ async def fetch_available_models(payload: FetchModelsRequest):
             except Exception:
                 continue
 
-    # 2. ANTHROPIC CLAUDE PROTOCOL
+    # 2. DEEPSEEK OFFICIAL PROTOCOL (Isolated from marketplace proxies)
+    if "deepseek" in p_id or "deepseek.com" in base:
+        if not api_key:
+            return {"ok": False, "error": "DeepSeek API key required", "models": []}
+        clean_ds_base = "https://api.deepseek.com" if "ppinfra" in base else base
+        ds_url = f"{clean_ds_base}/models" if not clean_ds_base.endswith("/models") else clean_ds_base
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(ds_url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_list = data.get("data", []) or data.get("models", [])
+                    model_ids = []
+                    metadata = {}
+                    for m in raw_list:
+                        mid = m.get("id") if isinstance(m, dict) else str(m)
+                        if mid and "deepseek" in str(mid).lower():
+                            mid_str = str(mid)
+                            model_ids.append(mid_str)
+                            is_r1 = "reasoner" in mid_str.lower() or "r1" in mid_str.lower()
+                            metadata[mid_str] = {
+                                "key": mid_str,
+                                "display_name": "DeepSeek R1 (Reasoner)" if is_r1 else "DeepSeek V3 (Chat)",
+                                "type": "llm",
+                                "publisher": "DeepSeek",
+                                "max_context_length": 65536,
+                                "capabilities": {
+                                    "vision": False,
+                                    "trained_for_tool_use": not is_r1
+                                }
+                            }
+                    clean_models = sorted(list(set(model_ids))) or ["deepseek-chat", "deepseek-reasoner"]
+                    save_metadata_cache(metadata)
+                    return {"ok": True, "models": clean_models, "models_metadata": metadata}
+                return {"ok": False, "error": f"DeepSeek API error {resp.status_code}", "models": []}
+        except Exception as e:
+            return {"ok": False, "error": f"DeepSeek connection error: {str(e)}", "models": []}
+
+    # 3. ANTHROPIC CLAUDE PROTOCOL
     if "anthropic" in p_id or "anthropic" in p_type or "anthropic.com" in base:
         if not api_key:
             return {"ok": False, "error": "Anthropic API key required", "models": []}
@@ -274,7 +314,7 @@ async def fetch_available_models(payload: FetchModelsRequest):
         except Exception as e:
             return {"ok": False, "error": f"Anthropic connection error: {str(e)}", "models": []}
 
-    # 3. GOOGLE GEMINI PROTOCOL (With x-goog-api-key header security)
+    # 4. GOOGLE GEMINI PROTOCOL
     if "gemini" in p_id or "google" in p_id or "googleapis.com" in base:
         if not api_key:
             return {"ok": False, "error": "Google API key required", "models": []}
@@ -308,7 +348,7 @@ async def fetch_available_models(payload: FetchModelsRequest):
         except Exception:
             pass
 
-    # 4. OLLAMA PROTOCOL (/api/tags)
+    # 5. OLLAMA PROTOCOL (/api/tags)
     if "ollama" in p_id or "ollama" in p_type or "11434" in base:
         tags_url = f"{base}/api/tags" if not base.endswith("/api/tags") else base
         if "/v1" in tags_url:
@@ -326,8 +366,6 @@ async def fetch_available_models(payload: FetchModelsRequest):
                             models.append(mid)
                             d = m.get("details", {})
                             families = d.get("families") or []
-
-                            # Context heuristic for Ollama standard families
                             ollama_ctx = 131072 if any(f in str(d.get("family", "")).lower() for f in ["llama3", "qwen2", "deepseek"]) else 32768
 
                             metadata[mid] = {
@@ -350,7 +388,7 @@ async def fetch_available_models(payload: FetchModelsRequest):
         except Exception:
             pass
 
-    # 5. OPENROUTER & OPENAI-COMPATIBLE FULL PROTOCOL
+    # 6. OPENAI & SCOPED OPENAI-COMPATIBLE (Strict Model Filtering)
     url = base if base.endswith("/models") else f"{base}/models"
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
@@ -362,35 +400,47 @@ async def fetch_available_models(payload: FetchModelsRequest):
                 metadata = {}
                 is_openrouter = "openrouter.ai" in base
 
+                # Strict blacklist to eliminate marketplace clutter and non-chat models
+                blocked_terms = [
+                    "tts", "whisper", "embedding", "dall-e", "moderation",
+                    "babbage", "davinci", "curie", "audio", "realtime", "transcription",
+                    "flux", "sdxl", "stable-diffusion", "midjourney", "music"
+                ]
+
                 for m in raw_list:
                     if isinstance(m, dict):
                         mid = m.get("id") or m.get("name")
-                        if mid and not any(x in str(mid).lower() for x in ["tts-", "whisper-", "embedding"]):
-                            mid_str = str(mid)
-                            model_ids.append(mid_str)
+                        if not mid:
+                            continue
+                        mid_str = str(mid)
 
-                            ctx = m.get("context_length") or m.get("max_model_len") or m.get("context_window")
-                            arch = None
-                            is_vision = False
-                            if isinstance(m.get("architecture"), dict):
-                                arch = m["architecture"].get("instruct_type") or m["architecture"].get("tokenizer")
-                                is_vision = "image" in str(m["architecture"].get("modality", "")).lower()
+                        # Filter out non-chat models
+                        if any(term in mid_str.lower() for term in blocked_terms):
+                            continue
 
-                            metadata[mid_str] = {
-                                "key": mid_str,
-                                "type": m.get("type", "llm"),
-                                "display_name": m.get("name") or m.get("display_name", mid_str),
-                                "publisher": "OpenRouter" if is_openrouter else m.get("owned_by"),
-                                "max_context_length": ctx,
-                                "architecture": arch,
-                                "description": m.get("description"),
-                                "capabilities": {
-                                    "vision": is_vision or "vision" in mid_str.lower() or "vl" in mid_str.lower() or "4o" in mid_str.lower(),
-                                    "trained_for_tool_use": "instruct" in mid_str.lower() or "tool" in mid_str.lower()
-                                }
+                        model_ids.append(mid_str)
+                        ctx = m.get("context_length") or m.get("max_model_len") or m.get("context_window")
+                        arch = None
+                        is_vision = False
+                        if isinstance(m.get("architecture"), dict):
+                            arch = m["architecture"].get("instruct_type") or m["architecture"].get("tokenizer")
+                            is_vision = "image" in str(m["architecture"].get("modality", "")).lower()
+
+                        metadata[mid_str] = {
+                            "key": mid_str,
+                            "type": m.get("type", "llm"),
+                            "display_name": m.get("name") or m.get("display_name", mid_str),
+                            "publisher": "OpenRouter" if is_openrouter else m.get("owned_by"),
+                            "max_context_length": ctx,
+                            "architecture": arch,
+                            "description": m.get("description"),
+                            "capabilities": {
+                                "vision": is_vision or "vision" in mid_str.lower() or "vl" in mid_str.lower() or "4o" in mid_str.lower(),
+                                "trained_for_tool_use": "instruct" in mid_str.lower() or "tool" in mid_str.lower()
                             }
+                        }
                     elif isinstance(m, str):
-                        if not any(x in m.lower() for x in ["tts-", "whisper-", "embedding"]):
+                        if not any(term in m.lower() for term in blocked_terms):
                             model_ids.append(m)
 
                 save_metadata_cache(metadata)

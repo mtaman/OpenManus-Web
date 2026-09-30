@@ -1034,14 +1034,19 @@ export function LLMTab({
                               <Wrench size={9} /> Tools
                             </span>
                           )}
-                          {caps.contextDisplay && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-mono">
-                              {caps.contextDisplay}
+                          {caps.paramsDisplay && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-primary/15 text-primary border border-primary/30 font-mono">
+                              {caps.paramsDisplay}
                             </span>
                           )}
                           {caps.quantDisplay && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-mono">
                               {caps.quantDisplay}
+                            </span>
+                          )}
+                          {caps.contextDisplay && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-mono">
+                              {caps.contextDisplay}
                             </span>
                           )}
                         </div>
@@ -1751,6 +1756,7 @@ export function LLMTab({
     </div>
   );
 }
+
 
 
 

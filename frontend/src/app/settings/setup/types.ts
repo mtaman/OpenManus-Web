@@ -81,12 +81,12 @@ export const INITIAL_CLOUD_PROVIDERS: CloudProviderVaultItem[] = [
   },
   {
     id: "deepseek",
-    name: "DeepSeek / PPIO",
+    name: "DeepSeek",
     type: "",
-    baseUrl: "https://api.ppinfra.com/v3/openai",
+    baseUrl: "https://api.deepseek.com",
     apiKey: "",
-    model: "deepseek/deepseek-v3-0324",
-    popularModels: ["deepseek/deepseek-v3-0324", "deepseek/deepseek-r1-0528", "deepseek-chat", "deepseek-reasoner"],
+    model: "deepseek-chat",
+    popularModels: ["deepseek-chat", "deepseek-reasoner"],
     badge: "Cloud",
     keyPrefixHint: "DeepSeek keys start with 'sk-'",
     status: "untested",
@@ -185,3 +185,5 @@ export interface FullAppConfig {
   mcp: { server_reference: string };
   runflow: { use_data_analysis_agent: boolean };
 }
+
+

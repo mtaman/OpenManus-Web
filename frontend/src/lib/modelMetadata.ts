@@ -59,9 +59,6 @@ export function getModelMetadata(modelKey: string): ModelMetadata | null {
   return vault[modelKey] || null;
 }
 
-/**
- * Universal capability inference function based on 2026 AI industry standards.
- */
 export function inferModelCapabilities(modelKey: string, explicitMeta?: Partial<ModelMetadata> | null): InferredCapabilities {
   const meta = explicitMeta || getModelMetadata(modelKey) || {};
   const lowerKey = (modelKey || "").toLowerCase();
@@ -84,6 +81,8 @@ export function inferModelCapabilities(modelKey: string, explicitMeta?: Partial<
     lowerKey.includes("instruct") ||
     lowerKey.includes("tool") ||
     lowerKey.includes("function") ||
+    lowerKey.includes("-it") ||
+    lowerKey.includes("nemotron") ||
     lowerKey.includes("gpt") ||
     lowerKey.includes("claude") ||
     lowerKey.includes("gemini") ||
@@ -102,7 +101,7 @@ export function inferModelCapabilities(modelKey: string, explicitMeta?: Partial<
     lowerKey.includes("qwq")
   );
 
-  // 4. Context Window resolution with fallback to known standard model specifications
+  // 4. Context Window resolution
   const loadedContext = meta.loaded_instances && meta.loaded_instances[0]?.config?.context_length
     ? meta.loaded_instances[0].config.context_length
     : null;
@@ -114,7 +113,8 @@ export function inferModelCapabilities(modelKey: string, explicitMeta?: Partial<
     else if (lowerKey.includes("gpt-4o") || lowerKey.includes("o1") || lowerKey.includes("o3")) maxContext = 128000;
     else if (lowerKey.includes("deepseek")) maxContext = 131072;
     else if (lowerKey.includes("llama-3.1") || lowerKey.includes("llama-3.2") || lowerKey.includes("llama-3.3")) maxContext = 131072;
-    else if (lowerKey.includes("qwen2.5") || lowerKey.includes("qwen3")) maxContext = 131072;
+    else if (lowerKey.includes("qwen3")) maxContext = 262144;
+    else if (lowerKey.includes("qwen2.5")) maxContext = 131072;
     else if (lowerKey.includes("gemma-4")) maxContext = 262144;
     else if (lowerKey.includes("nemotron")) maxContext = 1048576;
   }

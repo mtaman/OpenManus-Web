@@ -172,7 +172,20 @@ export default function SettingsPage() {
             try {
               const parsed = JSON.parse(sc);
               if (Array.isArray(parsed)) {
-                const cleanCloud = parsed.filter((p: any) => p.id !== "ollama");
+                const cleanCloud = parsed
+                  .filter((p: any) => p.id !== "ollama")
+                  .map((p: any) => {
+                    if (p.id === "deepseek" && (p.baseUrl?.includes("ppinfra") || p.name?.includes("PPIO") || p.model?.includes("ppinfra") || p.model?.includes("0324"))) {
+                      return {
+                        ...p,
+                        name: "DeepSeek",
+                        baseUrl: "https://api.deepseek.com",
+                        model: "deepseek-chat",
+                        popularModels: ["deepseek-chat", "deepseek-reasoner"]
+                      };
+                    }
+                    return p;
+                  });
                 storedCloud = INITIAL_CLOUD_PROVIDERS.map((base) => {
                   const match = cleanCloud.find((p: any) => p.id === base.id);
                   return match ? { ...base, ...match } : base;
@@ -380,6 +393,8 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
+        if (data.models_metadata) saveLocalMetadataVault(data.models_metadata);
+        if (data.models_metadata) saveLocalMetadataVault(data.models_metadata);
         if (data.models_metadata) saveLocalMetadataVault(data.models_metadata);
         setAvailableModels(data.models);
         if (typeof window !== "undefined") {
@@ -602,4 +617,7 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+
+
 
