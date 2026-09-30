@@ -898,7 +898,7 @@ export function LLMTab({
                   onClick={() =>
                     activateEngine("lmstudio", "LM Studio (Local)", lmStudioSettings.model, lmStudioSettings.baseUrl, lmStudioSettings.apiKey, "")
                   }
-                  className="h-7 text-xs bg-primary text-primary-foreground font-medium cursor-pointer shadow-xs"
+                  className="Primary Button h-7 text-xs bg-primary text-primary-foreground font-medium cursor-pointer shadow-xs"
                 >
                   Set as Active Primary
                 </Button>
