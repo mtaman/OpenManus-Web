@@ -39,7 +39,7 @@ export async function getServerStorageSnapshot(): Promise<{
   [K in StorageKey]?: StorageValue<K>;
 }> {
   const cookieStore = await cookies();
-  const result: Partial<{ [K in StorageKey]: StorageValue<K> }> = {};
+  const result: Record<string, any> = {};
 
   for (const key of Object.keys(storageSchema) as StorageKey[]) {
     const definition = storageSchema[key];
@@ -51,7 +51,7 @@ export async function getServerStorageSnapshot(): Promise<{
     const raw = cookieStore.get(key)?.value;
 
     if (!raw) {
-      result[key] = definition.defaultValue as StorageValue<typeof key>;
+      result[key] = definition.defaultValue;
       continue;
     }
 
@@ -60,12 +60,12 @@ export async function getServerStorageSnapshot(): Promise<{
       const validated = definition.schema.safeParse(parsed);
 
       result[key] = validated.success
-        ? (validated.data as StorageValue<typeof key>)
-        : (definition.defaultValue as StorageValue<typeof key>);
+        ? validated.data
+        : definition.defaultValue;
     } catch {
-      result[key] = definition.defaultValue as StorageValue<typeof key>;
+      result[key] = definition.defaultValue;
     }
   }
 
-  return result;
+  return result as { [K in StorageKey]?: StorageValue<K> };
 }
