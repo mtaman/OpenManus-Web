@@ -15,6 +15,7 @@ import {
   Wrench
 } from "lucide-react";
 import { inferModelCapabilities, fetchServerMetadata } from "@/lib/modelMetadata";
+import { fetchVault } from "@/lib/vault";
 import { useAppStorage } from "@/hooks/use-app-storage";
 import { storage } from "@/lib/storage";
 
@@ -44,7 +45,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(false);
 
-  // Unified multi-tier reactive storage
   const [activeModel, setActiveModel] = useAppStorage("active_model");
   const [activeProvider, setActiveProvider] = useAppStorage("active_provider");
   const [, setActiveLlmOverride] = useAppStorage("active_llm_override");
@@ -67,7 +67,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const loadRealProviders = () => {
     if (typeof window === "undefined") return;
 
-    // 1. Load LM Studio Local Models
     try {
       const storedLM = JSON.parse(localStorage.getItem("omweb_lmstudio_vault") || "null");
       const scanned = JSON.parse(localStorage.getItem("omweb_scanned_models") || "[]");
@@ -86,7 +85,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
       });
     } catch (e) {}
 
-    // 2. Load Ollama ONLY IF it has saved/scanned models
     try {
       const storedOllama = JSON.parse(localStorage.getItem("omweb_ollama_vault") || "null");
       if (storedOllama && Array.isArray(storedOllama.savedModels) && storedOllama.savedModels.length > 0) {
@@ -98,7 +96,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
       setOllamaItem(null);
     }
 
-    // 3. Load Cloud Providers
     try {
       const storedCloud = JSON.parse(localStorage.getItem("omweb_cloud_vault") || "[]");
       if (Array.isArray(storedCloud)) {
@@ -116,7 +113,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
       setActiveCloudProviders([]);
     }
 
-    // 4. Load Custom Endpoints
     try {
       const storedCustom = JSON.parse(localStorage.getItem("omweb_custom_endpoints") || "[]");
       if (Array.isArray(storedCustom)) {
@@ -131,19 +127,25 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
 
   useEffect(() => {
     loadRealProviders();
+    fetchVault().then(() => loadRealProviders());
     fetchServerMetadata().then((data) => setMetadataVault(data || {}));
+
     const onMetadataUpdate = (e: any) => setMetadataVault(e.detail || {});
     window.addEventListener("omweb:metadata-updated", onMetadataUpdate);
+
+    const onVaultUpdate = () => loadRealProviders();
+    window.addEventListener("omweb:vault-updated", onVaultUpdate);
 
     const onModelChange = (e: any) => {
       if (e.detail?.model) setActiveModel(e.detail.model);
       if (e.detail?.provider_name) setActiveProvider(e.detail.provider_name);
     };
-
     window.addEventListener("omweb:model-change", onModelChange);
+
     return () => {
       window.removeEventListener("omweb:model-change", onModelChange);
       window.removeEventListener("omweb:metadata-updated", onMetadataUpdate);
+      window.removeEventListener("omweb:vault-updated", onVaultUpdate);
     };
   }, [setActiveModel, setActiveProvider]);
 
@@ -160,7 +162,9 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const handleToggle = () => {
     if (!isOpen) {
       loadRealProviders();
+      fetchVault().then(() => loadRealProviders());
       fetchServerMetadata().then((data) => setMetadataVault(data || {}));
+
       if (direction === "up") {
         setOpenUpward(true);
       } else if (direction === "down") {
@@ -175,7 +179,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   };
 
   const handleSelectEngine = (payload: ProviderPayload) => {
-    // Sanitize base_url: clean trailing slash and convert /api/v1 to /v1
     let cleanBaseUrl = (payload.base_url || "").trim().replace(/\/+$/, "");
     if (cleanBaseUrl.endsWith("/api/v1")) {
       cleanBaseUrl = cleanBaseUrl.slice(0, -7) + "/v1";
@@ -189,22 +192,21 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
     };
 
     const payloadJson = JSON.stringify(cleanPayload);
-
-    // 1. Sync through unified multi-tier reactive storage
     setActiveModel(cleanPayload.model);
     setActiveProvider(cleanPayload.provider_name);
     setActiveLlmOverride(payloadJson);
+
     storage.set("active_model", cleanPayload.model);
     storage.set("active_provider", cleanPayload.provider_name);
     storage.set("active_llm_override", payloadJson);
 
-    // 2. Sync to legacy storage and broadcast global event for immediate sync
     if (typeof window !== "undefined") {
       localStorage.setItem("omweb_active_model", cleanPayload.model);
       localStorage.setItem("omweb_active_provider", cleanPayload.provider_name);
       localStorage.setItem("omweb_active_llm_override", payloadJson);
       window.dispatchEvent(new CustomEvent("omweb:model-change", { detail: cleanPayload }));
     }
+
     setIsOpen(false);
   };
 
@@ -273,7 +275,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
             <Server size={11} />
           </div>
 
-          {/* 1. LM STUDIO LOCAL GPU SECTION */}
           <div className="rounded-md bg-muted/20 border border-border/40 p-1.5 space-y-1">
             <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-semibold text-foreground">
               <span className="flex items-center gap-1.5">
@@ -319,7 +320,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
             </div>
           </div>
 
-          {/* 2. OLLAMA LOCAL SECTION */}
           {ollamaItem && ollamaItem.savedModels && ollamaItem.savedModels.length > 0 && (
             <div className="rounded-md bg-muted/20 border border-border/40 p-1.5 space-y-1">
               <div className="flex items-center justify-between px-1 py-0.5 text-[11px] font-semibold text-foreground">
@@ -368,7 +368,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
             </div>
           )}
 
-          {/* 3. ACTIVE CLOUD PROVIDERS */}
           {activeCloudProviders.length > 0 && (
             <div className="pt-1 border-t border-border/40 space-y-1.5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
@@ -427,7 +426,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
             </div>
           )}
 
-          {/* 4. CUSTOM ENDPOINTS */}
           {activeCustomEndpoints.length > 0 && (
             <div className="pt-1 border-t border-border/40 space-y-1.5">
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">

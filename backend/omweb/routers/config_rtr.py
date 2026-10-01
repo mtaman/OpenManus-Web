@@ -278,3 +278,72 @@ async def fetch_available_models(payload: FetchModelsRequest):
             return {"ok": False, "error": f"HTTP {resp.status_code}", "models": []}
     except Exception as e:
         return {"ok": False, "error": f"Failed: {str(e)}", "models": []}
+
+
+# ============================================================
+# File-Based Persistent Models Vault (No Browser Dependence)
+# ============================================================
+import json
+from pathlib import Path
+from fastapi import Body
+
+VAULT_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+VAULT_FILE = VAULT_DIR / "models_vault.json"
+
+DEFAULT_VAULT = {
+    "cloud_vault": [],
+    "custom_endpoints": [],
+    "lmstudio_vault": {
+        "baseUrl": "http://127.0.0.1:1234/v1",
+        "model": "qwen3-vl-8b-instruct",
+        "apiKey": "",
+        "savedModels": ["qwen3-vl-8b-instruct"]
+    },
+    "ollama_vault": {
+        "baseUrl": "http://127.0.0.1:11434/v1",
+        "model": "",
+        "apiKey": "",
+        "savedModels": []
+    },
+    "scanned_models": []
+}
+
+def load_vault_from_disk() -> dict:
+    try:
+        VAULT_DIR.mkdir(parents=True, exist_ok=True)
+        if not VAULT_FILE.exists():
+            return dict(DEFAULT_VAULT)
+        with open(VAULT_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            for k, v in DEFAULT_VAULT.items():
+                if k not in data:
+                    data[k] = v
+            return data
+    except Exception as e:
+        print(f"[VAULT] Error reading vault file: {e}")
+        return dict(DEFAULT_VAULT)
+
+def save_vault_to_disk(vault_data: dict) -> None:
+    try:
+        VAULT_DIR.mkdir(parents=True, exist_ok=True)
+        temp_file = VAULT_FILE.with_suffix(".tmp")
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(vault_data, f, indent=2, ensure_ascii=False)
+        temp_file.replace(VAULT_FILE)
+    except Exception as e:
+        print(f"[VAULT] Error saving vault file: {e}")
+
+@router.get("/vault")
+async def get_models_vault():
+    """Retrieve all saved AI providers, models, and API keys from persistent disk file."""
+    return load_vault_from_disk()
+
+@router.post("/vault")
+async def save_models_vault(payload: dict = Body(...)):
+    """Save or update AI providers, models, and API keys to persistent disk file."""
+    current = load_vault_from_disk()
+    for key in ["cloud_vault", "custom_endpoints", "lmstudio_vault", "ollama_vault", "scanned_models"]:
+        if key in payload:
+            current[key] = payload[key]
+    save_vault_to_disk(current)
+    return {"status": "success", "vault": current}
