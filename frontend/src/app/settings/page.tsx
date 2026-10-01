@@ -1,5 +1,4 @@
 ﻿"use client";
-import { saveLocalMetadataVault, fetchServerMetadata } from "@/lib/modelMetadata";
 
 import React, { useState, useEffect, useRef } from "react";
 import { Sidebar } from "./setup/Sidebar";
@@ -10,6 +9,8 @@ import { SandboxTab } from "./setup/tabs/SandboxTab";
 import { MCPTab } from "./setup/tabs/MCPTab";
 import { SystemTab } from "./setup/tabs/SystemTab";
 import { ToastContainer, showToast } from "@/components/ui/ToastNotification";
+import { saveLocalMetadataVault, fetchServerMetadata } from "@/lib/modelMetadata";
+import { fetchVault, saveVaultToBackend, type VaultData } from "@/lib/vault";
 import {
   INITIAL_CLOUD_PROVIDERS,
   INITIAL_LMSTUDIO_SETTINGS,
@@ -113,7 +114,12 @@ export default function SettingsPage() {
   const currentSnapshot = JSON.stringify({ config, lmStudioSettings, ollamaSettings, cloudProviders, customEndpoints });
   const isDirty = initialLoadedRef.current !== "" && initialLoadedRef.current !== currentSnapshot;
 
-  const getApiUrl = (endpoint: string) => `http://localhost:8088${endpoint}`;
+  const getApiUrl = (endpoint: string) => {
+    if (typeof window !== "undefined" && (window.location.port === "3088" || window.location.port === "3000")) {
+      return `http://localhost:8088${endpoint}`;
+    }
+    return endpoint;
+  };
 
   const sanitizeTokens = (raw: any): number => {
     const num = parseInt(String(raw).replace(/[^0-9]/g, ""), 10);
@@ -124,164 +130,133 @@ export default function SettingsPage() {
   const fetchConfig = async () => {
     try {
       const res = await fetch(getApiUrl("/api/config"));
-      if (res.ok) {
-        const data = await res.json();
-        const cfg = data.config || {};
+      const data = res.ok ? await res.json() : {};
+      const cfg = data.config || {};
 
-        let storedCloud = INITIAL_CLOUD_PROVIDERS;
-        let storedLM = INITIAL_LMSTUDIO_SETTINGS;
-        let storedOllama = INITIAL_OLLAMA_SETTINGS;
-        let storedCustom = customEndpoints;
+      const vault: VaultData = await fetchVault();
 
-        if (typeof window !== "undefined") {
-          // Restore Scanned GPU Models
-          const sm = localStorage.getItem("omweb_scanned_models");
-          if (sm) {
-            try {
-              const parsedModels = JSON.parse(sm);
-              if (Array.isArray(parsedModels) && parsedModels.length > 0) {
-                setAvailableModels(parsedModels);
-              }
-            } catch (e) {}
-          }
+      let storedCloud = INITIAL_CLOUD_PROVIDERS;
+      let storedLM = INITIAL_LMSTUDIO_SETTINGS;
+      let storedOllama = INITIAL_OLLAMA_SETTINGS;
+      let storedCustom = customEndpoints;
 
-          // Restore LM Studio Vault
-          const sl = localStorage.getItem("omweb_lmstudio_vault");
-          if (sl) {
-            try {
-              const parsedLM = JSON.parse(sl);
-              storedLM = { ...INITIAL_LMSTUDIO_SETTINGS, ...parsedLM };
-              if (parsedLM.savedModels && Array.isArray(parsedLM.savedModels) && parsedLM.savedModels.length > 0) {
-                setAvailableModels((prev) => (prev.length > 0 ? prev : parsedLM.savedModels));
-              }
-            } catch (e) {}
-          }
+      if (vault.scanned_models && Array.isArray(vault.scanned_models) && vault.scanned_models.length > 0) {
+        setAvailableModels(vault.scanned_models);
+      }
 
-          // Restore Ollama Vault
-          const so = localStorage.getItem("omweb_ollama_vault");
-          if (so) {
-            try {
-              const parsedOllama = JSON.parse(so);
-              storedOllama = { ...INITIAL_OLLAMA_SETTINGS, ...parsedOllama };
-            } catch (e) {}
-          }
-
-          // Restore Cloud Vault (Filter out any legacy dummy ollama)
-          const sc = localStorage.getItem("omweb_cloud_vault");
-          if (sc) {
-            try {
-              const parsed = JSON.parse(sc);
-              if (Array.isArray(parsed)) {
-                const cleanCloud = parsed
-                  .filter((p: any) => p.id !== "ollama")
-                  .map((p: any) => {
-                    if (p.id === "deepseek" && (p.baseUrl?.includes("ppinfra") || p.name?.includes("PPIO") || p.model?.includes("ppinfra") || p.model?.includes("0324"))) {
-                      return {
-                        ...p,
-                        name: "DeepSeek",
-                        baseUrl: "https://api.deepseek.com",
-                        model: "deepseek-chat",
-                        popularModels: ["deepseek-chat", "deepseek-reasoner"]
-                      };
-                    }
-                    return p;
-                  });
-                storedCloud = INITIAL_CLOUD_PROVIDERS.map((base) => {
-                  const match = cleanCloud.find((p: any) => p.id === base.id);
-                  return match ? { ...base, ...match } : base;
-                });
-              }
-            } catch (e) {}
-          }
-
-          // Restore Custom Endpoints
-          const sCust = localStorage.getItem("omweb_custom_endpoints");
-          if (sCust) {
-            try {
-              const parsed = JSON.parse(sCust);
-              if (Array.isArray(parsed)) storedCustom = parsed;
-            } catch (e) {}
-          }
+      if (vault.lmstudio_vault) {
+        storedLM = { ...INITIAL_LMSTUDIO_SETTINGS, ...vault.lmstudio_vault };
+        if (vault.lmstudio_vault.savedModels && vault.lmstudio_vault.savedModels.length > 0) {
+          setAvailableModels((prev) => (prev.length > 0 ? prev : vault.lmstudio_vault.savedModels || []));
         }
+      }
 
-        const loadedConfig: FullAppConfig = {
-          llm: {
-            provider: cfg.llm?.provider || storedLM.provider || "lmstudio",
-            provider_name: cfg.llm?.provider_name || "LM Studio (Local)",
-            model: cfg.llm?.model || storedLM.model,
-            base_url: cfg.llm?.base_url || storedLM.baseUrl,
-            api_key: cfg.llm?.api_key || storedLM.apiKey || "",
-            max_tokens: sanitizeTokens(cfg.llm?.max_tokens || 8192),
-            temperature: cfg.llm?.temperature ?? 0.0,
-            api_type: cfg.llm?.api_type || ""
-          },
-          llm_vision: {
-            provider: cfg["llm.vision"]?.provider || "lmstudio",
-            provider_name: cfg["llm.vision"]?.provider_name || "LM Studio (Local)",
-            model: cfg["llm.vision"]?.model || cfg.llm_vision?.model || storedLM.model,
-            base_url: cfg["llm.vision"]?.base_url || cfg.llm_vision?.base_url || storedLM.baseUrl,
-            api_key: cfg["llm.vision"]?.api_key || cfg.llm_vision?.api_key || "",
-            max_tokens: sanitizeTokens(cfg["llm.vision"]?.max_tokens || 8192),
-            temperature: cfg["llm.vision"]?.temperature ?? 0.0
-          },
-          browser: {
-            headless: cfg.browser?.headless ?? false,
-            disable_security: cfg.browser?.disable_security ?? true,
-            chrome_instance_path: cfg.browser?.chrome_instance_path || "",
-            cdp_url: cfg.browser?.cdp_url || "http://localhost:9222",
-            wss_url: cfg.browser?.wss_url || "",
-            max_content_length: cfg.browser?.max_content_length || 2000,
-            proxy: {
-              server: cfg["browser.proxy"]?.server || cfg.browser?.proxy?.server || "",
-              username: cfg["browser.proxy"]?.username || cfg.browser?.proxy?.username || "",
-              password: cfg["browser.proxy"]?.password || cfg.browser?.proxy?.password || ""
+      if (vault.ollama_vault) {
+        storedOllama = { ...INITIAL_OLLAMA_SETTINGS, ...vault.ollama_vault, savedModels: vault.ollama_vault.savedModels || [] };
+      }
+
+      if (vault.cloud_vault && Array.isArray(vault.cloud_vault) && vault.cloud_vault.length > 0) {
+        const cleanCloud = vault.cloud_vault
+          .filter((p: any) => p.id !== "ollama")
+          .map((p: any) => {
+            if (p.id === "deepseek" && (p.baseUrl?.includes("ppinfra") || p.name?.includes("PPIO") || p.model?.includes("ppinfra") || p.model?.includes("0324"))) {
+              return {
+                ...p,
+                name: "DeepSeek",
+                baseUrl: "https://api.deepseek.com",
+                model: "deepseek-chat",
+                popularModels: ["deepseek-chat", "deepseek-reasoner"]
+              };
             }
-          },
-          search: {
-            engine: cfg.search?.engine || "Google",
-            fallback_engines: Array.isArray(cfg.search?.fallback_engines) ? cfg.search.fallback_engines : ["DuckDuckGo", "Baidu", "Bing"],
-            retry_delay: cfg.search?.retry_delay ?? 60,
-            max_retries: cfg.search?.max_retries ?? 3,
-            lang: cfg.search?.lang || "en",
-            country: cfg.search?.country || "us"
-          },
-          sandbox: {
-            use_sandbox: cfg.sandbox?.use_sandbox ?? false,
-            image: cfg.sandbox?.image || "python:3.12-slim",
-            work_dir: cfg.sandbox?.work_dir || "/workspace",
-            memory_limit: cfg.sandbox?.memory_limit || "1g",
-            cpu_limit: cfg.sandbox?.cpu_limit ?? 2.0,
-            timeout: cfg.sandbox?.timeout ?? 300,
-            network_enabled: cfg.sandbox?.network_enabled ?? false
-          },
-          daytona: {
-            daytona_api_key: cfg.daytona?.daytona_api_key || "",
-            daytona_server_url: cfg.daytona?.daytona_server_url || "https://app.daytona.io/api",
-            daytona_target: cfg.daytona?.daytona_target || "us",
-            sandbox_image_name: cfg.daytona?.sandbox_image_name || "whitezxj/sandbox:0.1.0",
-            VNC_password: cfg.daytona?.VNC_password || ""
-          },
-          mcp: { server_reference: cfg.mcp?.server_reference || "app.mcp.server" },
-          runflow: { use_data_analysis_agent: cfg.runflow?.use_data_analysis_agent ?? false }
-        };
-
-        setLmStudioSettings(storedLM);
-        setOllamaSettings(storedOllama);
-        setCloudProviders(storedCloud);
-        setCustomEndpoints(storedCustom);
-        setConfig(loadedConfig);
-        initialLoadedRef.current = JSON.stringify({
-          config: loadedConfig,
-          lmStudioSettings: storedLM,
-          ollamaSettings: storedOllama,
-          cloudProviders: storedCloud,
-          customEndpoints: storedCustom
+            return p;
+          });
+        storedCloud = INITIAL_CLOUD_PROVIDERS.map((base) => {
+          const match = cleanCloud.find((p: any) => p.id === base.id);
+          return match ? { ...base, ...match } : base;
         });
+      }
 
-        if (typeof window !== "undefined") {
-          localStorage.setItem("omweb_active_model", loadedConfig.llm.model);
-          localStorage.setItem("omweb_active_provider", loadedConfig.llm.provider_name);
-        }
+      if (vault.custom_endpoints && Array.isArray(vault.custom_endpoints) && vault.custom_endpoints.length > 0) {
+        storedCustom = vault.custom_endpoints;
+      }
+
+      const loadedConfig: FullAppConfig = {
+        llm: {
+          provider: cfg.llm?.provider || storedLM.provider || "lmstudio",
+          provider_name: cfg.llm?.provider_name || "LM Studio (Local)",
+          model: cfg.llm?.model || storedLM.model,
+          base_url: cfg.llm?.base_url || storedLM.baseUrl,
+          api_key: cfg.llm?.api_key || storedLM.apiKey || "",
+          max_tokens: sanitizeTokens(cfg.llm?.max_tokens || 8192),
+          temperature: cfg.llm?.temperature ?? 0.0,
+          api_type: cfg.llm?.api_type || ""
+        },
+        llm_vision: {
+          provider: cfg["llm.vision"]?.provider || "lmstudio",
+          provider_name: cfg["llm.vision"]?.provider_name || "LM Studio (Local)",
+          model: cfg["llm.vision"]?.model || cfg.llm_vision?.model || storedLM.model,
+          base_url: cfg["llm.vision"]?.base_url || cfg.llm_vision?.base_url || storedLM.baseUrl,
+          api_key: cfg["llm.vision"]?.api_key || cfg.llm_vision?.api_key || "",
+          max_tokens: sanitizeTokens(cfg["llm.vision"]?.max_tokens || 8192),
+          temperature: cfg["llm.vision"]?.temperature ?? 0.0
+        },
+        browser: {
+          headless: cfg.browser?.headless ?? false,
+          disable_security: cfg.browser?.disable_security ?? true,
+          chrome_instance_path: cfg.browser?.chrome_instance_path || "",
+          cdp_url: cfg.browser?.cdp_url || "http://localhost:9222",
+          wss_url: cfg.browser?.wss_url || "",
+          max_content_length: cfg.browser?.max_content_length || 2000,
+          proxy: {
+            server: cfg["browser.proxy"]?.server || cfg.browser?.proxy?.server || "",
+            username: cfg["browser.proxy"]?.username || cfg.browser?.proxy?.username || "",
+            password: cfg["browser.proxy"]?.password || cfg.browser?.proxy?.password || ""
+          }
+        },
+        search: {
+          engine: cfg.search?.engine || "Google",
+          fallback_engines: Array.isArray(cfg.search?.fallback_engines) ? cfg.search.fallback_engines : ["DuckDuckGo", "Baidu", "Bing"],
+          retry_delay: cfg.search?.retry_delay ?? 60,
+          max_retries: cfg.search?.max_retries ?? 3,
+          lang: cfg.search?.lang || "en",
+          country: cfg.search?.country || "us"
+        },
+        sandbox: {
+          use_sandbox: cfg.sandbox?.use_sandbox ?? false,
+          image: cfg.sandbox?.image || "python:3.12-slim",
+          work_dir: cfg.sandbox?.work_dir || "/workspace",
+          memory_limit: cfg.sandbox?.memory_limit || "1g",
+          cpu_limit: cfg.sandbox?.cpu_limit ?? 2.0,
+          timeout: cfg.sandbox?.timeout ?? 300,
+          network_enabled: cfg.sandbox?.network_enabled ?? false
+        },
+        daytona: {
+          daytona_api_key: cfg.daytona?.daytona_api_key || "",
+          daytona_server_url: cfg.daytona?.daytona_server_url || "https://app.daytona.io/api",
+          daytona_target: cfg.daytona?.daytona_target || "us",
+          sandbox_image_name: cfg.daytona?.sandbox_image_name || "whitezxj/sandbox:0.1.0",
+          VNC_password: cfg.daytona?.VNC_password || ""
+        },
+        mcp: { server_reference: cfg.mcp?.server_reference || "app.mcp.server" },
+        runflow: { use_data_analysis_agent: cfg.runflow?.use_data_analysis_agent ?? false }
+      };
+
+      setLmStudioSettings(storedLM);
+      setOllamaSettings(storedOllama);
+      setCloudProviders(storedCloud);
+      setCustomEndpoints(storedCustom);
+      setConfig(loadedConfig);
+      initialLoadedRef.current = JSON.stringify({
+        config: loadedConfig,
+        lmStudioSettings: storedLM,
+        ollamaSettings: storedOllama,
+        cloudProviders: storedCloud,
+        customEndpoints: storedCustom
+      });
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("omweb_active_model", loadedConfig.llm.model);
+        localStorage.setItem("omweb_active_provider", loadedConfig.llm.provider_name);
       }
     } catch (e: any) {
       console.error("Failed to load config", e);
@@ -394,16 +369,18 @@ export default function SettingsPage() {
       const data = await res.json();
       if (data.ok && Array.isArray(data.models) && data.models.length > 0) {
         if (data.models_metadata) saveLocalMetadataVault(data.models_metadata);
-        if (data.models_metadata) saveLocalMetadataVault(data.models_metadata);
-        if (data.models_metadata) saveLocalMetadataVault(data.models_metadata);
         setAvailableModels(data.models);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("omweb_scanned_models", JSON.stringify(data.models));
-          const sl = localStorage.getItem("omweb_lmstudio_vault");
-          const vault = sl ? JSON.parse(sl) : { ...lmStudioSettings };
-          vault.savedModels = data.models;
-          localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(vault));
-        }
+        const updatedVaultLM: LMStudioSettings = {
+          ...lmStudioSettings,
+          savedModels: data.models
+        };
+        setLmStudioSettings(updatedVaultLM);
+
+        void saveVaultToBackend({
+          scanned_models: data.models,
+          lmstudio_vault: updatedVaultLM
+        });
+
         showToast.success("Models Detected", `Retrieved ${data.models.length} local GPU models!`);
       } else {
         const msg = data.message || data.error || "No models returned from local endpoint.";
@@ -431,7 +408,16 @@ export default function SettingsPage() {
           base_url: lmStudioSettings.baseUrl
         }
       }));
-      setLmStudioSettings((p) => ({ ...p, model: modelName }));
+      const updatedLM: LMStudioSettings = {
+        ...lmStudioSettings,
+        model: modelName,
+        savedModels: lmStudioSettings.savedModels || availableModels || [modelName]
+      };
+      setLmStudioSettings(updatedLM);
+
+      void saveVaultToBackend({
+        lmstudio_vault: updatedLM
+      });
 
       if (typeof window !== "undefined") {
         localStorage.setItem("omweb_active_model", modelName);
@@ -444,10 +430,6 @@ export default function SettingsPage() {
           api_key: lmStudioSettings.apiKey,
           api_type: ""
         }));
-        const sl = localStorage.getItem("omweb_lmstudio_vault");
-        const vault = sl ? JSON.parse(sl) : { ...lmStudioSettings };
-        vault.model = modelName;
-        localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(vault));
         window.dispatchEvent(new CustomEvent("omweb:model-change", {
           detail: { model: modelName, provider_name: "LM Studio (Local)" }
         }));
@@ -515,10 +497,25 @@ export default function SettingsPage() {
       });
 
       if (res.ok) {
-        const updatedLM = {
+        const updatedLM: LMStudioSettings = {
           ...lmStudioSettings,
           savedModels: availableModels
         };
+
+        const safeOllamaVault = {
+          baseUrl: ollamaSettings.baseUrl,
+          model: ollamaSettings.model,
+          apiKey: "",
+          savedModels: ollamaSettings.savedModels || []
+        };
+
+        await saveVaultToBackend({
+          cloud_vault: cloudProviders,
+          custom_endpoints: customEndpoints,
+          lmstudio_vault: updatedLM,
+          ollama_vault: safeOllamaVault,
+          scanned_models: availableModels
+        });
 
         initialLoadedRef.current = JSON.stringify({
           config: { ...config, llm: activeLlm },
@@ -528,17 +525,12 @@ export default function SettingsPage() {
           customEndpoints
         });
 
-        setSaveStatus({ ok: true, message: "Configuration saved to config.toml!" });
+        setSaveStatus({ ok: true, message: "Configuration & Vault permanently saved!" });
         showToast.success("Saved Successfully", `Active: ${activeLlm.provider_name} (${activeLlm.model})`);
 
         if (typeof window !== "undefined") {
           localStorage.setItem("omweb_active_model", activeLlm.model);
           localStorage.setItem("omweb_active_provider", activeLlm.provider_name);
-          localStorage.setItem("omweb_cloud_vault", JSON.stringify(cloudProviders));
-          localStorage.setItem("omweb_lmstudio_vault", JSON.stringify(updatedLM));
-          localStorage.setItem("omweb_ollama_vault", JSON.stringify(ollamaSettings));
-          localStorage.setItem("omweb_scanned_models", JSON.stringify(availableModels));
-          localStorage.setItem("omweb_custom_endpoints", JSON.stringify(customEndpoints));
           localStorage.setItem("omweb_active_llm_override", JSON.stringify({
             model: activeLlm.model,
             provider: activeLlm.provider,
@@ -581,8 +573,7 @@ export default function SettingsPage() {
         saveStatus={saveStatus}
       />
 
-      <div className="taman w-full flex-1 overflow-y-auto p-0 space-y-6 bg-background ">
-        
+      <div className="taman w-full flex-1 overflow-y-auto p-0 space-y-6 bg-background">
         {activeTab === "llm" && (
           <LLMTab
             config={config}
@@ -612,12 +603,7 @@ export default function SettingsPage() {
         {activeTab === "sandbox" && <SandboxTab config={config} setConfig={setConfig} />}
         {activeTab === "mcp" && <MCPTab config={config} setConfig={setConfig} />}
         {activeTab === "system" && <SystemTab systemInfo={systemInfo} fetchSystemInfo={fetchSystemInfo} />}
-        
       </div>
     </div>
   );
 }
-
-
-
-

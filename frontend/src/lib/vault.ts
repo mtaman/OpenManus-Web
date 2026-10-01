@@ -7,14 +7,14 @@ export interface VaultData {
     baseUrl: string;
     model: string;
     apiKey: string;
-    savedModels: string[];
+    savedModels?: string[];
     [key: string]: any;
   };
   ollama_vault: {
     baseUrl: string;
     model: string;
-    apiKey: string;
-    savedModels: string[];
+    apiKey?: string;
+    savedModels?: string[];
     [key: string]: any;
   };
   scanned_models: string[];
@@ -42,74 +42,99 @@ let memoryVault: VaultData | null = null;
 let syncTimeout: any = null;
 let isSyncingFromBackend = false;
 
-export async function fetchVault(): Promise<VaultData> {
-  if (typeof window === "undefined") return DEFAULT_VAULT;
-  try {
-    const res = await fetch("/api/config/vault", { cache: "no-store" });
-    if (res.ok) {
-      const data: VaultData = await res.json();
-      let needsMigration = false;
-      const legacyCloud = localStorage.getItem("omweb_cloud_vault");
-      const legacyCustom = localStorage.getItem("omweb_custom_endpoints");
-      const legacyLM = localStorage.getItem("omweb_lmstudio_vault");
-      const legacyOllama = localStorage.getItem("omweb_ollama_vault");
-
-      if ((!data.cloud_vault || data.cloud_vault.length === 0) && legacyCloud) {
-        try {
-          const parsed = JSON.parse(legacyCloud);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            data.cloud_vault = parsed;
-            needsMigration = true;
-          }
-        } catch {}
-      }
-
-      if ((!data.custom_endpoints || data.custom_endpoints.length === 0) && legacyCustom) {
-        try {
-          const parsed = JSON.parse(legacyCustom);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            data.custom_endpoints = parsed;
-            needsMigration = true;
-          }
-        } catch {}
-      }
-
-      if (legacyLM) {
-        try {
-          const parsed = JSON.parse(legacyLM);
-          if (parsed && typeof parsed === "object" && parsed.apiKey && !data.lmstudio_vault?.apiKey) {
-            data.lmstudio_vault = { ...data.lmstudio_vault, ...parsed };
-            needsMigration = true;
-          }
-        } catch {}
-      }
-
-      if (legacyOllama) {
-        try {
-          const parsed = JSON.parse(legacyOllama);
-          if (parsed && typeof parsed === "object" && parsed.savedModels?.length > 0 && (!data.ollama_vault?.savedModels || data.ollama_vault.savedModels.length === 0)) {
-            data.ollama_vault = { ...data.ollama_vault, ...parsed };
-            needsMigration = true;
-          }
-        } catch {}
-      }
-
-      if (needsMigration) await saveVaultToBackend(data);
-
-      memoryVault = data;
-      syncLocalStorage(data);
-      window.dispatchEvent(new CustomEvent("omweb:vault-updated", { detail: data }));
-      return data;
-    }
-  } catch (err) {
-    console.warn("[vault] Backend fetch failed", err);
+function getCandidateEndpoints(): string[] {
+  if (typeof window === "undefined") return ["/api/config/vault"];
+  const port = window.location.port;
+  if (port === "3088" || port === "3000") {
+    return [
+      "/api/config/vault",
+      "http://localhost:8088/api/config/vault",
+      "http://127.0.0.1:8088/api/config/vault"
+    ];
   }
+  return ["/api/config/vault", "http://localhost:8088/api/config/vault"];
+}
+
+export async function fetchVault(): Promise<VaultData> {
+  if (typeof window === "undefined") {
+    return DEFAULT_VAULT;
+  }
+
+  const endpoints = getCandidateEndpoints();
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) {
+        const data: VaultData = await res.json();
+
+        let needsMigration = false;
+        const legacyCloud = localStorage.getItem("omweb_cloud_vault");
+        const legacyCustom = localStorage.getItem("omweb_custom_endpoints");
+        const legacyLM = localStorage.getItem("omweb_lmstudio_vault");
+        const legacyOllama = localStorage.getItem("omweb_ollama_vault");
+
+        if ((!data.cloud_vault || data.cloud_vault.length === 0) && legacyCloud) {
+          try {
+            const parsed = JSON.parse(legacyCloud);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              data.cloud_vault = parsed;
+              needsMigration = true;
+            }
+          } catch {}
+        }
+
+        if ((!data.custom_endpoints || data.custom_endpoints.length === 0) && legacyCustom) {
+          try {
+            const parsed = JSON.parse(legacyCustom);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              data.custom_endpoints = parsed;
+              needsMigration = true;
+            }
+          } catch {}
+        }
+
+        if (legacyLM) {
+          try {
+            const parsed = JSON.parse(legacyLM);
+            if (parsed && typeof parsed === "object" && parsed.apiKey && !data.lmstudio_vault?.apiKey) {
+              data.lmstudio_vault = { ...data.lmstudio_vault, ...parsed };
+              needsMigration = true;
+            }
+          } catch {}
+        }
+
+        if (legacyOllama) {
+          try {
+            const parsed = JSON.parse(legacyOllama);
+            if (parsed && typeof parsed === "object" && parsed.savedModels?.length > 0 && (!data.ollama_vault?.savedModels || data.ollama_vault.savedModels.length === 0)) {
+              data.ollama_vault = { ...data.ollama_vault, ...parsed };
+              needsMigration = true;
+            }
+          } catch {}
+        }
+
+        if (needsMigration) {
+          await saveVaultToBackend(data);
+        }
+
+        memoryVault = data;
+        syncLocalStorage(data);
+        window.dispatchEvent(new CustomEvent("omweb:vault-updated", { detail: data }));
+        return data;
+      }
+    } catch {}
+  }
+
   return getLocalVaultFallback();
 }
 
 export async function saveVaultToBackend(partial: Partial<VaultData>): Promise<VaultData> {
   const current = memoryVault || getLocalVaultFallback();
-  const merged: VaultData = { ...current, ...partial };
+  const merged: VaultData = {
+    ...current,
+    ...partial,
+  };
+
   memoryVault = merged;
   syncLocalStorage(merged);
 
@@ -117,23 +142,26 @@ export async function saveVaultToBackend(partial: Partial<VaultData>): Promise<V
     window.dispatchEvent(new CustomEvent("omweb:vault-updated", { detail: merged }));
   }
 
-  try {
-    const res = await fetch("/api/config/vault", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(merged),
-    });
-    if (res.ok) {
-      const result = await res.json();
-      if (result.vault) {
-        memoryVault = result.vault;
-        syncLocalStorage(result.vault);
-        return result.vault;
+  const endpoints = getCandidateEndpoints();
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(merged),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        if (result.vault) {
+          memoryVault = result.vault;
+          syncLocalStorage(result.vault);
+          return result.vault;
+        }
+        return merged;
       }
-    }
-  } catch (err) {
-    console.error("[vault] Failed to persist vault to disk", err);
+    } catch {}
   }
+
   return merged;
 }
 
@@ -189,5 +217,6 @@ if (typeof window !== "undefined") {
       debouncedSyncToBackend();
     }
   };
+
   void fetchVault();
 }
