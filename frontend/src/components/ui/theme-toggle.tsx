@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/layout/theme-provider";
-import { storage } from "@/lib/storage";
 
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
@@ -31,8 +30,6 @@ export function ThemeToggle() {
   const handleToggle = () => {
     const nextTheme = isDark ? "light" : "dark";
     setTheme(nextTheme);
-    // Persist via unified storage engine (Server cookie sync to prevent FOUC)
-    storage.set("theme", nextTheme);
   };
 
   return (

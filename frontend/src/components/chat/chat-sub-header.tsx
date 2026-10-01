@@ -98,7 +98,7 @@ export function ChatSubHeader({
             variant="destructive"
             size="sm"
             onClick={onStopTask}
-            className="h-7 px-2.5 text-xs font-sans rounded-md cursor-pointer"
+            className="active:bg-red-800 bg-red-600 hover:bg-red-700 text-white h-7 px-2.5 text-xs font-sans rounded-md cursor-pointer shadow-sm transition-colors"
           >
             <Square size={11} className="fill-current mr-1" />
             <span>Stop</span>

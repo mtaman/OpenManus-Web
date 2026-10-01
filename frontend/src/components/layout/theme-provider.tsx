@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import "@/i18n";
+import { storage } from "@/lib/storage";
 
 type Theme = "dark" | "light" | "system";
 
@@ -9,9 +10,8 @@ export interface ThemeProviderProps {
   children: React.ReactNode;
   defaultTheme?: Theme;
   storageKey?: string;
-  attribute?: string;
   enableSystem?: boolean;
-  disableTransitionOnChange?: boolean;
+  [key: string]: any;
 }
 
 interface ThemeProviderState {
@@ -19,58 +19,63 @@ interface ThemeProviderState {
   setTheme: (theme: Theme) => void;
 }
 
-const initialState: ThemeProviderState = {
+const ThemeProviderContext = createContext<ThemeProviderState>({
   theme: "dark",
   setTheme: () => null,
-};
-
-const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+});
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = "dark",
   storageKey = "theme",
-  attribute = "class",
   enableSystem = true,
-  disableTransitionOnChange = false,
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
-  const [mounted, setMounted] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(defaultTheme);
 
   useEffect(() => {
-    const savedTheme = (localStorage.getItem(storageKey) as Theme) || defaultTheme;
-    setTheme(savedTheme);
-    setMounted(true);
-  }, [defaultTheme, storageKey]);
-
-  useEffect(() => {
-    if (!mounted) return;
-
-    const root = window.document.documentElement;
-    root.classList.remove("light", "dark");
-
-    if (theme === "system" && enableSystem) {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-      root.classList.add(systemTheme);
-      return;
+    const cleanCookie = typeof document !== "undefined" ? (document.cookie.match(/(?:^|; )theme=([^;]*)/)?.[1] || "").replace(/^["']+|["']+$/g, "") : "";
+    const saved = cleanCookie || (localStorage.getItem(storageKey) as Theme) || defaultTheme;
+    if (saved && (saved === "dark" || saved === "light" || saved === "system")) {
+      setThemeState(saved as Theme);
     }
+  }, [storageKey, defaultTheme]);
 
-    root.classList.add(theme === "system" ? "dark" : theme);
-  }, [theme, mounted, enableSystem]);
+  const applyThemeClass = (t: Theme) => {
+    if (typeof window === "undefined") return;
+    const root = window.document.documentElement;
+    const isDark =
+      t === "dark" ||
+      (t === "system" &&
+        enableSystem &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  const value = {
-    theme,
-    setTheme: (newTheme: Theme) => {
+    if (isDark) {
+      root.classList.add("dark");
+      root.classList.remove("light");
+    } else {
+      root.classList.remove("dark");
+      root.classList.add("light");
+    }
+  };
+
+  useEffect(() => {
+    applyThemeClass(theme);
+  }, [theme, enableSystem]);
+
+  const setTheme = (newTheme: Theme) => {
+    setThemeState(newTheme);
+    applyThemeClass(newTheme);
+    storage.set("theme", newTheme);
+    if (typeof window !== "undefined") {
+      document.cookie = `theme=${newTheme}; path=/; max-age=31536000; SameSite=Lax`;
       localStorage.setItem(storageKey, newTheme);
-      setTheme(newTheme);
-    },
+      localStorage.setItem("omweb_theme", newTheme);
+    }
   };
 
   return (
-    <ThemeProviderContext.Provider {...props} value={value}>
+    <ThemeProviderContext.Provider value={{ theme, setTheme }}>
       {children}
     </ThemeProviderContext.Provider>
   );
@@ -78,7 +83,7 @@ export function ThemeProvider({
 
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useTheme must be used within a ThemeProvider");
   }
   return context;

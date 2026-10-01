@@ -236,7 +236,7 @@ export function WorkspacePanel({
       : null;
 
   return (
-    <div className="flex flex-col h-full bg-background border-l border-border font-sans">
+    <div className="flex flex-col h-full bg-custom border-l border-border font-sans">
       <div className="h-12 border-b border-border bg-card/40 backdrop-blur-sm px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto">
           {tabs.map((tab) => {

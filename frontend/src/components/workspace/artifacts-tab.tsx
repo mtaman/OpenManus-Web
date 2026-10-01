@@ -145,7 +145,7 @@ export function ArtifactsTab({ jobId, activeJobId, chatId, selectedFile }: Artif
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-background font-sans overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-custom font-sans overflow-hidden">
       {/* Header Bar */}
       <div className="h-10 border-b border-border bg-card/60 backdrop-blur-sm px-4 flex items-center justify-between shrink-0 text-xs">
         <div className="flex items-center gap-2 min-w-0">

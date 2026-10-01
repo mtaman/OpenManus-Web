@@ -142,7 +142,7 @@ export function FilesTab({ onSelectFile, onOpenFile, activeJobId }: FilesTabProp
   };
 
   return (
-    <div className="flex flex-col h-full bg-background text-foreground font-sans text-xs">
+    <div className="flex flex-col h-full bg-custom text-foreground font-sans text-xs">
       <div className="flex items-center justify-between p-3 border-b border-border bg-card/40 shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-xs tracking-wider text-muted-foreground uppercase font-sans">

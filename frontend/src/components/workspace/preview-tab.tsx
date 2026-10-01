@@ -140,7 +140,7 @@ export function PreviewTab({
 
   if (!effectiveFile || !isPreviewable || (!rawContent && !loading)) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full bg-background text-muted-foreground p-8 select-none font-sans">
+      <div className="flex flex-col items-center justify-center h-full w-full bg-custom text-muted-foreground p-8 select-none font-sans">
         <div className="flex flex-col items-center max-w-sm text-center space-y-4">
           <div className="p-4 rounded-2xl bg-card border border-border shadow-manus-md relative">
             <Code2 className="w-10 h-10 text-manus-accent" />
@@ -175,7 +175,7 @@ export function PreviewTab({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-background overflow-hidden font-sans">
+    <div className="flex flex-col h-full w-full bg-custom overflow-hidden font-sans">
       <div className="h-10 border-b border-border bg-card/60 backdrop-blur-sm px-4 flex items-center justify-between shrink-0 text-xs">
         <div className="flex items-center gap-2 text-foreground min-w-0">
           {isMarkdown ? (

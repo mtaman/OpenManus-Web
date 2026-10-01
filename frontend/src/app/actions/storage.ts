@@ -20,34 +20,27 @@ export async function setStorageCookie<K extends StorageKey>(
   value: StorageValue<K>
 ): Promise<void> {
   const definition = storageSchema[key];
-
   if (definition.tier !== "cookie") {
     throw new Error(`"${key}" is not a cookie-backed storage key.`);
   }
 
   const validation = definition.schema.safeParse(value);
-
   if (!validation.success) {
     throw new Error(`Invalid value for "${key}": ${validation.error.message}`);
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(
-    key,
-    encodeURIComponent(JSON.stringify(validation.data)),
-    COOKIE_OPTIONS
-  );
+  const rawString = typeof validation.data === "string" ? validation.data : JSON.stringify(validation.data);
+  cookieStore.set(key, rawString, COOKIE_OPTIONS);
 }
 
 export async function deleteStorageCookie<K extends StorageKey>(
   key: K
 ): Promise<void> {
   const definition = storageSchema[key];
-
   if (definition.tier !== "cookie") {
     throw new Error(`"${key}" is not a cookie-backed storage key.`);
   }
-
   const cookieStore = await cookies();
   cookieStore.delete(key);
 }
