@@ -15,9 +15,8 @@ import {
   Wrench
 } from "lucide-react";
 import { inferModelCapabilities, fetchServerMetadata } from "@/lib/modelMetadata";
-
-
-
+import { useAppStorage } from "@/hooks/use-app-storage";
+import { storage } from "@/lib/storage";
 
 export interface EngineOption {
   id: string;
@@ -44,17 +43,19 @@ export interface EngineSelectorProps {
 export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [openUpward, setOpenUpward] = useState(false);
-  const [activeModel, setActiveModel] = useState<string>("qwen3-vl-8b-instruct");
-  const [activeProvider, setActiveProvider] = useState<string>("LM Studio (Local)");
+
+  // Unified multi-tier reactive storage
+  const [activeModel, setActiveModel] = useAppStorage("active_model");
+  const [activeProvider, setActiveProvider] = useAppStorage("active_provider");
+  const [, setActiveLlmOverride] = useAppStorage("active_llm_override");
+
   const [activeCloudProviders, setActiveCloudProviders] = useState<any[]>([]);
   const [activeCustomEndpoints, setActiveCustomEndpoints] = useState<any[]>([]);
   const [lmStudioItem, setLmStudioItem] = useState<any>(null);
   const [localGPUModels, setLocalGPUModels] = useState<string[]>([]);
   const [ollamaItem, setOllamaItem] = useState<any>(null);
   const [metadataVault, setMetadataVault] = useState<Record<string, any>>({});
-
   const [mounted, setMounted] = useState(false);
-
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -63,7 +64,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
     setMounted(true);
   }, []);
 
-
   const loadRealProviders = () => {
     if (typeof window === "undefined") return;
 
@@ -71,7 +71,6 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
     try {
       const storedLM = JSON.parse(localStorage.getItem("omweb_lmstudio_vault") || "null");
       const scanned = JSON.parse(localStorage.getItem("omweb_scanned_models") || "[]");
-
       const baseModel = storedLM?.model || "qwen3-vl-8b-instruct";
       const combined = Array.from(new Set([
         baseModel,
@@ -128,18 +127,10 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
     } catch (e) {
       setActiveCustomEndpoints([]);
     }
-
-    // 5. Restore active selection
-    const savedModel = localStorage.getItem("omweb_active_model");
-    const savedProvider = localStorage.getItem("omweb_active_provider");
-    if (savedModel) setActiveModel(savedModel);
-    if (savedProvider) setActiveProvider(savedProvider);
   };
 
   useEffect(() => {
     loadRealProviders();
-
-    // Load metadata and listen for reactive updates
     fetchServerMetadata().then((data) => setMetadataVault(data || {}));
     const onMetadataUpdate = (e: any) => setMetadataVault(e.detail || {});
     window.addEventListener("omweb:metadata-updated", onMetadataUpdate);
@@ -154,7 +145,7 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
       window.removeEventListener("omweb:model-change", onModelChange);
       window.removeEventListener("omweb:metadata-updated", onMetadataUpdate);
     };
-  }, []);
+  }, [setActiveModel, setActiveProvider]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -184,24 +175,44 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   };
 
   const handleSelectEngine = (payload: ProviderPayload) => {
-    setActiveModel(payload.model);
-    setActiveProvider(payload.provider_name);
+    // Sanitize base_url: clean trailing slash and convert /api/v1 to /v1
+    let cleanBaseUrl = (payload.base_url || "").trim().replace(/\/+$/, "");
+    if (cleanBaseUrl.endsWith("/api/v1")) {
+      cleanBaseUrl = cleanBaseUrl.slice(0, -7) + "/v1";
+    } else if (cleanBaseUrl.endsWith("/api")) {
+      cleanBaseUrl = cleanBaseUrl.slice(0, -4) + "/v1";
+    }
 
+    const cleanPayload: ProviderPayload = {
+      ...payload,
+      base_url: cleanBaseUrl
+    };
+
+    const payloadJson = JSON.stringify(cleanPayload);
+
+    // 1. Sync through unified multi-tier reactive storage
+    setActiveModel(cleanPayload.model);
+    setActiveProvider(cleanPayload.provider_name);
+    setActiveLlmOverride(payloadJson);
+    storage.set("active_model", cleanPayload.model);
+    storage.set("active_provider", cleanPayload.provider_name);
+    storage.set("active_llm_override", payloadJson);
+
+    // 2. Sync to legacy storage and broadcast global event for immediate sync
     if (typeof window !== "undefined") {
-      localStorage.setItem("omweb_active_model", payload.model);
-      localStorage.setItem("omweb_active_provider", payload.provider_name);
-      localStorage.setItem("omweb_active_llm_override", JSON.stringify(payload));
-      window.dispatchEvent(new CustomEvent("omweb:model-change", { detail: payload }));
+      localStorage.setItem("omweb_active_model", cleanPayload.model);
+      localStorage.setItem("omweb_active_provider", cleanPayload.provider_name);
+      localStorage.setItem("omweb_active_llm_override", payloadJson);
+      window.dispatchEvent(new CustomEvent("omweb:model-change", { detail: cleanPayload }));
     }
     setIsOpen(false);
   };
 
   const renderModelBadges = (modelKey: string) => {
-
     if (!mounted) return null;
-
     const caps = inferModelCapabilities(modelKey, metadataVault[modelKey]);
     if (!caps.isReasoning && !caps.isVision && !caps.isTools) return null;
+
     return (
       <span className="inline-flex items-center gap-1 shrink-0 ml-1 font-sans">
         {caps.isReasoning && (
@@ -363,6 +374,7 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
                 Cloud Providers & Saved Models
               </span>
+
               {activeCloudProviders.map((cp) => {
                 const modelsList = cp.savedModels && cp.savedModels.length > 0 ? cp.savedModels : [cp.model];
                 return (
@@ -421,6 +433,7 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
               <span className="text-[9px] font-bold text-muted-foreground uppercase px-2 block mb-1">
                 Custom Endpoints
               </span>
+
               {activeCustomEndpoints.map((ce) => {
                 const modelsList = ce.savedModels && ce.savedModels.length > 0 ? ce.savedModels : [ce.defaultModel];
                 return (
