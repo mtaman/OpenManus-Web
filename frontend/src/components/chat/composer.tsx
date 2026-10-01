@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { AgentSelector } from "./agent-selector";
 import { EngineSelector } from "./engine-selector";
 import { useChatStore } from "@/stores/chat-store";
+import { useAppStorage } from "@/hooks/use-app-storage";
 
 interface ComposerProps {
   onSend: (text: string, files?: File[], llmOverride?: any) => void;
@@ -27,9 +28,12 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
   const [text, setText] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [activeModel, setActiveModel] = useState<string>("qwen3-vl-8b-instruct");
-  const [activeProvider, setActiveProvider] = useState<string>("LM Studio (Local)");
-  const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
+
+  // Unified multi-tier reactive storage
+  const [activeModel, setActiveModel] = useAppStorage("active_model");
+  const [activeProvider, setActiveProvider] = useAppStorage("active_provider");
+  const [execMode, setExecMode] = useAppStorage("exec_mode");
+  const [activeLlmOverride] = useAppStorage("active_llm_override");
 
   const { selectedAgentId } = useChatStore();
 
@@ -38,16 +42,6 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedModel = localStorage.getItem("omweb_active_model");
-      const savedProvider = localStorage.getItem("omweb_active_provider");
-      const savedMode = localStorage.getItem("omweb_exec_mode") as "agent" | "chat" | null;
-
-      if (savedModel) setActiveModel(savedModel);
-      if (savedProvider) setActiveProvider(savedProvider);
-      if (savedMode === "agent" || savedMode === "chat") {
-        setExecMode(savedMode);
-      }
-
       const onModelChange = (e: any) => {
         if (e.detail?.model) setActiveModel(e.detail.model);
         if (e.detail?.provider_name) setActiveProvider(e.detail.provider_name);
@@ -56,12 +50,11 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
       window.addEventListener("omweb:model-change", onModelChange);
       return () => window.removeEventListener("omweb:model-change", onModelChange);
     }
-  }, []);
+  }, [setActiveModel, setActiveProvider]);
 
   const handleModeChange = (mode: "agent" | "chat") => {
     setExecMode(mode);
     if (typeof window !== "undefined") {
-      localStorage.setItem("omweb_exec_mode", mode);
       window.dispatchEvent(new CustomEvent("omweb:mode-change", { detail: mode }));
     }
   };
@@ -78,14 +71,11 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
       agent_id: execMode === "agent" ? (selectedAgentId || "manus") : "manus"
     };
 
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("omweb_active_llm_override");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          return { ...base, ...parsed, mode: execMode, agent_id: base.agent_id };
-        } catch (e) {}
-      }
+    if (activeLlmOverride) {
+      try {
+        const parsed = JSON.parse(activeLlmOverride);
+        return { ...base, ...parsed, mode: execMode, agent_id: base.agent_id };
+      } catch (e) {}
     }
     return base;
   };

@@ -10,6 +10,7 @@ import { ChatThread, ChatTurn } from "./chat-thread";
 import { StepEvent } from "./chat-timeline";
 import { EngineOption } from "./engine-selector";
 import { useChatStore } from "@/stores/chat-store";
+import { useAppStorage } from "@/hooks/use-app-storage";
 
 function safeRender(val: any): string {
   if (val === null || val === undefined) return "";
@@ -51,47 +52,36 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [showRawTrace, setShowRawTrace] = useState(false);
 
-const [showRightPanel, setShowRightPanel] = useState<boolean>(false);
-  const [sandboxDraft, setSandboxDraft] = useState<{ filename: string; content: string } | null>(null);
+  // Unified multi-tier reactive storage
+  const [showRightPanel, setShowRightPanel] = useAppStorage("right_panel_open");
+  const [execMode, setExecMode] = useAppStorage("exec_mode");
+  const [selectedEngineId, setSelectedEngineId] = useAppStorage("selected_engine");
+  const [activeModelName, setActiveModelName] = useAppStorage("active_model");
+  const [activeLlmOverride] = useAppStorage("active_llm_override");
 
+  const [sandboxDraft, setSandboxDraft] = useState<{ filename: string; content: string } | null>(null);
   const [tokensUsed, setTokensUsed] = useState({ input: 0, output: 0, total: 0 });
   const [humanQuery, setHumanQuery] = useState<string | null>(null);
   const [humanAnswer, setHumanAnswer] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [sessionTimestamp, setSessionTimestamp] = useState<string>("");
-  const [execMode, setExecMode] = useState<"agent" | "chat">("agent");
-  const [selectedEngineId, setSelectedEngineId] = useState<string>("manus-agent");
-  const [activeModelName, setActiveModelName] = useState<string>("Assistant");
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const chatScrollBottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedMode = localStorage.getItem("omweb_exec_mode") as "agent" | "chat" | null;
-      if (savedMode === "agent" || savedMode === "chat") {
-        setExecMode(savedMode);
-      }
-      const savedEngine = localStorage.getItem("omweb_selected_engine");
-      if (savedEngine) {
-        setSelectedEngineId(savedEngine);
-      }
-      const savedModel = localStorage.getItem("omweb_active_model");
-      if (savedModel) {
-        setActiveModelName(savedModel);
-      }
       const onModelChange = (e: any) => {
         if (e.detail?.model) setActiveModelName(e.detail.model);
       };
       window.addEventListener("omweb:model-change", onModelChange);
       return () => window.removeEventListener("omweb:model-change", onModelChange);
     }
-  }, []);
+  }, [setActiveModelName]);
 
   const handleModeChange = (newMode: "agent" | "chat") => {
     setExecMode(newMode);
     if (typeof window !== "undefined") {
-      localStorage.setItem("omweb_exec_mode", newMode);
       window.dispatchEvent(new CustomEvent("omweb:mode-change", { detail: newMode }));
     }
   };
@@ -99,9 +89,6 @@ const [showRightPanel, setShowRightPanel] = useState<boolean>(false);
   const handleSelectEngine = (engine: EngineOption) => {
     setSelectedEngineId(engine.id);
     handleModeChange(engine.mode);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("omweb_selected_engine", engine.id);
-    }
   };
 
   useEffect(() => {
@@ -130,13 +117,12 @@ const [showRightPanel, setShowRightPanel] = useState<boolean>(false);
       window.removeEventListener("openmanus:artifact-created", handleArtifactEvent);
       window.removeEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
     };
-  }, []);
+  }, [setShowRightPanel]);
 
   useEffect(() => {
     if (initialJobId) {
       setActiveJobId(initialJobId);
       fetchJobDetails(initialJobId);
-      //setShowRightPanel(true); 
     }
   }, [initialJobId]);
 
@@ -148,7 +134,7 @@ const [showRightPanel, setShowRightPanel] = useState<boolean>(false);
         if (data.chat_id) setActiveChatId(data.chat_id);
         if (data.prompt) setSubmittedPrompt(data.prompt);
         if (data.agent_id) setSelectedAgentId(data.agent_id);
-        if (data.mode) { setExecMode(data.mode); if (typeof window !== "undefined") { localStorage.setItem("omweb_exec_mode", data.mode); } }
+        if (data.mode) { setExecMode(data.mode); }
         if (data.model) setActiveModelName(data.model);
         if (data.status) setStatus(data.status);
         if (data.result) setFinalResult(safeRender(data.result));
@@ -460,7 +446,13 @@ const [showRightPanel, setShowRightPanel] = useState<boolean>(false);
     setSessionTimestamp(new Date().toLocaleString());
 
     try {
-      const storedOverride = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("omweb_active_llm_override") || "{}") : {};
+      let storedOverride = {};
+      if (activeLlmOverride) {
+        try {
+          storedOverride = JSON.parse(activeLlmOverride);
+        } catch (e) {}
+      }
+
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
