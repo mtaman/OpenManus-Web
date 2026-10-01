@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 @layer base {
+
   :root {
     /* Manus Light Mode (Official Brand Palette) */
     --background: 60 6.67% 97.06%;             /* #f8f8f7 */
@@ -36,7 +37,9 @@
 
     --custom-color: #f0f0f0;
 
-
+    --font-sans: 'DM Sans', sans-serif;
+    --font-serif: 'Libre Baskerville', serif;
+    --font-arabic: 'Cairo', sans-serif;
   }
 
   .dark {

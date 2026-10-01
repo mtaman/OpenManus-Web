@@ -53,6 +53,9 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  
+
+
   const loadRealProviders = () => {
     if (typeof window === "undefined") return;
 
@@ -186,6 +189,9 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   };
 
   const renderModelBadges = (modelKey: string) => {
+
+    
+
     const caps = inferModelCapabilities(modelKey, metadataVault[modelKey]);
     if (!caps.isReasoning && !caps.isVision && !caps.isTools) return null;
     return (

@@ -1,0 +1,59 @@
+[llm]
+provider = "lmstudio"
+provider_name = "LM Studio (Local)"
+model = "qwen3-vl-8b-instruct"
+base_url = "http://100.64.9.30:1234/api/v1/"
+api_key = "sk-lm-OrxzX8Ln:DN8RBsZHsS0RgfYjDMTJ"
+max_tokens = 8192
+temperature = 0
+api_type = ""
+
+[browser]
+headless = false
+disable_security = true
+cdp_url = "http://localhost:9222"
+max_content_length = 2000
+
+[search]
+engine = "Google"
+fallback_engines = [ "DuckDuckGo", "Baidu", "Bing",]
+retry_delay = 60
+max_retries = 3
+lang = "en"
+country = "us"
+
+[sandbox]
+use_sandbox = false
+image = "python:3.12-slim"
+work_dir = "/workspace"
+memory_limit = "1g"
+cpu_limit = 2
+timeout = 300
+network_enabled = false
+
+[daytona]
+daytona_api_key = ""
+daytona_server_url = "https://app.daytona.io/api"
+daytona_target = "us"
+sandbox_image_name = "whitezxj/sandbox:0.1.0"
+VNC_password = ""
+
+[mcp]
+server_reference = "app.mcp.server"
+
+[runflow]
+use_data_analysis_agent = false
+
+[llm.vision]
+provider = "lmstudio"
+provider_name = "LM Studio (Local)"
+model = "qwen3-vl-8b-instruct"
+base_url = "http://100.64.9.30:1234/api/v1/"
+api_key = ""
+max_tokens = 8192
+temperature = 0
+
+[browser.proxy]
+server = ""
+username = ""
+password = ""
