@@ -3,6 +3,7 @@ import asyncio
 from typing import Dict, Any, List, Optional
 from enum import Enum
 
+
 class SSEEventType(str, Enum):
     PING = "ping"
     STEP_START = "step_start"
@@ -14,6 +15,7 @@ class SSEEventType(str, Enum):
     FINAL = "final"
     ERROR = "error"
     DONE = "done"
+
 
 class SSEEvent:
     def __init__(self, type: SSEEventType, step: int = 1, data: Any = None):
@@ -31,7 +33,7 @@ class SSEEvent:
                 text = str(args["file_text"])
                 if len(text) > 200:
                     args["file_text"] = text[:120] + f"... [code preview truncated for UI stream, {len(text)} bytes]"
-                clean_data["arguments"] = args
+            clean_data["arguments"] = args
         payload = {
             "type": self.type.value if hasattr(self.type, "value") else str(self.type),
             "step": self.step,
@@ -44,48 +46,73 @@ class SSEEvent:
         json_data = self.to_json()
         return f"event: {event_name}\ndata: {json_data}\n\n"
 
-_job_queues: Dict[str, List[asyncio.Queue]] = {}
 
-def get_job_queues(job_id: str) -> List[asyncio.Queue]:
-    if job_id not in _job_queues:
-        _job_queues[job_id] = []
-    return _job_queues[job_id]
+_subscribers: Dict[str, List[asyncio.Queue]] = {}
 
-async def dispatch_event(job_id: str, event: SSEEvent) -> None:
-    # 1. Record event in job_manager for late connection replay
+
+def log_chat_event(job_id: str, event: Any) -> None:
+    """Appends live agent steps, thoughts, and tool observations into the chat directory log file."""
     try:
-        from omweb.job_manager import job_manager
-        ev_type_str = event.type.value if hasattr(event.type, "value") else str(event.type)
-        job_manager.append_event(job_id, {
-            "type": ev_type_str,
-            "step": event.step,
-            "data": event.data
-        })
+        from omweb.routers.run import JOB_TO_CHAT_ID
+        chat_id = JOB_TO_CHAT_ID.get(job_id, job_id)
+        if not chat_id:
+            return
+        from omweb.project_manager import project_manager
+        from datetime import datetime
+        chat_dir = project_manager.get_chat_dir(chat_id, "default_project")
+        chat_dir.mkdir(parents=True, exist_ok=True)
+        log_file = chat_dir / "chat.log"
+
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        etype = getattr(event, "type", "info")
+        if hasattr(etype, "value"):
+            etype = etype.value
+        edata = getattr(event, "data", "")
+
+        line = ""
+        if isinstance(edata, dict):
+            if "thought" in edata:
+                line = f"[{ts}] [THOUGHT] {edata['thought']}"
+            elif "tool_name" in edata or "name" in edata:
+                tname = edata.get("tool_name") or edata.get("name")
+                args = edata.get("arguments") or edata.get("args") or ""
+                line = f"[{ts}] [TOOL_CALL] {tname}({args})"
+            elif "observation" in edata:
+                line = f"[{ts}] [OBSERVATION] {edata['observation']}"
+            elif "content" in edata:
+                line = f"[{ts}] [{str(etype).upper()}] {edata['content']}"
+            else:
+                line = f"[{ts}] [{str(etype).upper()}] {json.dumps(edata, ensure_ascii=False)}"
+        else:
+            line = f"[{ts}] [{str(etype).upper()}] {edata}"
+
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
     except Exception:
         pass
 
-    # 2. Forward SSEEvent directly to active queues
-    queues = get_job_queues(job_id)
+
+def subscribe_events(job_id: str) -> asyncio.Queue:
+    q: asyncio.Queue = asyncio.Queue()
+    if job_id not in _subscribers:
+        _subscribers[job_id] = []
+    _subscribers[job_id].append(q)
+    return q
+
+
+def unsubscribe_events(job_id: str, q: asyncio.Queue) -> None:
+    if job_id in _subscribers and q in _subscribers[job_id]:
+        _subscribers[job_id].remove(q)
+        if not _subscribers[job_id]:
+            del _subscribers[job_id]
+
+
+async def dispatch_event(job_id: str, event: SSEEvent) -> None:
+    log_chat_event(job_id, event)
+    queues = _subscribers.get(job_id, [])
     for q in queues:
         await q.put(event)
 
-async def subscribe_events(job_id: str):
-    q = asyncio.Queue()
-    queues = get_job_queues(job_id)
-    queues.append(q)
-    try:
-        # Initial connect ping
-        yield SSEEvent(type=SSEEventType.PING, step=0, data={"status": "connected"})
-        while True:
-            try:
-                evt = await asyncio.wait_for(q.get(), timeout=12.0)
-                yield evt
-                ev_type = evt.type.value if hasattr(evt.type, "value") else str(evt.type)
-                if str(ev_type).lower() in ["final", "error", "done"]:
-                    break
-            except asyncio.TimeoutError:
-                # Keep-alive heartbeat to prevent browser timeout
-                yield SSEEvent(type=SSEEventType.PING, step=0, data={"keepalive": True})
-    finally:
-        if q in queues:
-            queues.remove(q)
+
+# Backward-compatibility alias
+publish_event = dispatch_event

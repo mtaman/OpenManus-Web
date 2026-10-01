@@ -147,3 +147,34 @@ async def get_chat_raw_file(chat_id: str, filepath: str):
         content_type = "video/quicktime"
 
     return FileResponse(target, media_type=content_type or "application/octet-stream")
+
+
+@router.get("/{chat_id}/log")
+async def get_chat_log(chat_id: str):
+    """Retrieve raw chat.log session history from disk."""
+    try:
+        chat = project_manager.get_chat(chat_id)
+        project_id = chat.get("project_id", "default_project") if chat else "default_project"
+        chat_dir = project_manager.get_chat_dir(chat_id, project_id)
+        log_file = chat_dir / "chat.log"
+        if log_file.exists():
+            return {"chat_id": chat_id, "log": log_file.read_text(encoding="utf-8", errors="replace")}
+        return {"chat_id": chat_id, "log": ""}
+    except Exception as e:
+        return {"chat_id": chat_id, "log": f"[Error reading session log: {str(e)}]"}
+
+@router.get("/{chat_id}/log/download")
+async def download_chat_log(chat_id: str):
+    """Download chat.log directly as a text deliverable."""
+    from fastapi.responses import FileResponse, PlainTextResponse
+    chat = project_manager.get_chat(chat_id)
+    project_id = chat.get("project_id", "default_project") if chat else "default_project"
+    chat_dir = project_manager.get_chat_dir(chat_id, project_id)
+    log_file = chat_dir / "chat.log"
+    if log_file.exists():
+        return FileResponse(
+            path=log_file,
+            filename=f"chat_{chat_id}.log",
+            media_type="text/plain; charset=utf-8"
+        )
+    return PlainTextResponse(f"No log file found for chat {chat_id}", status_code=404)

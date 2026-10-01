@@ -305,7 +305,7 @@ export function WorkspacePanel({
             selectedFile={selectedFilePath}
           />
         )}
-        {activeTab === "logs" && <LogsTab />}
+        {activeTab === "logs" && <LogsTab activeJobId={effectiveScopeId} chatId={activeChatId} />}
         {activeTab === "editor" && (
           <EditorTab
             filePath={selectedFilePath}
@@ -320,3 +320,4 @@ export function WorkspacePanel({
 }
 
 export default WorkspacePanel;
+

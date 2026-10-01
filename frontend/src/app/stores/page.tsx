@@ -727,20 +727,20 @@ export default function StoresPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border">
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border  transition-all">
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsModalOpen(false)}
-                  className="text-xs"
-                >
-                  Cancel
-                </Button>
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsModalOpen(false)}
+                    className="text-xs hover:bg-red-900 hover:text-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </Button>
                 <Button
                   type="submit"
                   size="sm"
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs px-4 shadow-sm"
+                  className="primary bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs px-4 shadow-sm"
                 >
                   {editingAgentId ? "Update Agent" : "Save Agent"}
                 </Button>
