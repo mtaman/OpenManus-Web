@@ -16,6 +16,9 @@ import {
 } from "lucide-react";
 import { inferModelCapabilities, fetchServerMetadata } from "@/lib/modelMetadata";
 
+
+
+
 export interface EngineOption {
   id: string;
   name: string;
@@ -50,10 +53,15 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
   const [ollamaItem, setOllamaItem] = useState<any>(null);
   const [metadataVault, setMetadataVault] = useState<Record<string, any>>({});
 
+  const [mounted, setMounted] = useState(false);
+
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
 
   const loadRealProviders = () => {
@@ -190,7 +198,7 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
 
   const renderModelBadges = (modelKey: string) => {
 
-    
+    if (!mounted) return null;
 
     const caps = inferModelCapabilities(modelKey, metadataVault[modelKey]);
     if (!caps.isReasoning && !caps.isVision && !caps.isTools) return null;

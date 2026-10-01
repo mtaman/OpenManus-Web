@@ -19,6 +19,7 @@ import {
   Copy,
   Check,
   Settings,
+  Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,6 +31,7 @@ interface EngineStatus {
   is_embedded: boolean;
   has_config: boolean;
   workspace_exists: boolean;
+  storage_root?: string;
 }
 
 interface DetectedCandidate {
@@ -44,7 +46,7 @@ export default function SetupPage() {
   const [customPath, setCustomPath] = useState("");
   const [loading, setLoading] = useState(false);
   const [installing, setInstalling] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
   const fetchStatusAndDetect = async () => {
@@ -100,14 +102,14 @@ export default function SetupPage() {
 
   const handleInstallEmbedded = async () => {
     setInstalling(true);
-    setMessage({ text: "Cloning OpenManus core repository into engine/openmanus...", type: "info" });
+    setMessage({ text: "Provisioning embedded OpenManus core engine...", type: "info" });
     try {
       const res = await fetch("/api/setup/install-embedded", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.detail || "Embedded engine installation failed.");
       }
-      setMessage({ text: "Embedded OpenManus engine successfully cloned and configured!", type: "success" });
+      setMessage({ text: "Embedded OpenManus engine successfully installed and configured!", type: "success" });
       await fetchStatusAndDetect();
     } catch (err: any) {
       setMessage({ text: err.message || "Installation failed", type: "error" });
@@ -116,7 +118,7 @@ export default function SetupPage() {
     }
   };
 
-  const copyPath = async (text: string) => {
+  const copyToClipboard = async (text: string, key: string) => {
     if (!text) return;
     try {
       if (typeof window !== "undefined" && navigator?.clipboard?.writeText) {
@@ -132,10 +134,10 @@ export default function SetupPage() {
         document.execCommand("copy");
         ta.remove();
       }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
     } catch {
-      // safe fallback
+      // Safe fallback
     }
   };
 
@@ -147,7 +149,7 @@ export default function SetupPage() {
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-background font-sans select-text">
-      {/* Top Standalone Navigation Bar */}
+      {/* Top Navigation Bar */}
       <header className="h-16 border-b border-border/80 bg-card/60 backdrop-blur-md px-6 md:px-12 flex items-center justify-between shrink-0 sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-card border border-border p-1 shadow-manus-xs flex items-center justify-center">
@@ -193,7 +195,7 @@ export default function SetupPage() {
 
       {/* Main Setup Container */}
       <main className="flex-1 max-w-5xl w-full mx-auto p-6 md:p-10 space-y-8">
-        {/* Hero Welcome & Stepper */}
+        {/* Stepper Header */}
         <div className="text-center space-y-3 pt-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
             <Sparkles size={13} className="text-primary animate-pulse" />
@@ -203,7 +205,7 @@ export default function SetupPage() {
             Connect Your OpenManus Engine
           </h1>
           <p className="text-xs md:text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed">
-            OpenManus Web operates alongside the core OpenManus agent. Configure your local engine below to unlock autonomous execution, file generation, and interactive sandboxing.
+            OpenManus Web operates alongside the core autonomous agent. Configure your runtime engine below to unlock autonomous execution, multi-modal reasoning, and sovereign workspaces.
           </p>
 
           {/* 3-Step Visual Progress Bar */}
@@ -229,7 +231,7 @@ export default function SetupPage() {
           </div>
         </div>
 
-        {/* Global Notifications */}
+        {/* Dynamic Alerts */}
         {message && (
           <div
             className={`p-3.5 rounded-sm border text-xs flex items-center gap-2.5 transition-all shadow-manus-xs ${
@@ -272,24 +274,49 @@ export default function SetupPage() {
           </div>
 
           <div className="space-y-3">
-            {/* Active Path display */}
-            <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/80">
-              <div className="min-w-0 pr-3">
-                <span className="text-[10px] uppercase font-mono text-muted-foreground block mb-0.5">Active Engine Directory</span>
-                <span className="font-mono text-xs font-semibold text-foreground truncate block select-all">
-                  {status?.engine_path || "No engine currently resolved"}
-                </span>
+            {/* Dynamic Paths (Engine Core & Native Storage) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/80">
+                <div className="min-w-0 pr-2">
+                  <span className="text-[10px] uppercase font-mono text-muted-foreground block mb-0.5">
+                    Agent Core Directory
+                  </span>
+                  <span className="font-mono text-xs font-semibold text-foreground truncate block select-all">
+                    {status?.engine_path || "Auto-detecting engine path..."}
+                  </span>
+                </div>
+                {status?.engine_path && (
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(status.engine_path, "engine")}
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
+                    title="Copy engine path"
+                  >
+                    {copiedKey === "engine" ? <Check size={14} className="text-manus-success" /> : <Copy size={14} />}
+                  </button>
+                )}
               </div>
-              {status?.engine_path && (
-                <button
-                  type="button"
-                  onClick={() => copyPath(status.engine_path)}
-                  className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer"
-                  title="Copy engine path"
-                >
-                  {copied ? <Check size={14} className="text-manus-success" /> : <Copy size={14} />}
-                </button>
-              )}
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/80">
+                <div className="min-w-0 pr-2">
+                  <span className="text-[10px] uppercase font-mono text-muted-foreground block mb-0.5">
+                    Storage & Workspace Root
+                  </span>
+                  <span className="font-mono text-xs font-semibold text-foreground truncate block select-all">
+                    {status?.storage_root || "storage/ (Localized)"}
+                  </span>
+                </div>
+                {status?.storage_root && (
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(status.storage_root!, "storage")}
+                    className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
+                    title="Copy storage path"
+                  >
+                    {copiedKey === "storage" ? <Check size={14} className="text-manus-success" /> : <Copy size={14} />}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Sub-status badges */}
@@ -299,7 +326,7 @@ export default function SetupPage() {
                 <div>
                   <span className="text-[10px] text-muted-foreground block font-mono">CORE TYPE</span>
                   <span className="text-xs font-medium text-foreground">
-                    {status?.is_embedded ? "Embedded Core" : status?.engine_path ? "External Local" : "Unlinked"}
+                    {status?.is_embedded ? "Embedded Core" : status?.engine_path ? "Linked Engine" : "Unlinked"}
                   </span>
                 </div>
               </div>
@@ -319,7 +346,7 @@ export default function SetupPage() {
                 <div>
                   <span className="text-[10px] text-muted-foreground block font-mono">WORKSPACE STORAGE</span>
                   <span className="text-xs font-medium text-foreground">
-                    {status?.workspace_exists ? "Sandbox Active" : "Auto-Initialized"}
+                    {status?.workspace_exists ? "Storage Active" : "Auto-Initialized"}
                   </span>
                 </div>
               </div>
@@ -327,7 +354,7 @@ export default function SetupPage() {
           </div>
         </Card>
 
-        {/* Two Setup Pathways (Grid) */}
+        {/* Options Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Pathway A: Zero-Config Embedded */}
           <Card className="p-6 bg-card border-border shadow-manus-sm rounded-sm flex flex-col justify-between space-y-5 relative overflow-hidden group hover:border-primary/40 transition-all">
@@ -343,10 +370,10 @@ export default function SetupPage() {
 
               <div>
                 <h3 className="text-sm font-semibold text-foreground font-heading">
-                  Option 1: One-Click Embedded Engine
+                  Option 1: Embedded Core Engine
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Clones and provisions an isolated OpenManus repository directly inside this project directory (<code className="font-mono text-[11px] text-primary">engine/openmanus</code>). Ideal for zero-dependency local setup.
+                  Provisions an isolated OpenManus repository directly inside the local engine workspace. Ideal for zero-dependency local setups.
                 </p>
               </div>
 
@@ -357,7 +384,7 @@ export default function SetupPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={13} className="text-manus-success" />
-                  <span>Automatic config.toml creation</span>
+                  <span>Automatic config synchronization</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={13} className="text-manus-success" />
@@ -376,7 +403,7 @@ export default function SetupPage() {
               <Download size={14} className={installing ? "animate-spin" : ""} />
               <span>
                 {installing
-                  ? "Cloning and Configuring..."
+                  ? "Configuring Core..."
                   : status?.is_embedded && status?.is_valid
                   ? "Embedded Engine Active"
                   : "Install Embedded Engine"}
@@ -396,7 +423,7 @@ export default function SetupPage() {
                   Option 2: Connect Existing Installation
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Already have OpenManus cloned elsewhere on your computer? Link its directory to reuse your existing configurations and models.
+                  Already have OpenManus cloned elsewhere on your computer? Link its directory to reuse your existing tools and custom agents.
                 </p>
               </div>
 
@@ -444,7 +471,7 @@ export default function SetupPage() {
                 )}
               </div>
 
-              {/* Custom Path Input */}
+              {/* Dynamic Path Input (No Hardcoding) */}
               <div className="space-y-1.5 pt-1">
                 <span className="text-[10px] font-mono uppercase text-muted-foreground block">Custom Directory Path</span>
                 <div className="flex gap-2">
@@ -452,7 +479,7 @@ export default function SetupPage() {
                     type="text"
                     value={customPath}
                     onChange={(e) => setCustomPath(e.target.value)}
-                    placeholder="e.g. D:\AI\OpenManus"
+                    placeholder={candidates.length > 0 ? candidates[0].path : "Enter path to OpenManus directory..."}
                     className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-background border border-border text-foreground font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs"
                   />
                   <Button
