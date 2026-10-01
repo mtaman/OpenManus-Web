@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { fetchChats, ChatSession, deleteAllChats } from "@/lib/chatsApi";
 import { AgentManifest } from "@/lib/types";
+import { storage } from "@/lib/storage";
 
 export interface AgentStep {
   id: string;
@@ -58,13 +59,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setSelectedAgentId: (agentId: string) => set({ selectedAgentId: agentId || "manus" }),
   setAvailableAgents: (agents: AgentManifest[]) => set({ availableAgents: agents }),
 
-    syncSessionAgentMetadata: (chatData: any) => {
+  syncSessionAgentMetadata: (chatData: any) => {
     if (!chatData) return;
     const agentId = chatData.agent_id || "manus";
     const mode = (chatData.mode === "chat" || chatData.mode === "agent") ? chatData.mode : "agent";
+    
     set({ selectedAgentId: agentId });
+    
+    // Safely write to unified multi-tier storage engine
+    storage.set("exec_mode", mode);
+
     if (typeof window !== "undefined") {
-      localStorage.setItem("omweb_exec_mode", mode);
       window.dispatchEvent(new CustomEvent("omweb:mode-change", { detail: mode }));
     }
   },
@@ -118,8 +123,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
               role: "user",
               content: chat.prompt || chat.title,
               timestamp: chat.created_at || new Date().toISOString(),
-              status: chat.status === "completed" ? "completed" : "running"
-            }
+              status: chat.status === "completed" ? "completed" : "running",
+            },
           ],
           activeSteps: (chat.events || []).map((ev: any, idx: number) => ({
             id: `step_${idx}`,
@@ -128,8 +133,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content: typeof ev.data === "string" ? ev.data : (ev.data?.content || JSON.stringify(ev.data)),
             timestamp: new Date().toISOString(),
             tool_name: ev.data?.name || ev.data?.tool_name || ev.tool_name,
-            tool_args: ev.data?.arguments || ev.data?.tool_args || ev.tool_args
-          }))
+            tool_args: ev.data?.arguments || ev.data?.tool_args || ev.tool_args,
+          })),
         });
       }
     } catch (err) {
@@ -144,7 +149,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   updateMessageStatus: (id, status) => set((state) => ({
-    messages: state.messages.map((msg) => msg.id === id ? { ...msg, status } : msg)
+    messages: state.messages.map((msg) => (msg.id === id ? { ...msg, status } : msg)),
   })),
   appendStep: (step) => set((state) => ({ activeSteps: [...state.activeSteps, step] })),
   clearActiveSteps: () => set({ activeSteps: [] }),
