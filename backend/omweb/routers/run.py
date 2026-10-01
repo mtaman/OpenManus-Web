@@ -22,6 +22,7 @@ from omweb.project_manager import project_manager
 router = APIRouter()
 
 JOB_TO_CHAT_ID: Dict[str, str] = {}
+ACTIVE_JOB_TASKS: Dict[str, asyncio.Task] = {}
 
 class RunRequest(BaseModel):
     prompt: str
@@ -173,9 +174,20 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         pass
 
     if exec_mode == "chat":
-        background_tasks.add_task(run_direct_chat, actual_job_id, prompt, llm_override)
+        exec_task = asyncio.create_task(run_direct_chat(actual_job_id, prompt, llm_override))
     else:
-        background_tasks.add_task(run_instrumented, actual_job_id, agent_prompt, effective_agent, llm_override)
+        exec_task = asyncio.create_task(run_instrumented(actual_job_id, agent_prompt, effective_agent, llm_override))
+
+    ACTIVE_JOB_TASKS[actual_job_id] = exec_task
+    if chat_id:
+        ACTIVE_JOB_TASKS[chat_id] = exec_task
+
+    def _cleanup_task(_):
+        ACTIVE_JOB_TASKS.pop(actual_job_id, None)
+        if chat_id:
+            ACTIVE_JOB_TASKS.pop(chat_id, None)
+
+    exec_task.add_done_callback(_cleanup_task)
 
     return {
         "job_id": actual_job_id,
@@ -445,3 +457,82 @@ async def stream_job_events(job_id: str):
         }
     )
 
+
+
+class HumanRespondRequest(BaseModel):
+    answer: str
+
+
+@router.post("/jobs/{job_id}/stop")
+@router.post("/jobs/{job_id}/cancel")
+async def stop_job(job_id: str):
+    """Stop/cancel a running job by job_id or chat_id."""
+    chat, chat_id = resolve_chat(job_id)
+    target_job_id = job_id
+    if chat and chat.get("job_id"):
+        target_job_id = chat.get("job_id")
+
+    task = ACTIVE_JOB_TASKS.get(job_id) or ACTIVE_JOB_TASKS.get(target_job_id) or (ACTIVE_JOB_TASKS.get(chat_id) if chat_id else None)
+    task_cancelled = False
+    if task and not task.done():
+        task.cancel()
+        task_cancelled = True
+
+    job_manager.update_status(target_job_id, status="stopped", error="Task stopped by user")
+    if job_id != target_job_id:
+        job_manager.update_status(job_id, status="stopped", error="Task stopped by user")
+
+    if chat_id:
+        try:
+            target_chat, _ = resolve_chat(job_id)
+            target_pid = (target_chat or {}).get("project_id", "default_project")
+            session_file = project_manager.get_chat_dir(chat_id, target_pid) / "session.json"
+            if session_file.exists():
+                s_data = json.loads(session_file.read_text(encoding="utf-8"))
+                s_data["status"] = "stopped"
+                session_file.write_text(json.dumps(s_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+
+    try:
+        from omweb.sse_events import SSEEvent, SSEEventType
+        from omweb.agent_bridge import dispatch_event
+        await dispatch_event(
+            target_job_id,
+            SSEEvent(type=SSEEventType.STATUS, data={"status": "stopped", "message": "Task stopped by user"})
+        )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "job_id": target_job_id,
+        "chat_id": chat_id,
+        "status": "stopped",
+        "task_cancelled": task_cancelled,
+        "message": "Task stopped successfully"
+    }
+
+
+@router.post("/jobs/{job_id}/respond")
+async def respond_to_human_prompt(job_id: str, req: HumanRespondRequest):
+    """Receive human input response for ask_human tool requests."""
+    chat, chat_id = resolve_chat(job_id)
+    target_job_id = job_id
+    if chat and chat.get("job_id"):
+        target_job_id = chat.get("job_id")
+
+    answer = req.answer.strip()
+    job_manager.append_event(target_job_id, {
+        "type": "human_response",
+        "answer": answer,
+        "timestamp": time.time()
+    })
+
+    return {
+        "success": True,
+        "job_id": target_job_id,
+        "chat_id": chat_id,
+        "answer": answer,
+        "message": "Response recorded successfully"
+    }
