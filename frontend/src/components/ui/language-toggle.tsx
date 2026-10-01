@@ -3,6 +3,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Languages } from "lucide-react";
+import { storage } from "@/lib/storage";
 
 interface LanguageToggleProps {
   compact?: boolean;
@@ -17,7 +18,8 @@ export function LanguageToggle({ compact = false }: LanguageToggleProps) {
     i18n.changeLanguage(nextLang);
     document.documentElement.dir = nextLang === "ar" ? "rtl" : "ltr";
     document.documentElement.lang = nextLang;
-    localStorage.setItem("language", nextLang);
+    // Persist via unified storage engine (Server cookie & BroadcastChannel sync)
+    storage.set("locale", nextLang);
   };
 
   if (compact) {

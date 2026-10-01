@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -17,6 +17,7 @@ import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageToggle } from "@/components/ui/language-toggle";
+import { useAppStorage } from "@/hooks/use-app-storage";
 
 const navItems = [
   { href: "/chat", icon: MessageSquare, label: "Chat" },
@@ -28,7 +29,14 @@ const navItems = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Unified persistent storage for dual-sidebar architecture
+  const [sidebarState, setSidebarState] = useAppStorage("sidebar_state");
+  const isSidebarOpen = sidebarState === "expanded";
+
+  const toggleSidebar = () => {
+    setSidebarState(isSidebarOpen ? "collapsed" : "expanded");
+  };
 
   // Standalone Fullscreen Mode for Setup Wizard
   if (pathname === "/setup") {
@@ -62,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Toggle secondary sidebar button (Positioned directly under Logo) */}
           <button
             type="button"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            onClick={toggleSidebar}
             title={isSidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
             className="w-10 h-10 flex items-center justify-center rounded-xs text-black hover:bg-muted hover:text-foreground transition-all cursor-pointer"
           >
@@ -85,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   title={item.label}
                   className={`w-10 h-10 rounded-xs flex items-center justify-center transition-all ${
                     active
-                      ? "bg-muted text-black shadow-manus-xs" 
+                      ? "bg-muted text-black shadow-manus-xs"
                       : "text-black  hover:bg-muted hover:text-foreground"
                   }`}
                 >

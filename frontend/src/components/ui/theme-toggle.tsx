@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/layout/theme-provider";
+import { storage } from "@/lib/storage";
 
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
@@ -14,9 +15,9 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <div 
+      <div
         className="w-8 h-8 rounded-md border border-border bg-card shadow-manus-xs opacity-50"
-        aria-hidden="true" 
+        aria-hidden="true"
       />
     );
   }
@@ -28,7 +29,10 @@ export function ThemeToggle() {
       window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   const handleToggle = () => {
-    setTheme(isDark ? "light" : "dark");
+    const nextTheme = isDark ? "light" : "dark";
+    setTheme(nextTheme);
+    // Persist via unified storage engine (Server cookie sync to prevent FOUC)
+    storage.set("theme", nextTheme);
   };
 
   return (
