@@ -59,7 +59,9 @@ def log_chat_event(job_id: str, event: Any) -> None:
             return
         from omweb.project_manager import project_manager
         from datetime import datetime
-        chat_dir = project_manager.get_chat_dir(chat_id, "default_project")
+        chat = project_manager.get_chat(chat_id)
+        project_id = chat.get("project_id", "default_project") if chat else "default_project"
+        chat_dir = project_manager.get_chat_dir(chat_id, project_id)
         chat_dir.mkdir(parents=True, exist_ok=True)
         log_file = chat_dir / "chat.log"
 
@@ -92,19 +94,23 @@ def log_chat_event(job_id: str, event: Any) -> None:
         pass
 
 
-def subscribe_events(job_id: str) -> asyncio.Queue:
+async def subscribe_events(job_id: str):
+    """Async generator yielding SSE events for run.py async for loop."""
     q: asyncio.Queue = asyncio.Queue()
     if job_id not in _subscribers:
         _subscribers[job_id] = []
     _subscribers[job_id].append(q)
-    return q
-
-
-def unsubscribe_events(job_id: str, q: asyncio.Queue) -> None:
-    if job_id in _subscribers and q in _subscribers[job_id]:
-        _subscribers[job_id].remove(q)
-        if not _subscribers[job_id]:
-            del _subscribers[job_id]
+    try:
+        while True:
+            event = await q.get()
+            yield event
+            if getattr(event, "type", None) in (SSEEventType.DONE, SSEEventType.ERROR):
+                break
+    finally:
+        if job_id in _subscribers and q in _subscribers[job_id]:
+            _subscribers[job_id].remove(q)
+            if not _subscribers[job_id]:
+                del _subscribers[job_id]
 
 
 async def dispatch_event(job_id: str, event: SSEEvent) -> None:
