@@ -177,7 +177,7 @@ export function CodeBlock({
           <button
             type="button"
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-sky-100 hover:bg-muted text-card hover:text-foreground transition-all cursor-pointer border border-border/50 shadow-manus-xs"
+            className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-mist-950 hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer border border-border/50 shadow-manus-xs"
             title="Copy Code to Clipboard"
           >
             {copied ? (

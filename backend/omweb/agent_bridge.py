@@ -171,8 +171,11 @@ async def check_lmstudio_model_readiness(base_url: str, model_name: str, api_key
     return {"found": False, "is_loaded": False, "unreachable": True}
 
 
-def scope_mcp_servers(agent: Any, manifest: Dict[str, Any]) -> None:
-    """Isolates and bypasses MCP server initialization if not required."""
+def scope_mcp_servers(agent: Any, manifest: Dict[str, Any], project_dir: Optional[Path] = None) -> None:
+    """Dynamically hooks active MCP servers or bypasses initialization if not required."""
+    import shutil
+    from omweb.extensions.registry import extension_registry
+
     allowed = [t.lower() for t in manifest.get("tools", [])]
     needs_mcp = any("browser" in t or "mcp" in t for t in allowed)
 
@@ -181,6 +184,51 @@ def scope_mcp_servers(agent: Any, manifest: Dict[str, Any]) -> None:
             return None
         agent.initialize_mcp_servers = dummy_init_mcp
         print(f"[BRIDGE] MCP Scoping: Bypassed MCP servers for agent '{manifest.get('name')}'")
+        return
+
+    if hasattr(agent, "connect_mcp_server"):
+        async def dynamic_init_mcp():
+            active_mcp = extension_registry.get_active_mcp_servers()
+            print(f"[BRIDGE] Connecting {len(active_mcp)} active MCP servers...")
+            for s in active_mcp:
+                sid = s.get("id")
+                cmd = s.get("command", "")
+                transport = s.get("transport", "stdio")
+                if transport == "stdio" and cmd:
+                    parts = cmd.split()
+                    exe = shutil.which(parts[0]) or parts[0]
+                    args = list(parts[1:])
+                    if "filesystem" in sid and project_dir:
+                        args.append(str(project_dir.resolve()))
+                    try:
+                        await asyncio.wait_for(
+                            agent.connect_mcp_server(
+                                exe,
+                                server_id=sid,
+                                use_stdio=True,
+                                stdio_args=args,
+                                tool_name_prefix=False
+                            ),
+                            timeout=10.0
+                        )
+                        print(f"[BRIDGE] Connected MCP server '{sid}' successfully.")
+                    except Exception as mcp_err:
+                        print(f"[BRIDGE WARNING] Could not connect MCP server '{sid}': {mcp_err}")
+                elif transport == "sse" and s.get("url"):
+                    try:
+                        await asyncio.wait_for(
+                            agent.connect_mcp_server(
+                                s["url"],
+                                server_id=sid,
+                                use_stdio=False
+                            ),
+                            timeout=10.0
+                        )
+                        print(f"[BRIDGE] Connected MCP SSE server '{sid}' successfully.")
+                    except Exception as mcp_err:
+                        print(f"[BRIDGE WARNING] Could not connect MCP SSE server '{sid}': {mcp_err}")
+
+        agent.initialize_mcp_servers = dynamic_init_mcp
 
 
 def apply_global_ask_human_patch():
@@ -396,8 +444,14 @@ async def run_instrumented(
     manifest = agent_registry.get_agent(agent_id)
     print(f"[BRIDGE] Activating agent '{manifest['name']}' (ID: {agent_id})")
 
+    chat = project_manager.get_chat(job_id) or {}
+    chat_id = chat.get("id", f"chat_{job_id}")
+    project_id = chat.get("project_id", "default_project")
+    project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
+    project_dir.mkdir(parents=True, exist_ok=True)
+
     agent = Manus()
-    scope_mcp_servers(agent, manifest)
+    scope_mcp_servers(agent, manifest, project_dir)
 
     allowed_tools = [t.lower() for t in manifest.get("tools", [])]
     allowed_tools.extend(["terminate", "ask_human"])
