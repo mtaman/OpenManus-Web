@@ -32,6 +32,7 @@ class RunRequest(BaseModel):
     chat_id: Optional[str] = None
     model: Optional[str] = None
     provider: Optional[str] = None
+    provider_name: Optional[str] = None
     base_url: Optional[str] = None
     api_key: Optional[str] = None
     api_type: Optional[str] = None
@@ -99,6 +100,10 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         llm_override["model"] = req.model.strip()
     if req.provider:
         llm_override["provider"] = req.provider.strip()
+    if req.provider_name:
+        llm_override["provider_name"] = req.provider_name.strip()
+    elif req.provider:
+        llm_override["provider_name"] = req.provider.strip()
     if req.base_url:
         llm_override["base_url"] = req.base_url.strip()
     if req.api_key is not None:
@@ -168,6 +173,7 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
             if llm_override:
                 s_data["model"] = llm_override.get("model")
                 s_data["provider"] = llm_override.get("provider")
+                s_data["provider_name"] = llm_override.get("provider_name") or llm_override.get("provider")
                 s_data["agent_id"] = effective_agent
             session_file.write_text(json.dumps(s_data, indent=2, ensure_ascii=False), encoding="utf-8")
     except Exception:
@@ -196,6 +202,7 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
         "mode": exec_mode,
         "model": llm_override.get("model"),
         "provider": llm_override.get("provider"),
+        "provider_name": llm_override.get("provider_name") or llm_override.get("provider"),
         "agent_id": effective_agent
     }
 

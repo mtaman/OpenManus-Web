@@ -69,7 +69,7 @@ export function ChatDeliverable({
       </div>
 
       {/* 2. Primary Markdown Response */}
-      <div className="p-4 rounded-md bg-card border border-border shadow-xs text-foreground text-sm leading-relaxed">
+      <div className="p-4 rounded-md bg-card/40   text-foreground text-sm leading-relaxed">
         <MarkdownRenderer content={displayContent} />
       </div>
 
@@ -110,7 +110,7 @@ export function ChatDeliverable({
 
       {/* 5. Adaptive Deliverable Box: Generated Files (Strictly rendered ONLY when files exist) */}
       {execMode === "agent" && status === "completed" && hasFiles && (
-        <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs space-y-2.5">
+        <div className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-emerald-500 font-semibold tracking-wide text-xs">
               TASK DELIVERABLES & OUTPUT FILES ({producedFiles.length})

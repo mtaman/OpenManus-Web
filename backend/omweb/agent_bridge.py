@@ -340,9 +340,24 @@ async def run_instrumented(
             if v:
                 active_llm[k] = v
 
-    provider_name = active_llm.get("provider_name") or active_llm.get("provider") or "Active Primary"
+    if llm_override:
+        if llm_override.get("provider_name"):
+            active_llm["provider_name"] = llm_override["provider_name"]
+        elif llm_override.get("provider"):
+            active_llm["provider_name"] = llm_override["provider"]
+        elif llm_override.get("model") and llm_override["model"] != active_llm.get("model"):
+            if "1234" not in str(active_llm.get("base_url", "")):
+                active_llm["provider_name"] = active_llm.get("provider") or active_llm.get("model")
+        active_llm.update(llm_override)
+
+    p_cand = active_llm.get("provider_name") or active_llm.get("provider") or ""
+    b_cand = str(active_llm.get("base_url") or "")
+    if "1234" not in b_cand and "lmstudio" not in str(active_llm.get("provider") or "").lower():
+        if "lm studio" in p_cand.lower():
+            p_cand = active_llm.get("provider") or active_llm.get("model") or "Custom Engine"
+    provider_name = p_cand or "Active Primary"
     model_name = active_llm.get("model") or "default"
-    base_url = active_llm.get("base_url") or "http://127.0.0.1:1234/v1"
+    base_url = b_cand or "http://127.0.0.1:1234/v1"
 
     print(f"[BRIDGE] Target LLM: [{provider_name}] Model: '{model_name}' | URL: '{base_url}'")
 
@@ -619,9 +634,24 @@ async def run_direct_chat(
             if v:
                 active_llm[k] = v
 
-    provider_name = active_llm.get("provider_name") or active_llm.get("provider") or "Active Primary"
+    if llm_override:
+        if llm_override.get("provider_name"):
+            active_llm["provider_name"] = llm_override["provider_name"]
+        elif llm_override.get("provider"):
+            active_llm["provider_name"] = llm_override["provider"]
+        elif llm_override.get("model") and llm_override["model"] != active_llm.get("model"):
+            if "1234" not in str(active_llm.get("base_url", "")):
+                active_llm["provider_name"] = active_llm.get("provider") or active_llm.get("model")
+        active_llm.update(llm_override)
+
+    p_cand = active_llm.get("provider_name") or active_llm.get("provider") or ""
+    b_cand = str(active_llm.get("base_url") or "")
+    if "1234" not in b_cand and "lmstudio" not in str(active_llm.get("provider") or "").lower():
+        if "lm studio" in p_cand.lower():
+            p_cand = active_llm.get("provider") or active_llm.get("model") or "Custom Engine"
+    provider_name = p_cand or "Active Primary"
     model_name = active_llm.get("model") or "default"
-    base_url = active_llm.get("base_url") or "[http://127.0.0.1:1234/v1](http://127.0.0.1:1234/v1)"
+    base_url = b_cand or "http://127.0.0.1:1234/v1"
     api_key = active_llm.get("api_key") or "EMPTY"
 
     if "1234" in base_url or "lmstudio" in provider_name.lower():

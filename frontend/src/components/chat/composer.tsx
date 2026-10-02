@@ -165,7 +165,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`relative flex flex-col w-full rounded-xl border bg-white-foreground shadow-lg transition-all ${
+        className={`relative flex flex-col w-full rounded-xl border bg-card shadow-lg transition-all peldrun-id-input-bar ${
           isDragging
             ? "border-primary ring-2 ring-primary/40 bg-primary/5"
             : "border-border focus-within:ring-1 focus-within:ring-muted focus-within:border-muted "

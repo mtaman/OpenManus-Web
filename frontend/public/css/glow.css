@@ -1,0 +1,77 @@
+/* ============================================
+   PELDRUN Breathing Circle Glow
+   ============================================ */
+
+.glow-wrapper {
+  position: relative;
+  isolation: isolate;
+}
+
+/* ===== الدائرة المتوهجة ===== */
+.glow-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 90%;              /* دائرة أصغر من الشريط */
+  aspect-ratio: 1 / 1;     /* ← دائرة حقيقية (مربع + aspect ratio) */
+  transform: translate(-50%, -50%);
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgba(78, 125, 245, 0.073) 0%,
+      rgba(3, 151, 237, 0.153) 30%,
+      rgba(2, 18, 245, 0.053) 55%,
+      transparent 75%
+    );
+
+  filter: blur(60px);      /* ← توهج ناعم جدًا */
+  opacity: 0.7;
+
+  pointer-events: none;
+  z-index: 0;
+
+  animation: breathe 8s ease-in-out infinite;
+}
+
+/* ===== التنفّس: من الداخل والخارج ===== */
+@keyframes breathe {
+  0% {
+    transform: translate(-50%, -50%) scale(0.75);   /* منكمش */
+    opacity: 0.45;
+    filter: blur(70px);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.15);   /* منتفخ */
+    opacity: 0.85;
+    filter: blur(50px);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.75);   /* يعود */
+    opacity: 0.45;
+    filter: blur(70px);
+  }
+}
+
+/* ===== المحتوى فوق التوهج ===== */
+.glow-wrapper > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== عند التركيز: نبض أقوى قليلًا ===== */
+.glow-wrapper:has(.peldrun-input-bar:focus-within)::before {
+  animation-duration: 5s;
+  opacity: 1;
+}
+
+/* ===== احترام تقليل الحركة ===== */
+@media (prefers-reduced-motion: reduce) {
+  .glow-wrapper::before {
+    animation: none;
+    opacity: 0.6;
+  }
+}

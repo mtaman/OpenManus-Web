@@ -586,7 +586,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         )}
 
         {!isFreshSession && (
-          <div className="p-3 sm:p-4 border-t border-border bg-card/40 shrink-0">
+          <div className="p-3 sm:p-4  bg-background shrink-0">
             <Composer
               onSend={(textToSend, files, llmOverride) => {
                 handleStartTask(textToSend, llmOverride, files);

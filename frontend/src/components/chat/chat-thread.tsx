@@ -114,7 +114,7 @@ export function ChatThread({
             <div key={turn.id || `turn-${tIdx}`} className="space-y-4 pb-6 border-b border-border/40">
               {/* User Prompt */}
               <div className="flex flex-col items-end space-y-1">
-                <div className="max-w-[85%] rounded-2xl bg-muted/80 text-foreground px-4 py-2.5 text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-sans border border-border/50 shadow-xs">
+                <div className="max-w-[85%]  bg-muted/80 text-foreground px-4 py-2.5 text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-sans border border-border/50 shadow-xs">
                   {turn.prompt}
                 </div>
                 <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground font-mono">
@@ -173,7 +173,7 @@ export function ChatThread({
         {/* Current Active Turn Prompt */}
         {submittedPrompt && (
           <div className="flex flex-col items-end space-y-1">
-            <div className="max-w-[85%] rounded-2xl bg-muted/80 text-foreground px-4 py-2.5 text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-sans border border-border/50 shadow-xs">
+            <div className="max-w-[90%] bg-transparent text-foreground px-4 py-2.5 text-sm sm:text-base leading-relaxed whitespace-pre-wrap font-sans">
               {submittedPrompt}
             </div>
             <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground font-mono">

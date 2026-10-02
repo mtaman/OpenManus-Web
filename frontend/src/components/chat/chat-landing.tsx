@@ -89,12 +89,12 @@ export function ChatLanding({
       : `Chat directly with ${activeProvider} (${activeModel})...`;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full font-sans">
+    <div className="glow-wrapper flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full font-sans">
       <h1 className="font-serif text-3xl sm:text-5xl font-normal text-black tracking-tight mb-4">
         What can I do for you?
       </h1>
 
-      <div className="flex items-center justify-center mb-6 gap-3">
+      <div className="flex items-center justify-center mb-6 gap-3 relative">
         <div className="inline-flex items-center bg-white-foreground p-1.5 rounded-full border border-border/80 shadow-md backdrop-blur-md gap-1">
           <button
             type="button"
@@ -151,10 +151,10 @@ export function ChatLanding({
             setLandingAttachedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
           }
         }}
-        className={`w-full bg-card rounded-2xl border transition-all text-left p-3.5 shadow-manus-md ${
+        className={`w-full bg-card rounded-3xl  transition-all p-3.5 peldrun-input-bar ${
           isLandingDragging
-            ? "border-primary ring-2 ring-primary/40 bg-primary/5"
-            : "border-border focus-within:ring-1 focus-within:ring-muted focus-within:border-muted"
+            ? "ring-2 ring-primary/40 bg-card"
+            : "bg-card"
         }`}
       >
         {landingAttachedFiles.length > 0 && (
@@ -246,7 +246,7 @@ export function ChatLanding({
               setLandingAttachedFiles([]);
             }}
             disabled={!inputValue.trim() && landingAttachedFiles.length === 0}
-            className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all disabled:opacity-90 disabled:cursor-not-allowed shadow-manus-xs cursor-pointer hover:bg-primary/90"
+            className="h-8 w-8 rounded-full bg-black text-primary-foreground flex items-center justify-center transition-all disabled:opacity-90 disabled:cursor-not-allowed shadow-manus-xs cursor-pointer hover:bg-primary/90"
             title="Dispatch Task (Enter)"
           >
             <ArrowUp size={15} />
