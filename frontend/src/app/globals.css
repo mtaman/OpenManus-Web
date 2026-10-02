@@ -92,8 +92,14 @@
   }
 }
 
+ 
+
 [dir="rtl"] {
   font-family: var(--font-arabic), var(--font-sans), system-ui, sans-serif;
+  --font-sans: 'Cairo', sans-serif;
+  --font-serif: 'Cairo', serif;
+  --font-arabic: 'Cairo', sans-serif;
+ 
 }
 
 /* Manus Ultra-Subtle Scrollbar */

@@ -134,7 +134,7 @@ export function CodeBlock({
   const HighlightComponent = Highlight as any;
 
   return (
-    <div className={`my-3 overflow-hidden rounded-sm border border-border bg-[#0d1117] text-slate-100 shadow-manus-sm font-sans ${className}`}>
+    <div dir="ltr" className={`my-3 overflow-hidden rounded-sm border border-border bg-[#0d1117] text-slate-100 shadow-manus-sm font-mono ${className}`}>
       <div className="flex items-center justify-between px-3.5 py-2 border-b border-border/60 bg-[#161b22]">
         <div className="flex items-center gap-2 truncate">
           {normalizedLang === "bash" ? (
@@ -142,10 +142,10 @@ export function CodeBlock({
           ) : (
             <FileCode size={13} className="text-primary flex-shrink-0" />
           )}
-          <span className="font-mono text-xs font-semibold text-foreground/90 truncate max-w-[180px] sm:max-w-none">
+          <span className="font-mono text-xs font-semibold text-muted-foreground/90 truncate max-w-[180px] sm:max-w-none">
             {defaultFilename}
           </span>
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-muted/60 text-muted-foreground border border-border/40">
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-orange-500 text-card border border-border/40">
             {displayLang}
           </span>
           <span className="hidden sm:inline-block text-[11px] font-mono text-muted-foreground">
@@ -177,7 +177,7 @@ export function CodeBlock({
           <button
             type="button"
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-muted/40 hover:bg-muted text-foreground transition-all cursor-pointer border border-border/50 shadow-manus-xs"
+            className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-sky-100 hover:bg-muted text-card hover:text-foreground transition-all cursor-pointer border border-border/50 shadow-manus-xs"
             title="Copy Code to Clipboard"
           >
             {copied ? (

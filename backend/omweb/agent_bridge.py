@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import os
 import sys
 import json
@@ -491,25 +491,29 @@ async def run_instrumented(
         raw_args = getattr(command.function, "arguments", "{}") if hasattr(command, "function") else "{}"
         curr_step = getattr(agent, "current_step", 1)
 
+        if tool_name in ["str_replace_editor", "editor"]:
+            try:
+                args_dict = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
+                target_p = args_dict.get("path", "")
+                if target_p and not Path(target_p).is_absolute():
+                    resolved_p = str((project_dir / target_p).resolve())
+                    args_dict["path"] = resolved_p
+                    command.function.arguments = json.dumps(args_dict) if isinstance(raw_args, str) else args_dict
+                    print(f"[BRIDGE] Auto-resolved relative path for editor: '{target_p}' -> '{resolved_p}'")
+            except Exception as e_err:
+                print(f"[BRIDGE WARNING] Could not normalize editor path: {e_err}")
+
         if tool_name in ["python_execute", "python"]:
             try:
                 args_dict = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
                 orig_code = args_dict.get("code", "")
                 if orig_code:
+                    p_str = str(project_dir.resolve())
                     safe_head = (
                         "import os, sys\n"
-                        f"try:\n"
-                        f"    os.chdir(r'{str(project_dir.resolve())}')\n"
-                        f"except Exception:\n"
-                        f"    pass\n"
+                        f"try:\n    os.chdir(r'{p_str}')\nexcept Exception:\n    pass\n"
                         "os.environ['MPLBACKEND'] = 'Agg'\n"
-                        "try:\n"
-                        "    import matplotlib\n"
-                        "    matplotlib.use('Agg')\n"
-                        "    import matplotlib.pyplot as plt\n"
-                        "    plt.show = lambda *args, **kwargs: None\n"
-                        "except Exception:\n"
-                        "    pass\n\n"
+                        "try:\n    import matplotlib\n    matplotlib.use('Agg')\n    import matplotlib.pyplot as plt\n    plt.show = lambda *args, **kwargs: None\nexcept Exception:\n    pass\n\n"
                     )
                     args_dict["code"] = safe_head + orig_code
                     command.function.arguments = json.dumps(args_dict) if isinstance(raw_args, str) else args_dict
@@ -532,10 +536,22 @@ async def run_instrumented(
         try:
             if tool_name in ["python_execute", "python"]:
                 obs_output = await asyncio.wait_for(original_execute_tool(command), timeout=60.0)
+            elif tool_name in ["chrome_browser", "browser"]:
+                try:
+                    obs_output = await asyncio.wait_for(original_execute_tool(command), timeout=45.0)
+                except Exception as b_err:
+                    obs_output = f"Browser Notice: Chrome CDP connection unavailable ({b_err}). Ensure Chrome is running with '--remote-debugging-port=9222' or rely on local workspace files."
+            elif tool_name in ["web_search", "search"]:
+                try:
+                    obs_output = await asyncio.wait_for(original_execute_tool(command), timeout=30.0)
+                except Exception as s_err:
+                    obs_output = f"Search Notice: Web search query could not be completed ({s_err}). Continuing with available workspace context."
             else:
                 obs_output = await original_execute_tool(command)
         except asyncio.TimeoutError:
-            obs_output = "Error: Tool execution timed out after 60.0 seconds to prevent blocking."
+            obs_output = f"Error: Tool '{tool_name}' timed out to prevent blocking the agent execution."
+        except Exception as tool_err:
+            obs_output = f"Tool Execution Error ({tool_name}): {str(tool_err)}"
 
         if project_dir.exists():
             files_after = {p.name for p in project_dir.iterdir() if p.is_file()}
@@ -689,7 +705,7 @@ async def run_direct_chat(
             p_cand = active_llm.get("provider") or active_llm.get("model") or "Custom Engine"
     provider_name = p_cand or "Active Primary"
     model_name = active_llm.get("model") or "default"
-    base_url = b_cand or "http://127.0.0.1:1234/v1"
+    base_url = b_cand or "[http://127.0.0.1:1234/v1](http://127.0.0.1:1234/v1)"
     api_key = active_llm.get("api_key") or "EMPTY"
 
     if "1234" in base_url or "lmstudio" in provider_name.lower():
