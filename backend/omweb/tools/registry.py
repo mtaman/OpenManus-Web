@@ -1,64 +1,58 @@
-﻿from typing import Dict, Any, List
+﻿import json
+from pathlib import Path
+from typing import Dict, Any, List, Optional
 
-AVAILABLE_TOOLS: List[Dict[str, Any]] = [
-    {
-        "id": "bash",
-        "name": "Bash Terminal",
-        "category": "system",
-        "description": "Executes shell and terminal commands inside the execution workspace.",
-        "safety_level": "controlled",
-        "parameters": {"command": "string"}
-    },
-    {
-        "id": "python_execute",
-        "name": "Python Sandbox",
-        "category": "execution",
-        "description": "Executes stateful Python scripts, calculations, and data processing.",
-        "safety_level": "safe",
-        "parameters": {"code": "string"}
-    },
-    {
-        "id": "file_saver",
-        "name": "File Deliverable Manager",
-        "category": "storage",
-        "description": "Creates, updates, and formats workspace deliverables and project assets.",
-        "safety_level": "safe",
-        "parameters": {"filename": "string", "content": "string"}
-    },
-    {
-        "id": "web_search",
-        "name": "Web Search",
-        "category": "network",
-        "description": "Searches online knowledge databases and indexes real-time results.",
-        "safety_level": "read_only",
-        "parameters": {"query": "string"}
-    },
-    {
-        "id": "browser_use",
-        "name": "Headless Browser Navigation",
-        "category": "network",
-        "description": "Navigates websites, clicks, interacts with DOM, and extracts web content.",
-        "safety_level": "controlled",
-        "parameters": {"url": "string", "action": "string"}
-    },
-    {
-        "id": "ask_human",
-        "name": "Human Feedback Inquirer",
-        "category": "interaction",
-        "description": "Pauses agent autonomy and requests clarification or decision from the user.",
-        "safety_level": "safe",
-        "parameters": {"question": "string"}
-    }
-]
 
 class ToolRegistry:
-    def list_tools(self) -> List[Dict[str, Any]]:
-        return AVAILABLE_TOOLS
+    def __init__(self):
+        self.builtin_dir = Path(__file__).resolve().parent / "builtins"
+        self.builtin_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_tool(self, tool_id: str) -> Dict[str, Any]:
-        for t in AVAILABLE_TOOLS:
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        self.custom_dir = base_dir / "storage" / "store" / "tools"
+        self.custom_dir.mkdir(parents=True, exist_ok=True)
+
+    def _load_tool_from_file(self, file_path: Path, is_builtin: bool) -> Optional[Dict[str, Any]]:
+        try:
+            data = json.loads(file_path.read_text(encoding="utf-8-sig"))
+            if isinstance(data, dict) and data.get("id"):
+                data["is_builtin"] = is_builtin
+                data["read_only"] = is_builtin
+                return data
+        except Exception:
+            pass
+        return None
+
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """Dynamically scans both builtin and custom folders for all tool JSON manifests."""
+        tools = []
+        seen = set()
+
+        for f in sorted(self.builtin_dir.glob("*.json")):
+            t = self._load_tool_from_file(f, is_builtin=True)
+            if t and t["id"] not in seen:
+                tools.append(t)
+                seen.add(t["id"])
+
+        for f in sorted(self.custom_dir.glob("*.json")):
+            t = self._load_tool_from_file(f, is_builtin=False)
+            if t and t["id"] not in seen:
+                tools.append(t)
+                seen.add(t["id"])
+
+        return tools
+
+    def get_tool(self, tool_id: str) -> Optional[Dict[str, Any]]:
+        b_file = self.builtin_dir / f"{tool_id}.json"
+        if b_file.exists():
+            return self._load_tool_from_file(b_file, is_builtin=True)
+        c_file = self.custom_dir / f"{tool_id}.json"
+        if c_file.exists():
+            return self._load_tool_from_file(c_file, is_builtin=False)
+        for t in self.list_tools():
             if t["id"] == tool_id:
                 return t
-        return {"id": tool_id, "name": tool_id, "category": "custom", "description": "Custom registered tool"}
+        return None
+
 
 tool_registry = ToolRegistry()

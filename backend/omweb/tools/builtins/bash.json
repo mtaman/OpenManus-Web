@@ -1,0 +1,12 @@
+{
+  "id": "bash",
+  "name": "Bash Terminal",
+  "category": "system",
+  "description": "Executes shell and terminal commands inside the execution workspace.",
+  "safety_level": "controlled",
+  "parameters": {
+    "command": "string"
+  },
+  "is_builtin": true,
+  "read_only": true
+}

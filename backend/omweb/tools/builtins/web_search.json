@@ -1,0 +1,12 @@
+{
+  "id": "web_search",
+  "name": "Web Search",
+  "category": "network",
+  "description": "Searches online knowledge databases and indexes real-time results.",
+  "safety_level": "read_only",
+  "parameters": {
+    "query": "string"
+  },
+  "is_builtin": true,
+  "read_only": true
+}

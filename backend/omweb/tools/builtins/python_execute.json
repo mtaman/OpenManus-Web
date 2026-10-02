@@ -1,0 +1,12 @@
+{
+  "id": "python_execute",
+  "name": "Python Sandbox",
+  "category": "execution",
+  "description": "Executes stateful Python scripts, calculations, and data processing.",
+  "safety_level": "safe",
+  "parameters": {
+    "code": "string"
+  },
+  "is_builtin": true,
+  "read_only": true
+}

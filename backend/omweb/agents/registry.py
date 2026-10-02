@@ -1,95 +1,88 @@
-import json
+﻿import json
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-BUILTIN_AGENTS: List[Dict[str, Any]] = [
-    {
-        "id": "manus",
-        "name": "Manus Generalist",
-        "role": "General Autonomous Specialist",
-        "icon": "Bot",
-        "description": "Comprehensive autonomous agent equipped with terminal, python execution, file management, and browser automation.",
-        "system_prompt": "You are Manus, an all-capable AI agent specialized in autonomous task planning, coding, file creation, and deep web navigation. Execute tasks methodically with precision.",
-        "tools": ["bash", "python_execute", "web_search", "browser_use", "file_saver", "ask_human"],
-        "max_steps": 30,
-        "is_builtin": True,
-        "created_at": "2026-09-01 00:00:00"
-    },
-    {
-        "id": "code_architect",
-        "name": "Code Architect",
-        "role": "Senior Full-Stack Engineer",
-        "icon": "Code2",
-        "description": "Specialized in software development, architecture review, debugging, refactoring, and automated script creation.",
-        "system_prompt": "You are a Senior Full-Stack Engineer and Architect. You strictly focus on writing clean, modular, robust code, testing implementation, and saving production-ready files in the workspace.",
-        "tools": ["bash", "python_execute", "file_saver", "ask_human"],
-        "max_steps": 30,
-        "is_builtin": True,
-        "created_at": "2026-09-01 00:00:00"
-    },
-    {
-        "id": "deep_researcher",
-        "name": "Deep Researcher",
-        "role": "Intelligence & Synthesis Analyst",
-        "icon": "Search",
-        "description": "Deep-dives into online documentation, academic sources, technical specifications, and synthesizes structured markdown reports.",
-        "system_prompt": "You are an elite Research Analyst. Your purpose is to scour web resources, cross-reference empirical facts, and compile exhaustive, objective reports with explicit citations.",
-        "tools": ["web_search", "browser_use", "file_saver"],
-        "max_steps": 25,
-        "is_builtin": True,
-        "created_at": "2026-09-01 00:00:00"
-    },
-    {
-        "id": "data_scientist",
-        "name": "Data Scientist",
-        "role": "Analytics & Visualization Engineer",
-        "icon": "BarChart3",
-        "description": "Analyzes datasets, executes numeric Python pipelines, generates plots, statistical summaries, and tabular insights.",
-        "system_prompt": "You are a Senior Data Scientist. You analyze datasets with Python libraries, calculate metrics, produce graphs, and deliver actionable data-driven conclusions.",
-        "tools": ["python_execute", "bash", "file_saver"],
-        "max_steps": 25,
-        "is_builtin": True,
-        "created_at": "2026-09-01 00:00:00"
-    }
-]
 
 class AgentRegistry:
     def __init__(self):
-        # Resolve sovereign storage path independently
+        self.builtin_dir = Path(__file__).resolve().parent / "builtins"
+        self.builtin_dir.mkdir(parents=True, exist_ok=True)
+
         base_dir = Path(__file__).resolve().parent.parent.parent
-        self.store_dir = base_dir / "storage" / "store"
-        self.store_dir.mkdir(parents=True, exist_ok=True)
-        self.custom_file = self.store_dir / "agents.json"
-        self._ensure_custom_storage()
+        self.custom_dir = base_dir / "storage" / "store" / "agents"
+        self.custom_dir.mkdir(parents=True, exist_ok=True)
 
-    def _ensure_custom_storage(self):
-        if not self.custom_file.exists():
-            self.custom_file.write_text("[]", encoding="utf-8")
+        self._migrate_legacy_agents(base_dir / "storage" / "store" / "agents.json")
 
-    def _load_custom_agents(self) -> List[Dict[str, Any]]:
+    def _migrate_legacy_agents(self, legacy_file: Path):
+        """Migrate any agents from legacy single agents.json file into individual files."""
+        if legacy_file.exists():
+            try:
+                data = json.loads(legacy_file.read_text(encoding="utf-8-sig"))
+                if isinstance(data, list):
+                    for ag in data:
+                        ag_id = ag.get("id")
+                        if ag_id and not (self.custom_dir / f"{ag_id}.json").exists():
+                            (self.custom_dir / f"{ag_id}.json").write_text(
+                                json.dumps(ag, indent=2, ensure_ascii=False), encoding="utf-8-sig"
+                            )
+            except Exception:
+                pass
+
+    def _load_agent_from_file(self, file_path: Path, is_builtin: bool) -> Optional[Dict[str, Any]]:
         try:
-            return json.loads(self.custom_file.read_text(encoding="utf-8"))
+            data = json.loads(file_path.read_text(encoding="utf-8-sig"))
+            if isinstance(data, dict) and data.get("id"):
+                data["is_builtin"] = is_builtin
+                data["read_only"] = is_builtin
+                return data
         except Exception:
-            return []
-
-    def _save_custom_agents(self, agents: List[Dict[str, Any]]):
-        self.custom_file.write_text(json.dumps(agents, indent=2, ensure_ascii=False), encoding="utf-8")
+            pass
+        return None
 
     def list_agents(self) -> List[Dict[str, Any]]:
-        custom = self._load_custom_agents()
-        return BUILTIN_AGENTS + custom
+        """Dynamically scans both builtin and custom folders for all agent JSON manifests."""
+        agents = []
+        seen_ids = set()
+
+        # 1. Built-in system agents (read-only)
+        for f in sorted(self.builtin_dir.glob("*.json")):
+            ag = self._load_agent_from_file(f, is_builtin=True)
+            if ag and ag["id"] not in seen_ids:
+                agents.append(ag)
+                seen_ids.add(ag["id"])
+
+        # 2. Custom store agents (user created or dropped into folder)
+        for f in sorted(self.custom_dir.glob("*.json")):
+            ag = self._load_agent_from_file(f, is_builtin=False)
+            if ag and ag["id"] not in seen_ids:
+                agents.append(ag)
+                seen_ids.add(ag["id"])
+
+        return agents
 
     def get_agent(self, agent_id: str) -> Optional[Dict[str, Any]]:
+        # Check builtins first
+        b_file = self.builtin_dir / f"{agent_id}.json"
+        if b_file.exists():
+            return self._load_agent_from_file(b_file, is_builtin=True)
+
+        # Check custom store
+        c_file = self.custom_dir / f"{agent_id}.json"
+        if c_file.exists():
+            return self._load_agent_from_file(c_file, is_builtin=False)
+
+        # Fallback search across all dynamically listed
         for ag in self.list_agents():
             if ag["id"] == agent_id:
                 return ag
-        return BUILTIN_AGENTS[0]
+        return self.get_agent("manus")
 
     def create_custom_agent(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        custom = self._load_custom_agents()
         agent_id = data.get("id") or f"custom_{int(time.time())}"
-        
+        target_file = self.custom_dir / f"{agent_id}.json"
+
         new_agent = {
             "id": agent_id,
             "name": data.get("name", "Custom Agent"),
@@ -100,37 +93,53 @@ class AgentRegistry:
             "tools": data.get("tools", ["bash", "python_execute", "file_saver"]),
             "max_steps": int(data.get("max_steps", 30)),
             "is_builtin": False,
+            "read_only": False,
             "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
         }
-        custom.append(new_agent)
-        self._save_custom_agents(custom)
+        target_file.write_text(json.dumps(new_agent, indent=2, ensure_ascii=False), encoding="utf-8-sig")
         return new_agent
 
     def update_custom_agent(self, agent_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        custom = self._load_custom_agents()
-        for idx, ag in enumerate(custom):
-            if ag["id"] == agent_id:
-                custom[idx].update({
-                    "name": data.get("name", ag["name"]),
-                    "role": data.get("role", ag["role"]),
-                    "icon": data.get("icon", ag["icon"]),
-                    "description": data.get("description", ag["description"]),
-                    "system_prompt": data.get("system_prompt", ag["system_prompt"]),
-                    "tools": data.get("tools", ag["tools"]),
-                    "max_steps": int(data.get("max_steps", ag["max_steps"])),
-                    "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
-                })
-                self._save_custom_agents(custom)
-                return custom[idx]
-        return None
+        # Protection: Reject modifying builtins
+        if (self.builtin_dir / f"{agent_id}.json").exists():
+            return None
+
+        target_file = self.custom_dir / f"{agent_id}.json"
+        if not target_file.exists():
+            return None
+
+        try:
+            curr = json.loads(target_file.read_text(encoding="utf-8-sig"))
+            curr.update({
+                "name": data.get("name", curr.get("name")),
+                "role": data.get("role", curr.get("role")),
+                "icon": data.get("icon", curr.get("icon")),
+                "description": data.get("description", curr.get("description")),
+                "system_prompt": data.get("system_prompt", curr.get("system_prompt")),
+                "tools": data.get("tools", curr.get("tools")),
+                "max_steps": int(data.get("max_steps", curr.get("max_steps", 30))),
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            })
+            target_file.write_text(json.dumps(curr, indent=2, ensure_ascii=False), encoding="utf-8-sig")
+            curr["is_builtin"] = False
+            curr["read_only"] = False
+            return curr
+        except Exception:
+            return None
 
     def delete_custom_agent(self, agent_id: str) -> bool:
-        custom = self._load_custom_agents()
-        initial_len = len(custom)
-        custom = [ag for ag in custom if ag["id"] != agent_id]
-        if len(custom) < initial_len:
-            self._save_custom_agents(custom)
-            return True
+        # Protection: Cannot delete builtins
+        if (self.builtin_dir / f"{agent_id}.json").exists():
+            return False
+
+        target_file = self.custom_dir / f"{agent_id}.json"
+        if target_file.exists():
+            try:
+                target_file.unlink()
+                return True
+            except Exception:
+                return False
         return False
+
 
 agent_registry = AgentRegistry()

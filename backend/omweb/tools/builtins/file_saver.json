@@ -1,0 +1,13 @@
+{
+  "id": "file_saver",
+  "name": "File Deliverable Manager",
+  "category": "storage",
+  "description": "Creates, updates, and formats workspace deliverables and project assets.",
+  "safety_level": "safe",
+  "parameters": {
+    "filename": "string",
+    "content": "string"
+  },
+  "is_builtin": true,
+  "read_only": true
+}

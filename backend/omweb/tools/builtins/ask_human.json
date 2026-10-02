@@ -1,0 +1,12 @@
+{
+  "id": "ask_human",
+  "name": "Human Feedback Inquirer",
+  "category": "interaction",
+  "description": "Pauses agent autonomy and requests clarification or decision from the user.",
+  "safety_level": "safe",
+  "parameters": {
+    "question": "string"
+  },
+  "is_builtin": true,
+  "read_only": true
+}

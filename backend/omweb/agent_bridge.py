@@ -19,7 +19,8 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
 from omweb.job_manager import job_manager
 from omweb.project_manager import project_manager
-from omweb.engine_resolver import resolve_active_engine_path
+from omweb.engine_resolver import resolve_active_engine_path, inject_engine_to_syspath
+inject_engine_to_syspath()
 
 human_answers: Dict[str, asyncio.Event] = {}
 human_data: Dict[str, str] = {}
@@ -401,15 +402,26 @@ async def run_instrumented(
     allowed_tools = [t.lower() for t in manifest.get("tools", [])]
     allowed_tools.extend(["terminate", "ask_human"])
 
-    if hasattr(agent, "tools"):
-        if isinstance(agent.tools, list):
-            agent.tools = [
-                t for t in agent.tools
+    # Scope tools in both agent.available_tools and agent.tools
+    target_collection = None
+    if hasattr(agent, "available_tools"):
+        target_collection = agent.available_tools
+    elif hasattr(agent, "tools"):
+        target_collection = agent.tools
+
+    if target_collection is not None:
+        if isinstance(target_collection, list):
+            filtered = [
+                t for t in target_collection
                 if getattr(t, "name", t.__class__.__name__).lower() in allowed_tools
             ]
-        elif hasattr(agent.tools, "tools") and isinstance(agent.tools.tools, list):
-            agent.tools.tools = [
-                t for t in agent.tools.tools
+            if hasattr(agent, "available_tools"):
+                agent.available_tools = filtered
+            if hasattr(agent, "tools"):
+                agent.tools = filtered
+        elif hasattr(target_collection, "tools") and isinstance(target_collection.tools, list):
+            target_collection.tools = [
+                t for t in target_collection.tools
                 if getattr(t, "name", t.__class__.__name__).lower() in allowed_tools
             ]
 

@@ -1,0 +1,13 @@
+{
+  "id": "browser_use",
+  "name": "Headless Browser Navigation",
+  "category": "network",
+  "description": "Navigates websites, clicks, interacts with DOM, and extracts web content.",
+  "safety_level": "controlled",
+  "parameters": {
+    "url": "string",
+    "action": "string"
+  },
+  "is_builtin": true,
+  "read_only": true
+}
