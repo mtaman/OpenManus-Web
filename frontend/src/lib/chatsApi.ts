@@ -1,5 +1,8 @@
 ﻿import { AgentManifest, ToolDefinition, ExtensionDefinition, AgentUpsertPayload } from "./types";
 
+// Re-export store types for backwards compatibility across all components
+export type { AgentManifest, ToolDefinition, ExtensionDefinition, AgentUpsertPayload };
+
 export interface Project {
   id: string;
   name: string;
@@ -42,11 +45,24 @@ export interface SweepReport {
   freed_mb: number;
 }
 
+export interface PurgeReport {
+  status: string;
+  message?: string;
+  deleted_sessions_count?: number;
+  purged_jobs_count?: number;
+  freed_mb?: number;
+}
+
 export interface FetchChatsOptions {
   projectId?: string;
   includeArchived?: boolean;
   pinnedOnly?: boolean;
   search?: string;
+}
+
+// Endpoint helper for consistent relative URL resolution
+export function getApiUrl(endpoint: string): string {
+  return endpoint;
 }
 
 // ==========================================
@@ -58,6 +74,8 @@ export function parseChatDate(val?: string | number | null): Date {
     return new Date(val > 1e11 ? val : val * 1000);
   }
   const str = String(val).trim();
+  if (!str || str === "null" || str === "undefined") return new Date(0);
+
   const num = Number(str);
   if (!isNaN(num) && num > 0 && /^\d+(\.\d+)?$/.test(str)) {
     return new Date(num > 1e11 ? num : num * 1000);
@@ -69,7 +87,7 @@ export function parseChatDate(val?: string | number | null): Date {
 
 export function formatChatDateTime(val?: string | number | null): string {
   const d = parseChatDate(val);
-  if (d.getTime() === 0) return "Just now";
+  if (d.getTime() === 0) return "Recent";
 
   const now = new Date();
   const isToday =
@@ -158,7 +176,7 @@ export async function createProject(name: string, description?: string): Promise
 
 export async function deleteProject(projectId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/chats/projects/${projectId}`, { method: "DELETE" });
+    const res = await fetch(`/api/chats/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" });
     return res.ok;
   } catch (err) {
     console.error("deleteProject error:", err);
@@ -202,19 +220,21 @@ export async function fetchChats(optionsOrProjectId?: FetchChatsOptions | string
   }
 }
 
-export async function deleteAllChats(): Promise<boolean> {
+export async function deleteAllChats(): Promise<PurgeReport | null> {
   try {
     const res = await fetch("/api/chats/all", { method: "DELETE" });
-    return res.ok;
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.report || data || { status: "ok" };
   } catch (err) {
     console.error("deleteAllChats error:", err);
-    return false;
+    return null;
   }
 }
 
 export async function deleteChat(chatId: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/chats/${chatId}`, { method: "DELETE" });
+    const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}`, { method: "DELETE" });
     return res.ok;
   } catch (err) {
     console.error("deleteChat error:", err);
@@ -224,7 +244,7 @@ export async function deleteChat(chatId: string): Promise<boolean> {
 
 export async function renameChat(chatId: string, title: string): Promise<ChatSession | null> {
   try {
-    const res = await fetch(`/api/chats/${chatId}/rename`, {
+    const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/rename`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title })
@@ -240,7 +260,7 @@ export async function renameChat(chatId: string, title: string): Promise<ChatSes
 
 export async function togglePinChat(chatId: string): Promise<ChatSession | null> {
   try {
-    const res = await fetch(`/api/chats/${chatId}/pin`, { method: "POST" });
+    const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/pin`, { method: "POST" });
     if (!res.ok) return null;
     const data = await res.json();
     return data.chat || null;
@@ -252,7 +272,7 @@ export async function togglePinChat(chatId: string): Promise<ChatSession | null>
 
 export async function toggleArchiveChat(chatId: string): Promise<ChatSession | null> {
   try {
-    const res = await fetch(`/api/chats/${chatId}/archive`, { method: "POST" });
+    const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/archive`, { method: "POST" });
     if (!res.ok) return null;
     const data = await res.json();
     return data.chat || null;
@@ -287,7 +307,7 @@ export async function sweepStorageOrphans(): Promise<SweepReport | null> {
 }
 
 // ==========================================
-// Stores & Extensions
+// Stores & Extensions API Client Methods
 // ==========================================
 export async function fetchStoreAgents(): Promise<AgentManifest[]> {
   const res = await fetch("/api/store/agents", { cache: "no-store" });

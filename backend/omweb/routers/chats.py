@@ -79,12 +79,11 @@ async def sweep_orphans():
     return {"status": "ok", "report": report}
 
 
-# Bulk Delete Endpoint
+# Bulk Delete & Purge All Endpoint
 @router.delete("/all")
 async def delete_all_chats():
-    project_manager.delete_all_chats()
-    chat_storage_engine.sweep_orphaned_storage()
-    return {"status": "ok", "message": "All chats deleted"}
+    report = chat_storage_engine.delete_all_chats()
+    return {"status": "ok", "report": report}
 
 
 # ============================================================================

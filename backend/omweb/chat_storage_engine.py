@@ -33,22 +33,6 @@ class ChatStorageEngine:
     def _now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
 
-    def _read_index(self) -> Dict[str, Any]:
-        if self.index_file.exists():
-            try:
-                return json.loads(self.index_file.read_text(encoding="utf-8"))
-            except Exception as e:
-                print(f"[STORAGE ENGINE] Error reading index.json: {e}")
-        return {"version": "2.0.0", "chats": [], "projects": []}
-
-    def _write_index(self, data: Dict[str, Any]) -> bool:
-        try:
-            self.index_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-            return True
-        except Exception as e:
-            print(f"[STORAGE ENGINE] Error writing index.json: {e}")
-            return False
-
     def _parse_created_timestamp(self, val: Any) -> float:
         if isinstance(val, (int, float)):
             return float(val) if val < 1e11 else float(val) / 1000.0
@@ -88,7 +72,6 @@ class ChatStorageEngine:
                         json.dumps(cleaned, indent=2, ensure_ascii=False),
                         encoding="utf-8"
                     )
-                    print(f"[STORAGE ENGINE] Purged {purged_count} records from jobs.json matching {target_ids}")
         except Exception as e:
             print(f"[STORAGE ENGINE] Failed to purge from jobs.json: {e}")
 
@@ -135,7 +118,8 @@ class ChatStorageEngine:
                 title_match = q in (c.get("title") or "").lower()
                 prompt_match = q in (c.get("prompt") or "").lower()
                 id_match = q in (c.get("id") or "").lower()
-                if not (title_match or prompt_match or id_match):
+                job_match = q in (c.get("job_id") or "").lower()
+                if not (title_match or prompt_match or id_match or job_match):
                     continue
 
             results.append(c)
@@ -319,6 +303,97 @@ class ChatStorageEngine:
             "purged_jobs_records": purged_jobs_count,
             "freed_bytes": freed_bytes,
             "deleted_paths": deleted_paths
+        }
+
+    def delete_all_chats(self) -> Dict[str, Any]:
+        """Deep purge: deletes all chats, project chat references, workspace artifacts,
+        and completely empties backend/jobs.json."""
+        idx = project_manager._read_index()
+        all_chats = idx.get("chats", [])
+        target_ids: Set[str] = set()
+
+        for c in all_chats:
+            if isinstance(c, dict):
+                if c.get("id"): target_ids.add(c["id"])
+                if c.get("job_id"): target_ids.add(c["job_id"])
+            elif isinstance(c, str):
+                target_ids.add(c)
+
+        freed_bytes = 0
+
+        # 1. Clear chats folder
+        if self.chats_dir.exists():
+            for item in self.chats_dir.iterdir():
+                try:
+                    if item.is_dir():
+                        for root, _, files in os.walk(item):
+                            for f in files:
+                                try: freed_bytes += (Path(root) / f).stat().st_size
+                                except Exception: pass
+                        shutil.rmtree(item, ignore_errors=True)
+                    else:
+                        freed_bytes += item.stat().st_size
+                        item.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        # 2. Clear all workspace folders
+        for ws_root in [self.workspace_dir, self.backend_dir / "workspace"]:
+            if ws_root.exists():
+                for item in ws_root.iterdir():
+                    try:
+                        if item.is_dir():
+                            for root, _, files in os.walk(item):
+                                for f in files:
+                                    try: freed_bytes += (Path(root) / f).stat().st_size
+                                    except Exception: pass
+                            shutil.rmtree(item, ignore_errors=True)
+                        else:
+                            freed_bytes += item.stat().st_size
+                            item.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
+        # 3. Clear chats inside project folders
+        if self.projects_dir.exists():
+            for p_dir in self.projects_dir.iterdir():
+                if p_dir.is_dir():
+                    p_chats = p_dir / "chats"
+                    if p_chats.exists():
+                        shutil.rmtree(p_chats, ignore_errors=True)
+                        p_chats.mkdir(parents=True, exist_ok=True)
+
+        # 4. Reset index.json chats array
+        idx["chats"] = []
+        for p in idx.get("projects", []):
+            if isinstance(p, dict) and "chat_ids" in p:
+                p["chat_ids"] = []
+        project_manager._write_index(idx)
+
+        # 5. Empty backend/jobs.json
+        purged_jobs_count = self._purge_from_jobs_json(target_ids)
+        if self.jobs_json_path.exists():
+            try:
+                self.jobs_json_path.write_text("[]", encoding="utf-8")
+            except Exception:
+                pass
+
+        # 6. Clear in-memory jobs
+        try:
+            from omweb.job_manager import job_manager
+            job_manager._jobs.clear()
+        except Exception:
+            pass
+
+        # 7. Sweep any residual orphans
+        sweep_rep = self.sweep_orphaned_storage()
+
+        return {
+            "status": "ok",
+            "message": "All chats and workspace files permanently cleared",
+            "deleted_sessions_count": len(all_chats),
+            "purged_jobs_count": purged_jobs_count,
+            "freed_mb": round((freed_bytes + sweep_rep.get("freed_bytes", 0)) / (1024 * 1024), 2)
         }
 
     def sweep_orphaned_storage(self) -> Dict[str, Any]:
