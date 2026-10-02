@@ -402,6 +402,24 @@ async def run_instrumented(
     allowed_tools = [t.lower() for t in manifest.get("tools", [])]
     allowed_tools.extend(["terminate", "ask_human"])
 
+    # Dynamically attach Bash / WebSearch if manifest requests them and they are missing
+    if hasattr(agent, "available_tools") and hasattr(agent.available_tools, "tools"):
+        curr_tool_names = [getattr(t, "name", t.__class__.__name__).lower() for t in agent.available_tools.tools]
+        if "bash" in allowed_tools and "bash" not in curr_tool_names:
+            try:
+                from app.tool.bash import Bash
+                agent.available_tools.add_tools(Bash())
+                print("[BRIDGE] Attached missing 'bash' tool to agent.available_tools")
+            except Exception as b_err:
+                print(f"[BRIDGE WARNING] Could not attach Bash: {b_err}")
+        if "web_search" in allowed_tools and "web_search" not in curr_tool_names:
+            try:
+                from app.tool.web_search import WebSearch
+                agent.available_tools.add_tools(WebSearch())
+                print("[BRIDGE] Attached missing 'web_search' tool to agent.available_tools")
+            except Exception as ws_err:
+                print(f"[BRIDGE WARNING] Could not attach WebSearch: {ws_err}")
+
     # Scope tools in both agent.available_tools and agent.tools
     target_collection = None
     if hasattr(agent, "available_tools"):
@@ -564,7 +582,15 @@ async def run_instrumented(
             f"[USER PROMPT]\n"
             f"{prompt}"
         )
-        final_out = await agent.run(scoped_prompt)
+        orig_system_cwd = os.getcwd()
+        try:
+            os.chdir(str(project_dir.resolve()))
+            final_out = await agent.run(scoped_prompt)
+        finally:
+            try:
+                os.chdir(orig_system_cwd)
+            except Exception:
+                pass
         print(f"[BRIDGE] Execution completed successfully for job: {job_id}")
 
         # Check total newly generated files in this job
