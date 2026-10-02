@@ -1,13 +1,22 @@
-﻿import os
+﻿"""
+Chats & Project Router - Integrated with ChatStorageEngine for disk governance.
+All static routes (/projects, /storage, /all) are strictly declared before /{chat_id}
+to avoid FastAPI path parameter shadowing and 404 collisions.
+"""
+
+import os
 import mimetypes
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from typing import Optional
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse, PlainTextResponse
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+
 from omweb.project_manager import project_manager
+from omweb.chat_storage_engine import chat_storage_engine
 
 router = APIRouter()
+
 
 class ChatCreateRequest(BaseModel):
     project_id: Optional[str] = "default_project"
@@ -16,23 +25,32 @@ class ChatCreateRequest(BaseModel):
     prompt: Optional[str] = ""
     agent_id: Optional[str] = "manus"
 
+
+class ChatRenameRequest(BaseModel):
+    title: str = Field(..., min_length=1)
+
+
 class ProjectCreateRequest(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1)
     description: Optional[str] = ""
 
-@router.get("")
-@router.get("/")
-async def list_chats(project_id: Optional[str] = None):
-    return {"chats": project_manager.list_chats(project_id=project_id)}
 
+# ============================================================================
+# 1. STATIC ROUTES (MUST BE DECLARED BEFORE ANY /{chat_id} PARAMETER ROUTE)
+# ============================================================================
+
+# Projects Endpoints
 @router.get("/projects")
 async def list_projects():
+    """List all projects from storage index."""
     return {"projects": project_manager.list_projects()}
+
 
 @router.post("/projects")
 async def create_project(req: ProjectCreateRequest):
     proj = project_manager.create_project(name=req.name, description=req.description)
     return {"status": "ok", "project": proj}
+
 
 @router.get("/projects/{project_id}")
 async def get_project_detail(project_id: str):
@@ -42,10 +60,53 @@ async def get_project_detail(project_id: str):
     chats = project_manager.list_chats(project_id=project_id)
     return {"status": "ok", "project": proj, "chats": chats}
 
+
 @router.delete("/projects/{project_id}")
 async def delete_project(project_id: str):
     project_manager.delete_project(project_id)
     return {"status": "ok", "message": f"Project {project_id} deleted"}
+
+
+# Storage Metrics & Orphan Sweep Endpoints
+@router.get("/storage/stats")
+async def get_storage_stats():
+    return {"status": "ok", "stats": chat_storage_engine.get_storage_metrics()}
+
+
+@router.post("/storage/sweep")
+async def sweep_orphans():
+    report = chat_storage_engine.sweep_orphaned_storage()
+    return {"status": "ok", "report": report}
+
+
+# Bulk Delete Endpoint
+@router.delete("/all")
+async def delete_all_chats():
+    project_manager.delete_all_chats()
+    chat_storage_engine.sweep_orphaned_storage()
+    return {"status": "ok", "message": "All chats deleted"}
+
+
+# ============================================================================
+# 2. ROOT CHAT LIST & CREATION ENDPOINTS
+# ============================================================================
+
+@router.get("")
+@router.get("/")
+async def list_chats(
+    project_id: Optional[str] = None,
+    include_archived: bool = Query(False),
+    pinned_only: bool = Query(False),
+    search: Optional[str] = Query(None)
+):
+    chats = chat_storage_engine.list_chats(
+        project_id=project_id,
+        include_archived=include_archived,
+        pinned_only=pinned_only,
+        search=search
+    )
+    return {"chats": chats}
+
 
 @router.post("")
 @router.post("/")
@@ -65,26 +126,35 @@ async def create_chat(req: ChatCreateRequest):
     )
     return {"status": "ok", "chat": chat}
 
-@router.delete("/all")
-async def delete_all_chats():
-    project_manager.delete_all_chats()
-    return {"status": "ok", "message": "All chats deleted"}
 
-@router.get("/{chat_id}")
-async def get_chat_detail(chat_id: str):
-    chat = project_manager.get_chat(chat_id)
-    if not chat:
-        raise HTTPException(status_code=404, detail="Chat session not found")
-    return {"status": "ok", "chat": chat}
+# ============================================================================
+# 3. CHAT ACTIONS & SUB-RESOURCE ENDPOINTS
+# ============================================================================
 
-@router.delete("/{chat_id}")
-async def delete_single_chat(chat_id: str):
-    chat = project_manager.get_chat(chat_id)
-    if not chat:
+@router.patch("/{chat_id}/rename")
+@router.put("/{chat_id}/title")
+async def rename_chat(chat_id: str, req: ChatRenameRequest):
+    updated = chat_storage_engine.rename_chat(chat_id, req.title)
+    if not updated:
         raise HTTPException(status_code=404, detail="Chat session not found")
-    actual_id = chat.get("id", chat_id)
-    project_manager.delete_chat(actual_id)
-    return {"status": "ok", "message": f"Chat {actual_id} deleted"}
+    return {"status": "ok", "chat": updated}
+
+
+@router.post("/{chat_id}/pin")
+async def toggle_pin_chat(chat_id: str):
+    updated = chat_storage_engine.toggle_pin(chat_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return {"status": "ok", "chat": updated}
+
+
+@router.post("/{chat_id}/archive")
+async def toggle_archive_chat(chat_id: str):
+    updated = chat_storage_engine.toggle_archive(chat_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return {"status": "ok", "chat": updated}
+
 
 @router.get("/{chat_id}/files")
 async def get_chat_files(chat_id: str):
@@ -110,6 +180,7 @@ async def get_chat_files(chat_id: str):
             })
     return {"chat_id": chat_id, "files": chat_files}
 
+
 @router.get("/{chat_id}/raw/{filepath:path}")
 async def get_chat_raw_file(chat_id: str, filepath: str):
     chat = project_manager.get_chat(chat_id)
@@ -122,36 +193,11 @@ async def get_chat_raw_file(chat_id: str, filepath: str):
         raise HTTPException(status_code=404, detail="File not found in chat deliverables")
 
     content_type, _ = mimetypes.guess_type(str(target))
-    ext = target.suffix.lower()
-    if ext == ".css":
-        content_type = "text/css"
-    elif ext in [".js", ".mjs"]:
-        content_type = "application/javascript"
-    elif ext in [".html", ".htm"]:
-        content_type = "text/html"
-    elif ext == ".png":
-        content_type = "image/png"
-    elif ext in [".jpg", ".jpeg"]:
-        content_type = "image/jpeg"
-    elif ext == ".webp":
-        content_type = "image/webp"
-    elif ext == ".svg":
-        content_type = "image/svg+xml"
-    elif ext == ".pdf":
-        content_type = "application/pdf"
-    elif ext == ".mp4":
-        content_type = "video/mp4"
-    elif ext == ".webm":
-        content_type = "video/webm"
-    elif ext in [".mov", ".quicktime"]:
-        content_type = "video/quicktime"
-
     return FileResponse(target, media_type=content_type or "application/octet-stream")
 
 
 @router.get("/{chat_id}/log")
 async def get_chat_log(chat_id: str):
-    """Retrieve raw chat.log session history from disk."""
     try:
         chat = project_manager.get_chat(chat_id)
         project_id = chat.get("project_id", "default_project") if chat else "default_project"
@@ -163,10 +209,9 @@ async def get_chat_log(chat_id: str):
     except Exception as e:
         return {"chat_id": chat_id, "log": f"[Error reading session log: {str(e)}]"}
 
+
 @router.get("/{chat_id}/log/download")
 async def download_chat_log(chat_id: str):
-    """Download chat.log directly as a text deliverable."""
-    from fastapi.responses import FileResponse, PlainTextResponse
     chat = project_manager.get_chat(chat_id)
     project_id = chat.get("project_id", "default_project") if chat else "default_project"
     chat_dir = project_manager.get_chat_dir(chat_id, project_id)
@@ -178,3 +223,21 @@ async def download_chat_log(chat_id: str):
             media_type="text/plain; charset=utf-8"
         )
     return PlainTextResponse(f"No log file found for chat {chat_id}", status_code=404)
+
+
+# ============================================================================
+# 4. SINGLE CHAT PARAMETERIZED ENDPOINTS (DECLARED LAST)
+# ============================================================================
+
+@router.get("/{chat_id}")
+async def get_chat_detail(chat_id: str):
+    chat = project_manager.get_chat(chat_id)
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return {"status": "ok", "chat": chat}
+
+
+@router.delete("/{chat_id}")
+async def delete_single_chat(chat_id: str):
+    res = chat_storage_engine.deep_delete_chat(chat_id)
+    return {"status": "ok", "report": res}

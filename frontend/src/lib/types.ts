@@ -149,4 +149,3 @@ export interface ModelMetadata {
   capabilities?: ModelCapabilities | null;
   description?: string | null;
 }
-

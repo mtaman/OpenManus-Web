@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -9,35 +9,30 @@ import {
   Pin,
   Download,
   Trash2,
-  FolderOpen,
+  Archive,
+  History,
+  ChevronDown,
   Activity
 } from "lucide-react";
-
-interface ProjectItem {
-  id: string;
-  name: string;
-  description?: string;
-  created_at?: string;
-}
-
-interface ChatItem {
-  id: string;
-  job_id: string;
-  project_id?: string;
-  title: string;
-  prompt: string;
-  status: string;
-  created_at?: string;
-  pinned?: boolean;
-}
+import {
+  fetchProjects,
+  fetchChats,
+  deleteChat,
+  togglePinChat,
+  toggleArchiveChat,
+  categorizeChatTimeBucket,
+  Project,
+  ChatSession
+} from "@/lib/chatsApi";
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [projects, setProjects] = useState<ProjectItem[]>([]);
-  const [chats, setChats] = useState<ChatItem[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [chats, setChats] = useState<ChatSession[]>([]);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [olderLimit, setOlderLimit] = useState(10);
 
   const lastFetchTimeRef = useRef<number>(0);
   const isFetchingRef = useRef<boolean>(false);
@@ -52,18 +47,12 @@ export function Sidebar() {
     isFetchingRef.current = true;
 
     try {
-      const [pRes, cRes] = await Promise.all([
-        fetch("/api/chats/projects"),
-        fetch("/api/chats")
+      const [pData, cData] = await Promise.all([
+        fetchProjects(),
+        fetchChats({ includeArchived: false })
       ]);
-      if (pRes.ok) {
-        const pData = await pRes.json();
-        setProjects(pData.projects || []);
-      }
-      if (cRes.ok) {
-        const cData = await cRes.json();
-        setChats(cData.chats || []);
-      }
+      setProjects(pData || []);
+      setChats(cData || []);
     } catch (e) {
       console.error("Failed to load sidebar data", e);
     } finally {
@@ -84,25 +73,14 @@ export function Sidebar() {
 
     window.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("omweb:refresh-sidebar", () => fetchData(true));
+    window.addEventListener("omweb:chats-updated", () => fetchData(true));
 
     return () => {
       window.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("omweb:refresh-sidebar", () => fetchData(true));
+      window.removeEventListener("omweb:chats-updated", () => fetchData(true));
     };
   }, [fetchData]);
-
-  useEffect(() => {
-    const hasRunningTask = chats.some((c) => c.status === "running");
-    if (!hasRunningTask) return;
-
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchData();
-      }
-    }, 8000);
-
-    return () => clearInterval(timer);
-  }, [chats, fetchData]);
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,35 +104,90 @@ export function Sidebar() {
   const handleDeleteChat = async (e: React.MouseEvent, chatId: string, jobId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this session?")) return;
+    if (!confirm("Are you sure you want to delete this session? It will be purged from disk and jobs.json.")) return;
     try {
-      await fetch(`/api/chats/${chatId}`, { method: "DELETE" });
-      setChats((prev) => prev.filter((c) => c.id !== chatId && c.job_id !== jobId));
-      if (pathname.includes(jobId) || pathname.includes(chatId)) {
-        router.push("/chat");
+      const ok = await deleteChat(chatId);
+      if (ok) {
+        setChats((prev) => prev.filter((c) => c.id !== chatId && c.job_id !== jobId));
+        window.dispatchEvent(new CustomEvent("omweb:chats-updated"));
+        if (pathname.includes(jobId) || pathname.includes(chatId)) {
+          router.push("/chat");
+        }
       }
     } catch (err) {
       console.error("Failed to delete chat", err);
     }
   };
 
-  const handleTogglePin = (e: React.MouseEvent, chatId: string) => {
+  const handleTogglePin = async (e: React.MouseEvent, chatId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setChats((prev) =>
-      prev.map((c) => (c.id === chatId ? { ...c, pinned: !c.pinned } : c))
-    );
+    try {
+      const updated = await togglePinChat(chatId);
+      if (updated) {
+        setChats((prev) =>
+          prev.map((c) => (c.id === chatId ? { ...c, is_pinned: updated.is_pinned, pinned: updated.is_pinned } : c))
+        );
+        window.dispatchEvent(new CustomEvent("omweb:chats-updated"));
+      }
+    } catch (err) {
+      console.error("Failed to toggle pin", err);
+    }
   };
 
-  const standaloneChats = chats.filter(
-    (c) => !c.project_id || c.project_id === "default_project"
-  );
+  const handleToggleArchive = async (e: React.MouseEvent, chatId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const updated = await toggleArchiveChat(chatId);
+      if (updated && updated.is_archived) {
+        setChats((prev) => prev.filter((c) => c.id !== chatId));
+        window.dispatchEvent(new CustomEvent("omweb:chats-updated"));
+      }
+    } catch (err) {
+      console.error("Failed to archive chat", err);
+    }
+  };
 
-  const sortedChats = [...standaloneChats].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1;
-    if (!a.pinned && b.pinned) return 1;
-    return 0;
-  });
+  // Only display user-created workspaces (exclude default_project)
+  const displayProjects = useMemo(() => {
+    return projects.filter((p) => p.id !== "default_project");
+  }, [projects]);
+
+  // EXCLUSION RULE: Strictly exclude project chats from sidebar!
+  const standaloneChats = useMemo(() => {
+    return chats.filter((c) => {
+      const pid = c.project_id;
+      const isProjectChat = pid && pid !== "default_project" && pid !== "";
+      if (isProjectChat) return false;
+      if (c.is_archived) return false;
+      return true;
+    });
+  }, [chats]);
+
+  // Pinned chats (always top of sidebar)
+  const pinnedChats = useMemo(() => {
+    return standaloneChats.filter((c) => c.is_pinned || c.pinned);
+  }, [standaloneChats]);
+
+  // Non-pinned standalone chats
+  const nonPinnedChats = useMemo(() => {
+    return standaloneChats.filter((c) => !c.is_pinned && !c.pinned);
+  }, [standaloneChats]);
+
+  // Past 7 Days only
+  const pastWeekChats = useMemo(() => {
+    return nonPinnedChats.filter((c) => categorizeChatTimeBucket(c.created_at) !== "older");
+  }, [nonPinnedChats]);
+
+  // Older sessions (hidden behind Load More button)
+  const olderChats = useMemo(() => {
+    return nonPinnedChats.filter((c) => categorizeChatTimeBucket(c.created_at) === "older");
+  }, [nonPinnedChats]);
+
+  const visibleOlderChats = useMemo(() => {
+    return olderChats.slice(0, olderLimit);
+  }, [olderChats, olderLimit]);
 
   return (
     <aside className="w-[260px] border-r border-border bg-custom backdrop-blur-md flex flex-col h-screen select-none shrink-0 font-sans transition-all duration-200">
@@ -179,6 +212,9 @@ export function Sidebar() {
         <div>
           <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-2 uppercase tracking-wider mb-1.5">
             <span>Workspaces</span>
+            {displayProjects.length > 0 && (
+              <span className="text-[10px] font-mono opacity-70">{displayProjects.length}</span>
+            )}
           </div>
 
           {isCreatingProject && (
@@ -195,12 +231,12 @@ export function Sidebar() {
           )}
 
           <div className="space-y-0.5">
-            {projects.length === 0 ? (
+            {displayProjects.length === 0 ? (
               <div className="text-[11px] text-muted-foreground/70 px-2 py-1">
                 No workspaces yet.
               </div>
             ) : (
-              projects.map((proj) => {
+              displayProjects.map((proj) => {
                 const isActiveProj = pathname === `/projects/${proj.id}`;
                 const projChatsCount = chats.filter((c) => c.project_id === proj.id).length;
                 return (
@@ -209,12 +245,12 @@ export function Sidebar() {
                     href={`/projects/${proj.id}`}
                     className={`flex items-center justify-between px-2.5 py-1.5 rounded-xs text-xs transition-all ${
                       isActiveProj
-                        ? "bg-muted text-foreground font-medium border border-border/80 shadow-manus-xs"
+                        ? "bg-muted text-foreground font-medium border border-border/80 shadow-xs"
                         : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                     }`}
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <Folder size={13} className="text-manus-info shrink-0" />
+                      <Folder size={13} className="text-primary shrink-0" />
                       <span className="truncate">{proj.name}</span>
                     </div>
                     {projChatsCount > 0 && (
@@ -229,93 +265,93 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Recent Chats Section */}
+        {/* Pinned Section (Top Priority) */}
+        {pinnedChats.length > 0 && (
+          <div>
+            <div className="flex items-center gap-1.5 text-[10px] font-bold text-primary px-2 uppercase tracking-wider mb-1">
+              <Pin size={10} className="rotate-45" />
+              <span>Pinned Sessions</span>
+            </div>
+            <div className="space-y-0.5">
+              {pinnedChats.map((chat) => (
+                <SidebarChatRow
+                  key={chat.id}
+                  chat={chat}
+                  pathname={pathname}
+                  onTogglePin={handleTogglePin}
+                  onToggleArchive={handleToggleArchive}
+                  onDeleteChat={handleDeleteChat}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Chats (Past 7 Days Only) */}
         <div>
           <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-2 uppercase tracking-wider mb-1.5">
-            <span>Recent Chats</span>
+            <span>Past 7 Days</span>
+            <span className="text-[10px] font-mono opacity-70">{pastWeekChats.length}</span>
           </div>
 
           <div className="space-y-0.5">
-            {sortedChats.length === 0 ? (
+            {pastWeekChats.length === 0 && pinnedChats.length === 0 ? (
               <div className="text-[11px] text-muted-foreground/70 px-2 py-2">
-                No recent sessions.
+                No sessions in the past 7 days.
               </div>
             ) : (
-              sortedChats.map((chat, idx) => {
-                const effectiveTarget = chat.job_id || chat.id || `session-${idx}`;
-                const isActive =
-                  pathname === `/chat/${effectiveTarget}` || pathname === `/chat/${chat.id}`;
-                return (
-                  <div
-                    key={chat.id || chat.job_id || `chat-row-${idx}`}
-                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-all ${
-                      isActive
-                        ? "bg-muted text-foreground font-medium border border-border shadow-manus-xs"
-                        : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                    }`}
-                  >
-                    <Link
-                      href={`/chat/${effectiveTarget}`}
-                      className="flex items-center gap-2 truncate flex-1 mr-1"
-                    >
-                      <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${
-                          chat.status === "completed"
-                            ? "bg-manus-success"
-                            : chat.status === "running"
-                            ? "bg-manus-warning animate-pulse"
-                            : "bg-muted-foreground/40"
-                        }`}
-                      />
-                      <span className="truncate">
-                        {chat.title || chat.prompt || "New Session"}
-                      </span>
-                    </Link>
-
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        type="button"
-                        onClick={(e) => handleTogglePin(e, chat.id)}
-                        title="Pin chat"
-                        className={`p-1 hover:text-foreground cursor-pointer rounded-sm ${
-                          chat.pinned ? "text-primary" : "text-muted-foreground"
-                        }`}
-                      >
-                        <Pin size={11} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          window.open(
-                            `/api/run/jobs/${effectiveTarget}/download-zip`,
-                            "_blank"
-                          );
-                        }}
-                        title="Download ZIP"
-                        className="p-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-sm"
-                      >
-                        <Download size={11} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteChat(e, chat.id, chat.job_id)}
-                        title="Delete chat"
-                        className="p-1 text-muted-foreground hover:text-manus-error cursor-pointer rounded-sm"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+              pastWeekChats.map((chat) => (
+                <SidebarChatRow
+                  key={chat.id}
+                  chat={chat}
+                  pathname={pathname}
+                  onTogglePin={handleTogglePin}
+                  onToggleArchive={handleToggleArchive}
+                  onDeleteChat={handleDeleteChat}
+                />
+              ))
             )}
           </div>
         </div>
+
+        {/* Older Sessions (Progressive Load More) */}
+        {olderChats.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-2 uppercase tracking-wider mb-1.5">
+              <span>Older Sessions</span>
+              <span className="text-[10px] font-mono opacity-70">
+                {visibleOlderChats.length}/{olderChats.length}
+              </span>
+            </div>
+
+            <div className="space-y-0.5">
+              {visibleOlderChats.map((chat) => (
+                <SidebarChatRow
+                  key={chat.id}
+                  chat={chat}
+                  pathname={pathname}
+                  onTogglePin={handleTogglePin}
+                  onToggleArchive={handleToggleArchive}
+                  onDeleteChat={handleDeleteChat}
+                />
+              ))}
+            </div>
+
+            {visibleOlderChats.length < olderChats.length && (
+              <button
+                type="button"
+                onClick={() => setOlderLimit((prev) => prev + 10)}
+                className="w-full mt-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-muted/30 hover:bg-muted/60 border border-border rounded-md flex items-center justify-center gap-1 transition cursor-pointer"
+              >
+                <ChevronDown size={12} />
+                <span>Load More ({olderChats.length - visibleOlderChats.length} remaining)</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Footer System Status Link to /status */}
+       {/* Footer System Status Link to /status */}
       <Link
         href="/status"
         title="View System Health & Diagnostics"
@@ -326,12 +362,101 @@ export function Sidebar() {
           <span className="group-hover:text-foreground transition-colors">System Health</span>
         </span>
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground group-hover:text-foreground">
-          v2.0.0
+          v1.0.0
         </span>
       </Link>
     </aside>
   );
 }
 
-export default Sidebar;
+interface SidebarChatRowProps {
+  chat: ChatSession;
+  pathname: string;
+  onTogglePin: (e: React.MouseEvent, chatId: string) => void;
+  onToggleArchive: (e: React.MouseEvent, chatId: string) => void;
+  onDeleteChat: (e: React.MouseEvent, chatId: string, jobId: string) => void;
+}
 
+function SidebarChatRow({
+  chat,
+  pathname,
+  onTogglePin,
+  onToggleArchive,
+  onDeleteChat
+}: SidebarChatRowProps) {
+  const effectiveTarget = chat.job_id || chat.id;
+  const isActive = pathname === `/chat/${effectiveTarget}` || pathname === `/chat/${chat.id}`;
+  const isPinned = chat.is_pinned || chat.pinned;
+
+  return (
+    <div
+      className={`group flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-all ${
+        isActive
+          ? "bg-muted text-foreground font-medium border border-border shadow-xs"
+          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+      }`}
+    >
+      <Link
+        href={`/chat/${effectiveTarget}`}
+        className="flex items-center gap-2 truncate flex-1 mr-1"
+      >
+        <span
+          className={`w-2 h-2 rounded-full shrink-0 ${
+            chat.status === "completed"
+              ? "bg-emerald-500"
+              : chat.status === "running"
+              ? "bg-amber-500 animate-pulse"
+              : "bg-muted-foreground/40"
+          }`}
+        />
+        <span className="truncate">{chat.title || chat.prompt || "New Session"}</span>
+      </Link>
+
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          onClick={(e) => onTogglePin(e, chat.id)}
+          title={isPinned ? "Unpin session" : "Pin session"}
+          className={`p-1 hover:text-foreground cursor-pointer rounded-sm ${
+            isPinned ? "text-primary font-bold" : "text-muted-foreground"
+          }`}
+        >
+          <Pin size={11} className={isPinned ? "rotate-45" : ""} />
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => onToggleArchive(e, chat.id)}
+          title="Archive (hide from sidebar)"
+          className="p-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-sm"
+        >
+          <Archive size={11} />
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(`/api/chats/${chat.id}/log/download`, "_blank");
+          }}
+          title="Download Log"
+          className="p-1 text-muted-foreground hover:text-foreground cursor-pointer rounded-sm"
+        >
+          <Download size={11} />
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => onDeleteChat(e, chat.id, chat.job_id)}
+          title="Delete chat"
+          className="p-1 text-muted-foreground hover:text-destructive cursor-pointer rounded-sm"
+        >
+          <Trash2 size={11} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default Sidebar;
