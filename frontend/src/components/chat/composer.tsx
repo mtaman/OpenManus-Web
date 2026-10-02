@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { AgentSelector } from "./agent-selector";
 import { EngineSelector } from "./engine-selector";
+import { ActiveToolsModal } from "./active-tools-modal";
 import { useChatStore } from "@/stores/chat-store";
 import { useAppStorage } from "@/hooks/use-app-storage";
 
@@ -260,10 +261,11 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
               </button>
             </div>
 
-            {/* Agent Selector: Visible ONLY when execMode === 'agent' */}
+            {/* Agent Selector & Active Tools Modal: Visible ONLY when execMode === 'agent' */}
             {execMode === "agent" && (
-              <div className="animate-in fade-in duration-150">
+              <div className="animate-in fade-in duration-150 flex items-center gap-1.5">
                 <AgentSelector disabled={disabled || isRunning} />
+                <ActiveToolsModal />
               </div>
             )}
           </div>

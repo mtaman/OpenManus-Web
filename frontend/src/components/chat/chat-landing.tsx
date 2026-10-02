@@ -15,6 +15,7 @@ import {
   X
 } from "lucide-react";
 import { AgentSelector } from "./agent-selector";
+import { ActiveToolsModal } from "./active-tools-modal";
 
 interface QuickPill {
   label: string;
@@ -231,8 +232,9 @@ export function ChatLanding({
 
             {/* Agent Selector: Visible ONLY when execMode === 'agent' */}
         {execMode === "agent" && (
-          <div className="animate-in fade-in duration-200">
-            <AgentSelector />
+          <div className="animate-in fade-in duration-150 flex items-center gap-1.5 z-50">
+            <AgentSelector/>
+              <ActiveToolsModal />
           </div>
         )}
 
@@ -254,7 +256,7 @@ export function ChatLanding({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-6 -z-1">
         {QUICK_PILLS.map((pill, idx) => (
           <button
             key={idx}
