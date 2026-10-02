@@ -153,7 +153,7 @@ export default function SetupPage() {
       <header className="h-16 border-b border-border/80 bg-card/60 backdrop-blur-md px-6 md:px-12 flex items-center justify-between shrink-0 sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-card border border-border p-1 shadow-manus-xs flex items-center justify-center">
-            <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+            <img src="/peldrun-logo.svg" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="flex items-center gap-2">

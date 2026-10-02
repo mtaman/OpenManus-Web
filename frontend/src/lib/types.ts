@@ -81,15 +81,19 @@ export interface AgentManifest {
   is_builtin?: boolean;
   created_at?: string;
   updated_at?: string;
+  status?: "active" | "disabled" | string;
 }
 
 export interface ToolDefinition {
   id: string;
   name: string;
-  category: string;
-  description: string;
-  safety_level: string;
-  parameters?: Record<string, string>;
+  description?: string;
+  category?: string;
+  safety_level?: string;
+  is_builtin?: boolean;
+  is_enabled?: boolean;
+  status?: "active" | "disabled" | string;
+  parameters?: Record<string, any>;
 }
 
 export interface ExtensionDefinition {

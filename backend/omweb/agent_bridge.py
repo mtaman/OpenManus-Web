@@ -441,8 +441,21 @@ async def run_instrumented(
     )
 
     from omweb.agents.registry import agent_registry
+    from omweb.tools.registry import tool_registry
+
     manifest = agent_registry.get_agent(agent_id)
+    if manifest.get("status") == "disabled":
+        err_msg = f"Agent '{manifest.get('name')}' is currently disabled in the Capability Store. Enable it first to run tasks."
+        job_manager.fail_job(job_id, err_msg)
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": err_msg, "model": model_name}))
+        return
+
     print(f"[BRIDGE] Activating agent '{manifest['name']}' (ID: {agent_id})")
+
+    # Filter only currently enabled tools from tool_registry
+    all_active_tool_ids = {t["id"].lower() for t in tool_registry.list_tools() if t.get("is_enabled", True)}
+    allowed_tools = [t.lower() for t in manifest.get("tools", []) if t.lower() in all_active_tool_ids or t.lower() in ["mcp", "browser"]]
+    allowed_tools.extend(["terminate", "ask_human"])
 
     chat = project_manager.get_chat(job_id) or {}
     chat_id = chat.get("id", f"chat_{job_id}")

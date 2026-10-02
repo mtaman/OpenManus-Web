@@ -75,3 +75,219 @@
     opacity: 0.6;
   }
 }
+
+
+
+
+
+/* ============================================
+   PELDRUN Breathing Circle Glow
+   ============================================ */
+
+@keyframes draw {
+  0% {
+    stroke-dashoffset: 2000;
+    opacity: 0.2;
+  }
+  50% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -2000;
+    opacity: 0.2;
+  }
+}
+
+@keyframes rotate3d {
+  0% {
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+  50% {
+    transform: rotateX(25deg) rotateY(25deg) rotateZ(180deg);
+  }
+  100% {
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(360deg);
+  }
+}
+
+.neural-loader-container {
+  transform-style: preserve-3d;
+  width: 100%;
+  height: 100%;
+}
+
+/* Drawing effect from inside to outside */
+@keyframes neuralDraw {
+  0% {
+    stroke-dashoffset: 2000;
+    opacity: 0.15;
+  }
+  50% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -2000;
+    opacity: 0.15;
+  }
+}
+
+/* Calm rotation */
+@keyframes neuralRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Helper classes */
+.neural-svg-v3 {
+  animation: neuralDraw 4s ease-in-out infinite alternate;
+}
+
+.neural-container-v3 {
+  animation: neuralRotate 25s linear infinite;
+}
+
+
+/* app/globals.css */
+
+/* أنميشن ظهور النص وتلاشيه */
+@keyframes textFadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+    filter: blur(4px);
+  }
+}
+
+/*============================================
+      Text fade-in/out animation for dynamic status messages
+   ============================================ */
+.status-text-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 500;
+}
+
+/* The dots container — uses logical margin that flips with dir */
+.status-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  /* Logical property: in LTR = margin-left, in RTL = margin-right */
+  margin-inline-start: 2px;
+}
+
+.status-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dotBounce 1.4s infinite ease-in-out;
+}
+
+.status-dots span:nth-child(2) { animation-delay: 0.15s; }
+.status-dots span:nth-child(3) { animation-delay: 0.3s; }
+  
+@keyframes statusFade {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(3px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+    filter: blur(3px);
+  }
+}
+
+.status-fade {
+  display: inline-block;
+  animation: statusFade 2.4s ease-in-out infinite;
+}
+
+/* Shimmer / gradient sweep for text */
+@keyframes statusShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.status-shimmer {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    #94a3b8 0%,
+    #ffffff 50%,
+    #94a3b8 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: statusShimmer 2.5s linear infinite;
+}
+
+/* Bouncing dots (...) */
+@keyframes dotBounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.status-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.status-dots span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dotBounce 1.4s infinite ease-in-out;
+}
+
+.status-dots span:nth-child(2) { animation-delay: 0.15s; }
+.status-dots span:nth-child(3) { animation-delay: 0.3s; }

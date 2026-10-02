@@ -5,6 +5,7 @@ import { Copy, Check, HelpCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatTimeline, StepEvent } from "./chat-timeline";
 import { ChatDeliverable } from "./chat-deliverable";
+import AIThinkingLoader from '@/components/AIThinkingLoader';
 
 export interface ChatTurn {
   id: string;
@@ -239,10 +240,17 @@ export function ChatThread({
 
         {/* Live Running Status */}
         {status === "running" && (
-          <div className="flex items-center justify-between px-3.5 py-2.5 rounded-lg border border-primary/20 bg-muted/40 text-foreground transition-all">
+          <div className="flex items-center justify-between px-3.5 py-2.5 bg-muted/40 text-foreground transition-all">
             <div className="flex items-center gap-2.5 text-xs">
-              <Loader2 size={14} className="animate-spin text-primary shrink-0" />
-              <span className="font-medium">{getLiveStatusMessage()}</span>
+
+             <AIThinkingLoader
+                  message={getLiveStatusMessage()}
+                  color="blue"
+                  speed={5}
+                  textAnimation="shimmer"
+                  showDots={false}
+                />
+
             </div>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
               {elapsedSeconds}s

@@ -53,14 +53,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center gap-3">
           <Link
             href="/chat"
-            className="w-10 h-10 rounded-sm bg-card border border-border/80 flex items-center justify-center p-1.5 shadow-manus-xs hover:border-primary/50 transition-all group"
+            className="w-10 h-10 rounded-sm bg-transparent flex items-center justify-center p-1.5 transition-all group"
             title="OpenManus Web"
           >
             <img
-              src="/logo.png"
-              alt="OpenManus Web Logo"
-              className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-            />
+                src="/peldrun-logo.svg"
+                alt="OpenManus Web Logo"
+                className="w-full h-full object-contain group-hover:scale-105 transition-transform bg-transparent 
+                          [[data-theme='dark']_&]:hidden"
+              />
+            <img
+                src="/peldrun-logo-light.svg"
+                alt="OpenManus Web Logo"
+                className="w-full h-full object-contain group-hover:scale-105 transition-transform bg-transparent 
+                          hidden [[data-theme='dark']_&]:block"
+              />
+
           </Link>
 
           <button
