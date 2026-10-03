@@ -46,11 +46,11 @@ export function PreviewTab({
       setRefreshKey((k) => k + 1);
     };
 
-    window.addEventListener("openmanus:file-saved", handleSaved);
-    window.addEventListener("openmanus:artifact-created", handleArtifact);
+    window.addEventListener("peldrun:file-saved", handleSaved);
+    window.addEventListener("peldrun:artifact-created", handleArtifact);
     return () => {
-      window.removeEventListener("openmanus:file-saved", handleSaved);
-      window.removeEventListener("openmanus:artifact-created", handleArtifact);
+      window.removeEventListener("peldrun:file-saved", handleSaved);
+      window.removeEventListener("peldrun:artifact-created", handleArtifact);
     };
   }, [effectiveFile]);
 
@@ -142,9 +142,9 @@ export function PreviewTab({
     return (
       <div className="flex flex-col items-center justify-center h-full w-full bg-custom text-muted-foreground p-8 select-none font-sans">
         <div className="flex flex-col items-center max-w-sm text-center space-y-4">
-          <div className="p-4 rounded-2xl bg-card border border-border shadow-manus-md relative">
-            <Code2 className="w-10 h-10 text-manus-accent" />
-            <Sparkles className="w-4 h-4 text-manus-accent absolute top-2 right-2 animate-pulse" />
+          <div className="p-4 rounded-2xl bg-card border border-border shadow-peldrun-md relative">
+            <Code2 className="w-10 h-10 text-peldrun-accent" />
+            <Sparkles className="w-4 h-4 text-peldrun-accent absolute top-2 right-2 animate-pulse" />
           </div>
           <div>
             <h3 className="text-sm font-semibold font-heading text-foreground">Sandbox Standby</h3>
@@ -153,7 +153,7 @@ export function PreviewTab({
             </p>
           </div>
           {loading && (
-            <div className="flex items-center gap-2 text-xs text-manus-accent font-medium">
+            <div className="flex items-center gap-2 text-xs text-peldrun-accent font-medium">
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
               <span>Loading deliverables...</span>
             </div>
@@ -168,9 +168,9 @@ export function PreviewTab({
     : `/api/files/raw/${effectiveFile}`;
 
   const renderBadge = () => {
-    if (isHtml) return <span className="px-1.5 py-0.5 rounded text-[10px] bg-manus-success/15 text-manus-success border border-manus-success/30 font-mono">HTML App</span>;
+    if (isHtml) return <span className="px-1.5 py-0.5 rounded text-[10px] bg-peldrun-success/15 text-peldrun-success border border-peldrun-success/30 font-mono">HTML App</span>;
     if (isMarkdown) return <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/15 text-primary border border-primary/30 font-mono">Markdown</span>;
-    if (isSvg) return <span className="px-1.5 py-0.5 rounded text-[10px] bg-manus-info/15 text-manus-info border border-manus-info/30 font-mono">Vector SVG</span>;
+    if (isSvg) return <span className="px-1.5 py-0.5 rounded text-[10px] bg-peldrun-info/15 text-peldrun-info border border-peldrun-info/30 font-mono">Vector SVG</span>;
     return <span className="px-1.5 py-0.5 rounded text-[10px] bg-muted text-muted-foreground font-mono">Preview</span>;
   };
 
@@ -181,9 +181,9 @@ export function PreviewTab({
           {isMarkdown ? (
             <FileText className="w-4 h-4 text-primary shrink-0" />
           ) : isSvg ? (
-            <ImageIcon className="w-4 h-4 text-manus-info shrink-0" />
+            <ImageIcon className="w-4 h-4 text-peldrun-info shrink-0" />
           ) : (
-            <Monitor className="w-4 h-4 text-manus-accent shrink-0" />
+            <Monitor className="w-4 h-4 text-peldrun-accent shrink-0" />
           )}
           <span className="font-mono text-xs font-medium truncate max-w-[200px]">{effectiveFile}</span>
           {renderBadge()}
@@ -215,7 +215,7 @@ export function PreviewTab({
       <div className="flex-1 w-full h-full relative overflow-hidden bg-background">
         {isMarkdown && (
           <div className="w-full h-full overflow-y-auto p-6 md:p-8 bg-card/40">
-            <div className="max-w-3xl mx-auto rounded-sm border border-border/80 bg-card p-6 shadow-manus-sm">
+            <div className="max-w-3xl mx-auto rounded-sm border border-border/80 bg-card p-6 shadow-peldrun-sm">
               <MarkdownRenderer content={rawContent} />
             </div>
           </div>
@@ -224,7 +224,7 @@ export function PreviewTab({
         {isSvg && (
           <div className="w-full h-full flex items-center justify-center p-8 bg-slate-950/40 overflow-auto">
             <div
-              className="max-w-full max-h-full flex items-center justify-center p-4 rounded-sm border border-border/60 bg-card shadow-manus-md"
+              className="max-w-full max-h-full flex items-center justify-center p-4 rounded-sm border border-border/60 bg-card shadow-peldrun-md"
               dangerouslySetInnerHTML={{ __html: rawContent }}
             />
           </div>

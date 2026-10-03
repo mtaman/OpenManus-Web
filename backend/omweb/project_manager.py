@@ -253,7 +253,7 @@ class ProjectManager:
         events: list,
         result: str = "",
         status: str = "running",
-        agent_id: str = "manus",
+        agent_id: str = "peldrun",
         mode: str = "agent"
     ) -> dict:
         existing = self.get_chat(job_id) or self.get_chat(chat_id)
@@ -261,8 +261,8 @@ class ProjectManager:
             prev_pid = existing.get("project_id")
             if prev_pid and prev_pid != "default_project" and (not project_id or project_id == "default_project"):
                 project_id = prev_pid
-            if not agent_id or agent_id == "manus":
-                agent_id = existing.get("agent_id", "manus")
+            if not agent_id or agent_id == "peldrun":
+                agent_id = existing.get("agent_id", "peldrun")
             if not mode or mode == "agent":
                 mode = existing.get("mode", mode)
 
@@ -287,8 +287,8 @@ class ProjectManager:
                 created_at = old.get("created_at", now_str)
                 if not result and old.get("result"):
                     result = old.get("result")
-                if not agent_id or agent_id == "manus":
-                    agent_id = old.get("agent_id", "manus")
+                if not agent_id or agent_id == "peldrun":
+                    agent_id = old.get("agent_id", "peldrun")
                 if old.get("mode"):
                     mode = old.get("mode")
                 if old.get("status") in ["completed", "failed"] and status == "running":

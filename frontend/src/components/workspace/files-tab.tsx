@@ -97,9 +97,9 @@ export function FilesTab({ onSelectFile, onOpenFile, activeJobId }: FilesTabProp
                 onClick={() => !item.isDir && handleItemClick(item.path)}
               >
                 {item.isDir ? (
-                  <Folder size={14} className="text-manus-warning flex-shrink-0" />
+                  <Folder size={14} className="text-peldrun-warning flex-shrink-0" />
                 ) : (
-                  <FileText size={14} className="text-manus-info flex-shrink-0" />
+                  <FileText size={14} className="text-peldrun-info flex-shrink-0" />
                 )}
                 <span className="truncate text-foreground font-mono text-[11px]">{item.name}</span>
                 {item.size !== undefined && (
@@ -121,7 +121,7 @@ export function FilesTab({ onSelectFile, onOpenFile, activeJobId }: FilesTabProp
                   </a>
                   <button
                     onClick={() => handleDelete(item.path)}
-                    className="p-1 text-muted-foreground hover:text-manus-error cursor-pointer rounded-sm"
+                    className="p-1 text-muted-foreground hover:text-peldrun-error cursor-pointer rounded-sm"
                     title="Delete"
                   >
                     <Trash2 size={13} />
@@ -152,7 +152,7 @@ export function FilesTab({ onSelectFile, onOpenFile, activeJobId }: FilesTabProp
             onClick={() => setFilterCurrentOnly(!filterCurrentOnly)}
             className={`px-2 py-0.5 rounded-md text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
               filterCurrentOnly 
-                ? "bg-primary text-primary-foreground shadow-manus-xs" 
+                ? "bg-primary text-primary-foreground shadow-peldrun-xs" 
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}
             title="Toggle between task files and entire workspace"

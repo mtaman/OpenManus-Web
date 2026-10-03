@@ -13,7 +13,7 @@ except ImportError:
     import tomli as tomllib
 
 import toml
-from omweb.config import PROJECT_ROOT, STORAGE_ROOT, OPENMANUS_ROOT
+from omweb.config import PROJECT_ROOT, STORAGE_ROOT, peldrun_ROOT
 
 router = APIRouter()
 
@@ -55,9 +55,9 @@ def write_raw_config(data: dict):
     tmp_path.replace(CONFIG_PATH)
 
     # Synchronize with engine directory if external engine exists
-    if OPENMANUS_ROOT != PROJECT_ROOT and (OPENMANUS_ROOT / "config").exists():
+    if peldrun_ROOT != PROJECT_ROOT and (peldrun_ROOT / "config").exists():
         try:
-            shutil.copy2(CONFIG_PATH, OPENMANUS_ROOT / "config" / "config.toml")
+            shutil.copy2(CONFIG_PATH, peldrun_ROOT / "config" / "config.toml")
         except Exception as e:
             print(f"[WARN] Failed to sync config to engine directory: {e}")
 
@@ -194,8 +194,8 @@ async def test_llm_connection(payload: TestLLMRequest):
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         if "openrouter.ai" in base:
-            headers["HTTP-Referer"] = "https://github.com/mtaman/OpenManus-Web"
-            headers["X-Title"] = "OpenManus-Web"
+            headers["HTTP-Referer"] = "https://github.com/mtaman/PELDRUN-Web"
+            headers["X-Title"] = "PELDRUN-Web"
 
     start_time = time.time()
     try:

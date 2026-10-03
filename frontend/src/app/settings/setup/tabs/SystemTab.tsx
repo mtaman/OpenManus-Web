@@ -66,7 +66,7 @@ export function SystemTab({ systemInfo, fetchSystemInfo }: SystemTabProps) {
                   </div>
                   <div className="w-full bg-card rounded-full h-1.5 overflow-hidden mt-1">
                     <div
-                      className="bg-manus-accent h-full transition-all duration-300"
+                      className="bg-peldrun-accent h-full transition-all duration-300"
                       style={{ width: `${systemInfo.os?.memory?.usage_percent || 0}%` }}
                     />
                   </div>
@@ -84,12 +84,12 @@ export function SystemTab({ systemInfo, fetchSystemInfo }: SystemTabProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
                 <div className="p-3.5 rounded-md bg-background border border-border/60 space-y-1">
-                  <span className="text-[11px] text-muted-foreground font-bold block font-sans">OpenManus Core Engine</span>
-                  <div>Commit: <span className="font-bold text-emerald-500">{systemInfo.repositories?.openmanus?.commit || "Detected"}</span></div>
+                  <span className="text-[11px] text-muted-foreground font-bold block font-sans">peldrun Core Engine</span>
+                  <div>Commit: <span className="font-bold text-emerald-500">{systemInfo.repositories?.peldrun?.commit || "Detected"}</span></div>
                 </div>
                 <div className="p-3.5 rounded-md bg-background border border-border/60 space-y-1">
-                  <span className="text-[11px] text-muted-foreground font-bold block font-sans">OpenManus Web (PWA Frontend)</span>
-                  <div>Commit: <span className="font-bold text-primary">{systemInfo.repositories?.openmanus_web?.commit || "Local"}</span></div>
+                  <span className="text-[11px] text-muted-foreground font-bold block font-sans">peldrun Web (PWA Frontend)</span>
+                  <div>Commit: <span className="font-bold text-primary">{systemInfo.repositories?.peldrun_web?.commit || "Local"}</span></div>
                 </div>
               </div>
             </div>

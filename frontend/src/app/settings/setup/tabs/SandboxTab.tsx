@@ -50,7 +50,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 type="text"
                 value={config.sandbox.image}
                 onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, image: e.target.value } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
             <div>
@@ -60,7 +60,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 value={config.sandbox.memory_limit}
                 onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, memory_limit: e.target.value } })}
                 placeholder="1g or 2g"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
             <div>
@@ -70,7 +70,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 step="0.5"
                 value={config.sandbox.cpu_limit || 2.0}
                 onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, cpu_limit: parseFloat(e.target.value) || 2.0 } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
             <div>
@@ -79,7 +79,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 type="number"
                 value={config.sandbox.timeout || 300}
                 onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, timeout: parseInt(e.target.value, 10) || 300 } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
           </div>
@@ -123,7 +123,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 value={config.daytona.daytona_api_key || ""}
                 onChange={(e) => setConfig({ ...config, daytona: { ...config.daytona, daytona_api_key: e.target.value } })}
                 placeholder="dtn_..."
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
             <div>
@@ -132,7 +132,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 type="text"
                 value={config.daytona.daytona_server_url || "https://app.daytona.io/api"}
                 onChange={(e) => setConfig({ ...config, daytona: { ...config.daytona, daytona_server_url: e.target.value } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
             <div>
@@ -141,7 +141,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 type="text"
                 value={config.daytona.daytona_target || "us"}
                 onChange={(e) => setConfig({ ...config, daytona: { ...config.daytona, daytona_target: e.target.value } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
             <div>
@@ -150,7 +150,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 type="text"
                 value={config.daytona.sandbox_image_name || "whitezxj/sandbox:0.1.0"}
                 onChange={(e) => setConfig({ ...config, daytona: { ...config.daytona, sandbox_image_name: e.target.value } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
             <div className="md:col-span-2">
@@ -170,7 +170,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
                 value={config.daytona.VNC_password || ""}
                 onChange={(e) => setConfig({ ...config, daytona: { ...config.daytona, VNC_password: e.target.value } })}
                 placeholder="Leave empty or set VNC password"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
               />
             </div>
           </div>

@@ -38,7 +38,7 @@ export function Sidebar({ activeTab, setActiveTab, handleSave, saving, saveStatu
               onClick={() => setActiveTab(tab.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-manus-xs"
+                  ? "bg-primary text-primary-foreground shadow-peldrun-xs"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
               }`}
             >
@@ -53,7 +53,7 @@ export function Sidebar({ activeTab, setActiveTab, handleSave, saving, saveStatu
         <Button
           onClick={handleSave}
           disabled={saving}
-          className="w-full flex items-center justify-center gap-1.5 h-8 bg-primary text-primary-foreground font-medium text-xs rounded-md shadow-manus-xs cursor-pointer"
+          className="w-full flex items-center justify-center gap-1.5 h-8 bg-primary text-primary-foreground font-medium text-xs rounded-md shadow-peldrun-xs cursor-pointer"
         >
           {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
           <span>{saving ? "Saving..." : "Save Config"}</span>
@@ -63,8 +63,8 @@ export function Sidebar({ activeTab, setActiveTab, handleSave, saving, saveStatu
           <div
             className={`p-2 rounded-md text-[11px] leading-tight border ${
               saveStatus.includes("Error") || saveStatus.includes("Failed")
-                ? "bg-manus-error/10 border-manus-error/30 text-manus-error"
-                : "bg-manus-success/10 border-manus-success/30 text-manus-success"
+                ? "bg-peldrun-error/10 border-peldrun-error/30 text-peldrun-error"
+                : "bg-peldrun-success/10 border-peldrun-success/30 text-peldrun-success"
             }`}
           >
             {saveStatus}

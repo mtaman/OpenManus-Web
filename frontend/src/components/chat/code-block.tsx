@@ -120,7 +120,7 @@ export function CodeBlock({
     if (!cleanCode) return;
     if (typeof window !== "undefined") {
       window.dispatchEvent(
-        new CustomEvent("openmanus:open-in-sandbox", {
+        new CustomEvent("peldrun:open-in-sandbox", {
           detail: {
             code: cleanCode,
             language: normalizedLang,
@@ -134,7 +134,7 @@ export function CodeBlock({
   const HighlightComponent = Highlight as any;
 
   return (
-    <div dir="ltr" className={`my-3 overflow-hidden rounded-sm border border-border bg-[#0d1117] text-slate-100 shadow-manus-sm font-mono ${className}`}>
+    <div dir="ltr" className={`my-3 overflow-hidden rounded-sm border border-border bg-[#0d1117] text-slate-100 shadow-peldrun-sm font-mono ${className}`}>
       <div className="flex items-center justify-between px-3.5 py-2 border-b border-border/60 bg-[#161b22]">
         <div className="flex items-center gap-2 truncate">
           {normalizedLang === "bash" ? (
@@ -177,13 +177,13 @@ export function CodeBlock({
           <button
             type="button"
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-mist-950 hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer border border-border/50 shadow-manus-xs"
+            className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-mist-950 hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer border border-border/50 shadow-peldrun-xs"
             title="Copy Code to Clipboard"
           >
             {copied ? (
               <>
-                <Check size={12} className="text-manus-success" />
-                <span className="text-manus-success font-mono">Copied</span>
+                <Check size={12} className="text-peldrun-success" />
+                <span className="text-peldrun-success font-mono">Copied</span>
               </>
             ) : (
               <>

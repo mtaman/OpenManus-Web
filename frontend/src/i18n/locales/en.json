@@ -1,6 +1,6 @@
 ﻿{
   "app": {
-    "title": "OpenManus Web",
+    "title": "peldrun Web",
     "status": {
       "running": "Agent running",
       "idle": "Ready",

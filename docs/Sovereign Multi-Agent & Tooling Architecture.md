@@ -2,7 +2,7 @@
 
 ---
 
-# OpenManus-Web: Sovereign Multi-Agent & Tooling Architecture
+# PELDRUN-Web: Sovereign Multi-Agent & Tooling Architecture
 
 ## Technical Reference & Developer Onboarding Manual
 
@@ -10,18 +10,18 @@
 
 ## 1. Executive Summary & Core Philosophy
 
-**OpenManus-Web** is an enterprise-grade autonomous agent workspace combining a reactive **Next.js (App Router)** client with an asynchronous **FastAPI** backend orchestrating autonomous task execution.
+**PELDRUN-Web** is an enterprise-grade autonomous agent workspace combining a reactive **Next.js (App Router)** client with an asynchronous **FastAPI** backend orchestrating autonomous task execution.
 
 ### The Monolithic Challenge vs. Sovereign Personas
 
-In native upstream implementations, autonomous agents are often constructed as monolithic generalists (`app.agent.manus.Manus`). A single generalist agent:
+In native upstream implementations, autonomous agents are often constructed as monolithic generalists (`app.agent.peldrun.peldrun`). A single generalist agent:
 
 * Operates under a generic system prompt ("I am an all-capable assistant").
 * Loads all environment tools indiscriminately (`bash`, `python_execute`, `file_saver`, `browser_use`, `web_search`, and custom MCP plugins).
 * Suffixes excessive token overhead to LLM reasoning cycles.
 * Suffers from prompt distraction, tool hallucination, and unpredictable step counts.
 
-**The Sovereign Agent Paradigm** solves this through **Dynamic Persona & Capability Scoping**. Rather than maintaining fragile, divergent agent subclasses, OpenManus-Web dynamically projects a specialized persona manifest onto the hardened execution engine at runtime.
+**The Sovereign Agent Paradigm** solves this through **Dynamic Persona & Capability Scoping**. Rather than maintaining fragile, divergent agent subclasses, PELDRUN-Web dynamically projects a specialized persona manifest onto the hardened execution engine at runtime.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -66,7 +66,7 @@ In native upstream implementations, autonomous agents are often constructed as m
 Understanding where key layers reside is critical for every developer joining the project:
 
 ```text
-OpenManus-Web/
+PELDRUN-Web/
 ├── backend/
 │   ├── omweb/
 │   │   ├── agents/
@@ -81,7 +81,7 @@ OpenManus-Web/
 │   │   │   └── store_rtr.py         <-- /api/store endpoints (Agents, Tools, MCP)
 │   │   ├── agent_bridge.py          <-- Universal Parameter Resolver & Scoping Logic
 │   │   └── project_manager.py       <-- File workspaces & session serialization
-│   └── app/                         <-- Core OpenManus execution engine
+│   └── app/                         <-- Core peldrun execution engine
 └── frontend/
     └── src/
         ├── app/
@@ -131,7 +131,7 @@ interface AgentManifest {
 
 | Agent ID | Display Name | Core Purpose | Active Tools | Max Steps |
 | --- | --- | --- | --- | --- |
-| `manus` | **Manus Generalist** | Unrestricted, all-purpose autonomous task runner. | All tools in environment | 30 |
+| `peldrun` | **peldrun Generalist** | Unrestricted, all-purpose autonomous task runner. | All tools in environment | 30 |
 | `code_architect` | **Code Architect** | Production software engineering, refactoring, unit testing, and modular architecture. | `bash`, `python_execute`, `file_saver` | 30 |
 | `deep_researcher` | **Deep Researcher** | Web intelligence, source synthesis, multi-page data extraction, and report compiling. | `web_search`, `browser_use`, `file_saver` | 35 |
 | `data_scientist` | **Data Scientist** | Statistical exploration, Pandas/NumPy data processing, automated Matplotlib/Seaborn visualization. | `python_execute`, `file_saver` | 25 |
@@ -149,7 +149,7 @@ background_tasks.add_task(run_instrumented, actual_job_id, agent_prompt, llm_ove
 
 ```
 
-Because `agent_id` was introduced as the third parameter in the function signature, the third argument (`llm_override`, a Python `dict`) was received as `agent_id`. Passing a dictionary into an agent registry expecting a string caused immediate fallback to `Manus Generalist`.
+Because `agent_id` was introduced as the third parameter in the function signature, the third argument (`llm_override`, a Python `dict`) was received as `agent_id`. Passing a dictionary into an agent registry expecting a string caused immediate fallback to `peldrun Generalist`.
 
 ### 4.2 The Universal Resolver Solution
 
@@ -177,7 +177,7 @@ async def run_instrumented(
 
     # 3. Fallback resolution to guarantee a valid string
     if not agent_id or not isinstance(agent_id, str):
-        agent_id = kwargs.get("agent_id") or "manus"
+        agent_id = kwargs.get("agent_id") or "peldrun"
 
 ```
 
@@ -195,7 +195,7 @@ The bridge will always correctly extract the target agent persona and the LLM ov
 
 ### 5.1 Least Privilege Scoping
 
-To maintain security, minimize token usage, and prevent tool hallucination, `Manus.tools` is filtered down dynamically to match the agent manifest:
+To maintain security, minimize token usage, and prevent tool hallucination, `peldrun.tools` is filtered down dynamically to match the agent manifest:
 
 ```python
 from omweb.agents.registry import agent_registry
@@ -287,7 +287,7 @@ Once registered:
 
 ### 7.2 How to Create a New Autonomous Tool
 
-1. Create a tool class implementing OpenManus `BaseTool`:
+1. Create a tool class implementing peldrun `BaseTool`:
 
 ```python
 # backend/app/tool/git_operator.py
@@ -376,8 +376,8 @@ Returns all active system and custom agents.
 ```json
 [
   {
-    "id": "manus",
-    "name": "Manus Generalist",
+    "id": "peldrun",
+    "name": "peldrun Generalist",
     "role": "General Autonomous Specialist",
     "tools": ["*"],
     "max_steps": 30,
@@ -428,7 +428,7 @@ When verifying autonomous behavior in terminal logs (`.\start-backend`):
 
 ```text
 2026-09-30 01:54:29.269 | INFO | app.agent.base:run:140 - Executing step 1/30
-2026-09-30 01:54:43.806 | INFO | app.agent.toolcall:think:81 - ✨ Manus's thoughts: I am a Senior Full-Stack Engineer and Architect specializing in writing clean, modular, robust code...
+2026-09-30 01:54:43.806 | INFO | app.agent.toolcall:think:81 - ✨ peldrun's thoughts: I am a Senior Full-Stack Engineer and Architect specializing in writing clean, modular, robust code...
 2026-09-30 01:54:43.815 | INFO | app.agent.toolcall:execute_tool:188 - 🔧 Activating tool: 'terminate'...
 [BRIDGE] Execution completed successfully for job: job_dced4341cc58
 

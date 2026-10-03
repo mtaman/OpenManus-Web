@@ -51,17 +51,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   currentJobId: null,
   isRunning: false,
-  selectedAgentId: "manus",
+  selectedAgentId: "peldrun",
   availableAgents: [],
   activeSteps: [],
   sessions: [],
 
-  setSelectedAgentId: (agentId: string) => set({ selectedAgentId: agentId || "manus" }),
+  setSelectedAgentId: (agentId: string) => set({ selectedAgentId: agentId || "peldrun" }),
   setAvailableAgents: (agents: AgentManifest[]) => set({ availableAgents: agents }),
 
   syncSessionAgentMetadata: (chatData: any) => {
     if (!chatData) return;
-    const agentId = chatData.agent_id || "manus";
+    const agentId = chatData.agent_id || "peldrun";
     const mode = (chatData.mode === "chat" || chatData.mode === "agent") ? chatData.mode : "agent";
     
     set({ selectedAgentId: agentId });
@@ -86,7 +86,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       case "data_scientist":
         return 25;
       case "code_architect":
-      case "manus":
+      case "peldrun":
       default:
         return 30;
     }
@@ -116,7 +116,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (chat) {
         set({
           currentJobId: chat.job_id || null,
-          selectedAgentId: chat.agent_id || "manus",
+          selectedAgentId: chat.agent_id || "peldrun",
           messages: [
             {
               id: chat.id || "msg_1",
@@ -144,7 +144,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearAllSessions: async () => {
     await deleteAllChats();
-    set({ sessions: [], messages: [], currentJobId: null, activeSteps: [], selectedAgentId: "manus" });
+    set({ sessions: [], messages: [], currentJobId: null, activeSteps: [], selectedAgentId: "peldrun" });
   },
 
   addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),

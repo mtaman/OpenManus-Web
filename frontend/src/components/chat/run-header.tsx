@@ -20,7 +20,7 @@ export function RunHeader({
   currentStep,
   maxSteps = 20,
   onCancel,
-  agentId = "manus",
+  agentId = "peldrun",
 }: RunHeaderProps) {
   const handleCopyTrace = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -35,7 +35,7 @@ export function RunHeader({
       case "data_scientist":
         return { name: "Data Scientist", icon: <BarChart3 size={12} className="text-purple-400" /> };
       default:
-        return { name: "Manus Generalist", icon: <Bot size={12} className="text-emerald-400" /> };
+        return { name: "peldrun Generalist", icon: <Bot size={12} className="text-emerald-400" /> };
     }
   };
 

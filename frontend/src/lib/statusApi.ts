@@ -1,7 +1,7 @@
 ﻿export interface ServerHealthResponse {
   status: "healthy" | "degraded" | "unhealthy" | "online";
   server?: string;
-  openmanus_linked?: boolean;
+  peldrun_linked?: boolean;
   workspaces_writable?: boolean;
   llm_configured?: boolean;
   memory_usage_percent?: number;
@@ -31,13 +31,13 @@ export interface SystemInfoResponse {
     python_executable: string;
   };
   repositories: {
-    openmanus: {
+    peldrun: {
       path: string;
       commit: string;
       target_commit: string;
       is_aligned: boolean;
     };
-    openmanus_web: {
+    peldrun_web: {
       path: string;
       commit: string;
       version: string;

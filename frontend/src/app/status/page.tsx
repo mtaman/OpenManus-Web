@@ -70,7 +70,7 @@ export default function SystemStatusPage() {
       <header className="w-full border-b border-border bg-custom backdrop-blur-md sticky top-0 z-10">
         <div className=" w-full px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-manus-accent/10 text-manus-accent border border-accent/20 shadow-sm">
+            <div className="p-2.5 rounded-xl bg-peldrun-accent/10 text-peldrun-accent border border-accent/20 shadow-sm">
               <Activity className="h-5 w-5" />
             </div>
             <div>
@@ -156,7 +156,7 @@ export default function SystemStatusPage() {
             <div className="p-4 rounded-2xl border border-border bg-card shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">Memory Load</span>
-                <HardDrive size={16} className="text-manus-accent" />
+                <HardDrive size={16} className="text-peldrun-accent" />
               </div>
               <div className="text-lg font-bold text-foreground">
                 {totalGb > 0 ? `${memUsagePercent}%` : "-"}
@@ -173,7 +173,7 @@ export default function SystemStatusPage() {
                       ? "bg-destructive"
                       : memUsagePercent > 70
                       ? "bg-amber-500"
-                      : "bg-manus-accent"
+                      : "bg-peldrun-accent"
                   }`}
                   style={{ width: totalGb > 0 ? `${Math.min(100, memUsagePercent)}%` : "0%" }}
                 />
@@ -184,7 +184,7 @@ export default function SystemStatusPage() {
             <div className="p-4 rounded-2xl border border-border bg-card shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">CPU Processor</span>
-                <Cpu size={16} className="text-manus-accent" />
+                <Cpu size={16} className="text-peldrun-accent" />
               </div>
               <div className="text-xs font-bold text-foreground truncate" title={report?.systemInfo?.os?.cpu_brand || "-"}>
                 {report?.systemInfo?.os?.cpu_brand || "-"}
@@ -198,7 +198,7 @@ export default function SystemStatusPage() {
             <div className="p-4 rounded-2xl border border-border bg-card shadow-sm flex flex-col justify-between">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">LLM Engine</span>
-                <Sparkles size={16} className="text-manus-accent" />
+                <Sparkles size={16} className="text-peldrun-accent" />
               </div>
               <div className="text-sm font-bold text-foreground">
                 {report?.health?.llm_configured !== undefined
@@ -222,25 +222,25 @@ export default function SystemStatusPage() {
             {/* Engine & Storage Integrity Card */}
             <div className="p-6 rounded-2xl border border-border bg-card shadow-sm space-y-4">
               <div className="flex items-center gap-2.5 pb-3 border-b border-border">
-                <div className="p-2 rounded-lg bg-manus-accent/10 text-manus-accent border border-accent/20">
+                <div className="p-2 rounded-lg bg-peldrun-accent/10 text-peldrun-accent border border-accent/20">
                   <Server size={16} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">OpenManus Core & Filesystem Integrity</h3>
+                  <h3 className="text-sm font-bold text-foreground">peldrun Core & Filesystem Integrity</h3>
                   <p className="text-xs text-muted-foreground">Subsystem binding and workspace storage probes</p>
                 </div>
               </div>
 
               <div className="space-y-3 text-xs font-mono">
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
-                  <span className="text-muted-foreground">OpenManus Engine Linked:</span>
+                  <span className="text-muted-foreground">peldrun Engine Linked:</span>
                   <span className="flex items-center gap-1.5 font-semibold text-foreground">
-                    {report?.health?.openmanus_linked === true ? (
+                    {report?.health?.peldrun_linked === true ? (
                       <>
                         <CheckCircle2 size={13} className="text-emerald-500" />
                         Linked & Mounted
                       </>
-                    ) : report?.health?.openmanus_linked === false ? (
+                    ) : report?.health?.peldrun_linked === false ? (
                       <>
                         <XCircle size={13} className="text-destructive" />
                         Unlinked
@@ -273,15 +273,15 @@ export default function SystemStatusPage() {
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
                   <span className="text-muted-foreground">Core Git Commit:</span>
                   <span className="text-foreground font-semibold">
-                    {report?.systemInfo?.repositories?.openmanus?.commit || "-"}
+                    {report?.systemInfo?.repositories?.peldrun?.commit || "-"}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-muted/40 border border-border">
                   <span className="text-muted-foreground">Web Gateway Version:</span>
                   <span className="text-foreground font-semibold">
-                    {report?.systemInfo?.repositories?.openmanus_web?.version
-                      ? `v${report.systemInfo.repositories.openmanus_web.version} (${report.systemInfo.repositories.openmanus_web.commit || "-"})`
+                    {report?.systemInfo?.repositories?.peldrun_web?.version
+                      ? `v${report.systemInfo.repositories.peldrun_web.version} (${report.systemInfo.repositories.peldrun_web.commit || "-"})`
                       : "-"}
                   </span>
                 </div>
@@ -330,8 +330,8 @@ export default function SystemStatusPage() {
 
                 <div className="p-2.5 rounded-xl bg-muted/40 border border-border space-y-1">
                   <span className="text-muted-foreground block text-[11px]">Core Repository Path:</span>
-                  <span className="text-foreground block truncate text-[11px]" title={report?.systemInfo?.repositories?.openmanus?.path || "-"}>
-                    {report?.systemInfo?.repositories?.openmanus?.path || "-"}
+                  <span className="text-foreground block truncate text-[11px]" title={report?.systemInfo?.repositories?.peldrun?.path || "-"}>
+                    {report?.systemInfo?.repositories?.peldrun?.path || "-"}
                   </span>
                 </div>
               </div>
@@ -371,7 +371,7 @@ export default function SystemStatusPage() {
                   {probes.length === 0 && loading ? (
                     <tr>
                       <td colSpan={4} className="py-6 text-center text-muted-foreground">
-                        <RefreshCw size={14} className="animate-spin inline mr-2 text-manus-accent" />
+                        <RefreshCw size={14} className="animate-spin inline mr-2 text-peldrun-accent" />
                         Running live network probes...
                       </td>
                     </tr>

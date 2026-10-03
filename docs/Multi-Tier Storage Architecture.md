@@ -1,15 +1,15 @@
-# OpenManus-Web Unified Multi-Tier Storage Architecture
+# PELDRUN-Web Unified Multi-Tier Storage Architecture
 
 ## 1. Architectural Overview & Design Philosophy
 
-The **Unified Multi-Tier Storage Architecture** provides a typed, SSR-safe, and reactive persistence layer for the OpenManus-Web application.
+The **Unified Multi-Tier Storage Architecture** provides a typed, SSR-safe, and reactive persistence layer for the PELDRUN-Web application.
 
 In modern hybrid React/Next.js frameworks (App Router with Next.js 15), reading client storage such as `localStorage` or `sessionStorage` during server-side execution is strictly forbidden and produces hydration mismatch errors. Conversely, performing blocking server reads on client-only values compromises runtime performance.
 
 To resolve this dichotomy, this architecture bifurcates persistence into **two physical tiers**:
 
 ```
-                       OpenManus-Web Application
+                       PELDRUN-Web Application
                                   │
          ┌────────────────────────┴────────────────────────┐
          │                                                 │
@@ -117,7 +117,7 @@ export const storageSchema = {
   selected_engine: {
     tier: "local",
     schema: z.string().min(1).max(128),
-    defaultValue: "manus-agent",
+    defaultValue: "peldrun-agent",
   },
   active_llm_override: {
     tier: "local",
@@ -161,7 +161,7 @@ The client engine encapsulates all browser interactions:
 * **Local In-Memory Notification:** Fires registered listeners immediately within the active window when a change occurs.
 
 
-* **BroadcastChannel:** Transmits updates across browser tabs via `new BroadcastChannel("openmanus-web-storage")`.
+* **BroadcastChannel:** Transmits updates across browser tabs via `new BroadcastChannel("PELDRUN-Web-storage")`.
 
 
 * **StorageEvent Fallback:** Listens for standard window `storage` events to ensure cross-window reactivity.
@@ -237,7 +237,7 @@ import { storage } from "@/lib/storage/client";
 const currentEngine = storage.get("selected_engine");
 
 // Write value (automatically triggers UI subscribers and cross-tab broadcasts)
-storage.set("selected_engine", "manus-agent");
+storage.set("selected_engine", "peldrun-agent");
 
 // Subscribe to imperative changes
 const unsubscribe = storage.subscribe("exec_mode", (newMode) => {

@@ -50,7 +50,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
               <select
                 value={config.search.engine}
                 onChange={(e) => setConfig({ ...config, search: { ...config.search, engine: e.target.value } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-peldrun-xs"
               >
                 {engineOptions.map((e) => (
                   <option key={e} value={e}>{e}</option>
@@ -70,7 +70,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
                       onClick={() => toggleFallback(eng)}
                       className={`px-2.5 py-1 rounded text-xs font-medium cursor-pointer transition-all border ${
                         isSelected
-                          ? "bg-primary text-primary-foreground border-primary shadow-manus-xs"
+                          ? "bg-primary text-primary-foreground border-primary shadow-peldrun-xs"
                           : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
                       }`}
                     >
@@ -89,7 +89,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
                 type="number"
                 value={config.search.retry_delay ?? 60}
                 onChange={(e) => setConfig({ ...config, search: { ...config.search, retry_delay: parseInt(e.target.value, 10) || 60 } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
             <div>
@@ -98,7 +98,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
                 type="number"
                 value={config.search.max_retries ?? 3}
                 onChange={(e) => setConfig({ ...config, search: { ...config.search, max_retries: parseInt(e.target.value, 10) || 3 } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
             <div>
@@ -108,7 +108,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
                 value={config.search.lang || "en"}
                 onChange={(e) => setConfig({ ...config, search: { ...config.search, lang: e.target.value } })}
                 placeholder="en / ar"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
             <div>
@@ -118,7 +118,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
                 value={config.search.country || "us"}
                 onChange={(e) => setConfig({ ...config, search: { ...config.search, country: e.target.value } })}
                 placeholder="us / eg"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
           </div>

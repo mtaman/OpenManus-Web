@@ -27,7 +27,7 @@ interface StorageEnvelope {
   sourceId: string;
 }
 
-const CHANNEL_NAME = "openmanus-web-storage";
+const CHANNEL_NAME = "PELDRUN-Web-storage";
 
 const sourceId =
   typeof crypto !== "undefined" && "randomUUID" in crypto

@@ -1,7 +1,7 @@
 ﻿import { z } from "zod";
 
 /**
- * Storage Schema definition for OpenManus-Web.
+ * Storage Schema definition for PELDRUN-Web.
  * Explicitly separates SSR-critical cookies from client-only local storage.
  */
 export const storageSchema = {
@@ -56,7 +56,7 @@ export const storageSchema = {
   selected_engine: {
     tier: "local",
     schema: z.string().min(1).max(128),
-    defaultValue: "manus-agent",
+    defaultValue: "peldrun-agent",
   },
 
   active_llm_override: {

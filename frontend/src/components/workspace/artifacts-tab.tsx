@@ -112,13 +112,13 @@ export function ArtifactsTab({ jobId, activeJobId, chatId, selectedFile }: Artif
     const interval = setInterval(fetchArtifacts, 3000);
     const handleArtifact = () => fetchArtifacts();
 
-    window.addEventListener("openmanus:artifact-created", handleArtifact);
-    window.addEventListener("openmanus:file-saved", handleArtifact);
+    window.addEventListener("peldrun:artifact-created", handleArtifact);
+    window.addEventListener("peldrun:file-saved", handleArtifact);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener("openmanus:artifact-created", handleArtifact);
-      window.removeEventListener("openmanus:file-saved", handleArtifact);
+      window.removeEventListener("peldrun:artifact-created", handleArtifact);
+      window.removeEventListener("peldrun:file-saved", handleArtifact);
     };
   }, [fetchArtifacts]);
 
@@ -149,7 +149,7 @@ export function ArtifactsTab({ jobId, activeJobId, chatId, selectedFile }: Artif
       {/* Header Bar */}
       <div className="h-10 border-b border-border bg-card/60 backdrop-blur-sm px-4 flex items-center justify-between shrink-0 text-xs">
         <div className="flex items-center gap-2 min-w-0">
-          <Package className="w-4 h-4 text-manus-accent shrink-0" />
+          <Package className="w-4 h-4 text-peldrun-accent shrink-0" />
           <span className="font-semibold text-foreground">Media Artifacts</span>
           <span className="px-1.5 py-0.2 rounded text-[10px] bg-muted text-muted-foreground font-mono">
             {files.length}
@@ -200,7 +200,7 @@ export function ArtifactsTab({ jobId, activeJobId, chatId, selectedFile }: Artif
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         {filteredFiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8 text-muted-foreground">
-            <div className="w-12 h-12 rounded-2xl bg-card border border-border flex items-center justify-center text-manus-accent mb-3 shadow-manus-sm">
+            <div className="w-12 h-12 rounded-2xl bg-card border border-border flex items-center justify-center text-peldrun-accent mb-3 shadow-peldrun-sm">
               <Package size={24} />
             </div>
             <div className="font-semibold text-sm text-foreground mb-1">No Media Deliverables in this Session</div>
@@ -219,10 +219,10 @@ export function ArtifactsTab({ jobId, activeJobId, chatId, selectedFile }: Artif
                 <div
                   key={file.name}
                   ref={isHighlighted ? highlightedCardRef : null}
-                  className={`group relative flex flex-col rounded-xl border bg-card shadow-manus-sm transition-all overflow-hidden ${
+                  className={`group relative flex flex-col rounded-xl border bg-card shadow-peldrun-sm transition-all overflow-hidden ${
                     isHighlighted
-                      ? "border-primary ring-2 ring-primary/40 shadow-manus-md"
-                      : "border-border hover:border-manus-accent/40 hover:shadow-manus-md"
+                      ? "border-primary ring-2 ring-primary/40 shadow-peldrun-md"
+                      : "border-border hover:border-peldrun-accent/40 hover:shadow-peldrun-md"
                   }`}
                 >
                   <div className="relative w-full h-36 bg-muted/20 flex items-center justify-center overflow-hidden border-b border-border/50">
@@ -301,7 +301,7 @@ export function ArtifactsTab({ jobId, activeJobId, chatId, selectedFile }: Artif
                         href={file.rawUrl}
                         download={file.name}
                         title="Download file"
-                        className="p-1.5 rounded-md bg-manus-accent/10 hover:bg-manus-accent/20 text-manus-accent transition cursor-pointer"
+                        className="p-1.5 rounded-md bg-peldrun-accent/10 hover:bg-peldrun-accent/20 text-peldrun-accent transition cursor-pointer"
                       >
                         <Download size={13} />
                       </a>
@@ -319,7 +319,7 @@ export function ArtifactsTab({ jobId, activeJobId, chatId, selectedFile }: Artif
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col animate-in fade-in duration-200">
           <div className="h-12 border-b border-white/10 px-4 flex items-center justify-between text-white shrink-0">
             <div className="flex items-center gap-2 min-w-0">
-              <ImageIcon className="w-4 h-4 text-manus-accent shrink-0" />
+              <ImageIcon className="w-4 h-4 text-peldrun-accent shrink-0" />
               <span className="font-mono text-xs truncate max-w-sm">{selectedImage.name}</span>
               <span className="text-[10px] text-white/50 font-mono">({formatSize(selectedImage.size)})</span>
             </div>
@@ -353,7 +353,7 @@ export function ArtifactsTab({ jobId, activeJobId, chatId, selectedFile }: Artif
               <a
                 href={selectedImage.rawUrl}
                 download={selectedImage.name}
-                className="p-1.5 rounded-md bg-manus-accent text-white hover:opacity-90 transition flex items-center gap-1 text-xs cursor-pointer"
+                className="p-1.5 rounded-md bg-peldrun-accent text-white hover:opacity-90 transition flex items-center gap-1 text-xs cursor-pointer"
               >
                 <Download size={13} />
                 <span>Download</span>

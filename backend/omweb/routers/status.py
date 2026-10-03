@@ -6,7 +6,7 @@ import winreg
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import APIRouter
-from omweb.config import OPENMANUS_ROOT, BACKEND_DIR
+from omweb.config import peldrun_ROOT, BACKEND_DIR
 
 router = APIRouter()
 
@@ -69,12 +69,12 @@ async def get_system_status():
         "status": "online",
         "python_version": platform.python_version(),
         "platform": platform.platform(),
-        "openmanus_linked": OPENMANUS_ROOT.exists()
+        "peldrun_linked": peldrun_ROOT.exists()
     }
 
 @router.get("/health")
 async def get_health_status():
-    openmanus_linked = OPENMANUS_ROOT.exists()
+    peldrun_linked = peldrun_ROOT.exists()
 
     workspaces_writable = False
     try:
@@ -86,7 +86,7 @@ async def get_health_status():
         workspaces_writable = False
 
     llm_configured = False
-    config_file = OPENMANUS_ROOT / "config" / "config.toml"
+    config_file = peldrun_ROOT / "config" / "config.toml"
     if not config_file.exists():
         config_file = BACKEND_DIR / "config.toml"
     if config_file.exists():
@@ -100,7 +100,7 @@ async def get_health_status():
     memory_info = get_system_memory()
     mem_usage = memory_info.get("usage_percent", 0)
 
-    if not openmanus_linked or not workspaces_writable:
+    if not peldrun_linked or not workspaces_writable:
         overall_status = "unhealthy"
     elif not llm_configured or mem_usage > 95:
         overall_status = "degraded"
@@ -110,7 +110,7 @@ async def get_health_status():
     return {
         "status": overall_status,
         "server": "omweb-core",
-        "openmanus_linked": openmanus_linked,
+        "peldrun_linked": peldrun_linked,
         "workspaces_writable": workspaces_writable,
         "llm_configured": llm_configured,
         "memory_usage_percent": mem_usage,
@@ -121,7 +121,7 @@ async def get_health_status():
 
 @router.get("/system-info")
 async def get_detailed_system_info():
-    om_commit = get_git_commit(OPENMANUS_ROOT)
+    om_commit = get_git_commit(peldrun_ROOT)
     web_commit = get_git_commit(BACKEND_DIR.parent)
     cpu_name = get_clean_cpu_name()
     memory_info = get_system_memory()
@@ -141,13 +141,13 @@ async def get_detailed_system_info():
             "python_executable": sys.executable,
         },
         "repositories": {
-            "openmanus": {
-                "path": str(OPENMANUS_ROOT),
+            "peldrun": {
+                "path": str(peldrun_ROOT),
                 "commit": om_commit,
                 "target_commit": "3309bf4",
                 "is_aligned": True
             },
-            "openmanus_web": {
+            "peldrun_web": {
                 "path": str(BACKEND_DIR.parent),
                 "commit": web_commit,
                 "version": "2.0.0"

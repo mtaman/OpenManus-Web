@@ -38,7 +38,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
               type="text"
               value={config.sandbox.image}
               onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, image: e.target.value } })}
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
             />
           </div>
           <div>
@@ -47,7 +47,7 @@ export function SandboxTab({ config, setConfig }: SandboxTabProps) {
               type="text"
               value={config.sandbox.memory_limit}
               onChange={(e) => setConfig({ ...config, sandbox: { ...config.sandbox, memory_limit: e.target.value } })}
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
             />
           </div>
         </div>

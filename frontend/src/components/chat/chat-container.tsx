@@ -111,11 +111,11 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
     const handleArtifactEvent = () => {
       setShowRightPanel(true);
     };
-    window.addEventListener("openmanus:artifact-created", handleArtifactEvent);
-    window.addEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
+    window.addEventListener("peldrun:artifact-created", handleArtifactEvent);
+    window.addEventListener("peldrun:open-in-sandbox", handleSandboxEvent);
     return () => {
-      window.removeEventListener("openmanus:artifact-created", handleArtifactEvent);
-      window.removeEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
+      window.removeEventListener("peldrun:artifact-created", handleArtifactEvent);
+      window.removeEventListener("peldrun:open-in-sandbox", handleSandboxEvent);
     };
   }, [setShowRightPanel]);
 
@@ -261,8 +261,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           const targetTab = getFileCategory(artName);
 
           if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("openmanus:artifact-created", { detail: payload.data }));
-            window.dispatchEvent(new CustomEvent("openmanus:switch-tab", { detail: { tab: targetTab, file: artName } }));
+            window.dispatchEvent(new CustomEvent("peldrun:artifact-created", { detail: payload.data }));
+            window.dispatchEvent(new CustomEvent("peldrun:switch-tab", { detail: { tab: targetTab, file: artName } }));
           }
         }
         fetchJobFiles(jobId);
@@ -460,7 +460,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           prompt: finalPrompt,
           max_steps: effectiveMode === "agent" ? getAgentMaxSteps(selectedAgentId) : 1,
           chat_id: targetChatId,
-          agent_id: selectedAgentId || "manus",
+          agent_id: selectedAgentId || "peldrun",
           mode: effectiveMode,
           ...storedOverride,
           ...(customOverride || {})
@@ -574,7 +574,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               setShowRightPanel(true);
               const targetTab = getFileCategory(f);
               if (typeof window !== "undefined") {
-                window.dispatchEvent(new CustomEvent("openmanus:switch-tab", { detail: { tab: targetTab, file: f } }));
+                window.dispatchEvent(new CustomEvent("peldrun:switch-tab", { detail: { tab: targetTab, file: f } }));
               }
             }}
             showRawTrace={showRawTrace}

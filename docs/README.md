@@ -1,17 +1,17 @@
 ﻿ 
 
 ```markdown
-# OpenManus Web Dashboard 🚀
+# peldrun Web Dashboard 🚀
 
-> **Autonomous Agent Web Interface for OpenManus** — featuring split-view execution telemetry, live Server-Sent Events (SSE) streaming for thoughts and tool calls, zero-config onboarding resolver, and an isolated sandbox workspace manager.
+> **Autonomous Agent Web Interface for peldrun** — featuring split-view execution telemetry, live Server-Sent Events (SSE) streaming for thoughts and tool calls, zero-config onboarding resolver, and an isolated sandbox workspace manager.
 
 ---
 
 ## 🌟 Key Architecture & Capabilities
 
-- **FastAPI 2.0 Backend (Port `8088`):** Fully instrumented asynchronous execution engine running in an isolated Python 3.12 virtual environment (`backend/.venv`). Injects the OpenManus core dynamically at runtime via single-point monkey patching on `Memory.add_message`.
+- **FastAPI 2.0 Backend (Port `8088`):** Fully instrumented asynchronous execution engine running in an isolated Python 3.12 virtual environment (`backend/.venv`). Injects the peldrun core dynamically at runtime via single-point monkey patching on `Memory.add_message`.
 - **Next.js 15 PWA Client (Port `3088`):** Split-view reactive user interface built with Next.js 15 (App Router), React 19, TypeScript, and Tailwind CSS. Features dark-canvas aesthetics, real-time live steps telemetry, and bilingual Arabic/English (RTL/LTR) support.
-- **Dynamic Engine Resolver & Setup Wizard (`/setup`):** Eliminates hardcoded paths. Probes the host system automatically for existing OpenManus installations, supports custom external path validation, or installs an embedded engine inside `engine/openmanus` via one click.
+- **Dynamic Engine Resolver & Setup Wizard (`/setup`):** Eliminates hardcoded paths. Probes the host system automatically for existing peldrun installations, supports custom external path validation, or installs an embedded engine inside `engine/peldrun` via one click.
 - **Secure Sandbox Workspace Explorer (`/files` & Workspace Panel):** Real-time directory tree visualization, in-browser code editor with instant saving, direct file downloads, and path-traversal protection with soft-deletion recovery (`.trash/`).
 - **Task History & State Replay (`/history`):** Atomic persistence of all runs inside `backend/jobs.json` with `.bak` safety fallbacks. Enables instant re-run capabilities and full retrospective execution inspection.
 
@@ -51,7 +51,7 @@
                │  sys.path.insert(0, resolved_engine_path)
                ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│        OpenManus Core Engine (External or Embedded)              │
+│        peldrun Core Engine (External or Embedded)              │
 │                     (READ-ONLY ACCESS)                           │
 └──────────────────────────────────────────────────────────────────┘
 
@@ -62,14 +62,14 @@
 ## 📂 Project Directory Structure
 
 ```text
-D:\AI\OpenManus-Web\
+D:\AI\PELDRUN-Web\
 ├─ README.md
 ├─ .gitignore
 ├─ start-all.ps1
 ├─ start-backend.ps1
 ├─ start-frontend.ps1
 ├─ engine\                             (Embedded engine directory - Git ignored)
-│  └─ openmanus\
+│  └─ peldrun\
 ├─ backend\
 │  ├─ .venv\                           (Python 3.12 virtual environment)
 │  ├─ engine_config.json               (Active engine configuration - Git ignored)
@@ -158,8 +158,8 @@ Run the services independently across two separate PowerShell terminals:
 ## 🧭 First-Run Setup & Engine Resolution
 
 1. Open your browser and navigate to: `http://localhost:3088/setup`
-2. **Scenario A (Existing OpenManus):** If OpenManus is already installed on your machine, select it from the detected candidate list or input the absolute path and click **Validate & Link**.
-3. **Scenario B (New Installation):** If you do not have OpenManus installed, click **Install Embedded Engine**. The system will automatically clone `FoundationAgents/OpenManus` into `engine/openmanus`, setup default configuration files, and initialize the sandbox environment.
+2. **Scenario A (Existing peldrun):** If peldrun is already installed on your machine, select it from the detected candidate list or input the absolute path and click **Validate & Link**.
+3. **Scenario B (New Installation):** If you do not have peldrun installed, click **Install Embedded Engine**. The system will automatically clone `FoundationAgents/peldrun` into `engine/peldrun`, setup default configuration files, and initialize the sandbox environment.
 
 ---
 
@@ -168,13 +168,13 @@ Run the services independently across two separate PowerShell terminals:
 * **Path Traversal Guard:** Every file operation inside the workspace is verified via `Path.resolve()` and `is_relative_to(WORKSPACE_ROOT)` to eliminate unauthorized directory traversal.
 * **Safe Deletion:** Deleting items from the UI moves them safely into a `.trash/` recovery folder rather than permanent unrecoverable removal.
 * **Secret Isolation:** Environment keys, model credentials, `engine_config.json`, and runtime databases are strictly untracked via `.gitignore`.
-* **Read-Only Core Protection:** The OpenManus engine directory is treated as an immutable external module injected into Python's `sys.path`.
+* **Read-Only Core Protection:** The peldrun engine directory is treated as an immutable external module injected into Python's `sys.path`.
 
 ---
 
 ## 📜 License
 
-Developed under the OpenManus Web Dashboard initiative. Licensed under the MIT License.
+Developed under the peldrun Web Dashboard initiative. Licensed under the MIT License.
 
 ```
 

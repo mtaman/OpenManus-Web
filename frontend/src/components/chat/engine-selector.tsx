@@ -251,7 +251,7 @@ export function EngineSelector({ direction = "auto" }: EngineSelectorProps) {
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
-        className="inline-flex items-center gap-2 h-7 px-2.5 text-xs font-mono rounded-md border border-border bg-card hover:bg-muted text-foreground transition-all shadow-manus-xs cursor-pointer"
+        className="inline-flex items-center gap-2 h-7 px-2.5 text-xs font-mono rounded-md border border-border bg-card hover:bg-muted text-foreground transition-all shadow-peldrun-xs cursor-pointer"
         title="Select Active AI Provider & Model"
       >
         <span className="relative flex h-2 w-2 shrink-0">

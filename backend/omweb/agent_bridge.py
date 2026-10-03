@@ -36,7 +36,7 @@ def read_active_toml_config() -> Dict[str, Any]:
         engine_path / "config" / "config.toml",
         engine_path / "config.toml",
         Path(__file__).resolve().parent.parent / "config.toml",
-        Path(r"D:\AI\OpenManus\config\config.toml")
+        Path(r"D:\AI\peldrun\config\config.toml")
     ]
 
     target_file = None
@@ -376,7 +376,7 @@ async def run_instrumented(
         agent_id = llm_override.get("agent_id")
 
     if not agent_id or not isinstance(agent_id, str):
-        agent_id = kwargs.get("agent_id") or "manus"
+        agent_id = kwargs.get("agent_id") or "peldrun"
 
     print(f"\n[BRIDGE] Initializing agent for job: {job_id}")
     current_active_job_id["current"] = job_id
@@ -419,9 +419,9 @@ async def run_instrumented(
             return
 
     try:
-        from app.agent.manus import Manus
+        from app.agent.peldrun import peldrun
     except ImportError as e:
-        print(f"[BRIDGE ERROR] Failed to import OpenManus core: {e}")
+        print(f"[BRIDGE ERROR] Failed to import peldrun core: {e}")
         await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": str(e), "model": model_name}))
         return
 
@@ -463,7 +463,7 @@ async def run_instrumented(
     project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    agent = Manus()
+    agent = peldrun()
     scope_mcp_servers(agent, manifest, project_dir)
 
     allowed_tools = [t.lower() for t in manifest.get("tools", [])]

@@ -143,9 +143,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
       }
     };
 
-    window.addEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
+    window.addEventListener("peldrun:open-in-sandbox", handleSandboxEvent);
     return () => {
-      window.removeEventListener("openmanus:open-in-sandbox", handleSandboxEvent);
+      window.removeEventListener("peldrun:open-in-sandbox", handleSandboxEvent);
     };
   }, []);
 
@@ -279,7 +279,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
           setSelectedFileForEditor(fileName);
         setShowRightPanel(true);
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("openmanus:file-saved", { detail: { path: fileName } }));
+          window.dispatchEvent(new CustomEvent("peldrun:file-saved", { detail: { path: fileName } }));
         }
         }
         fetchJobFiles(jobId);
@@ -533,7 +533,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             <button
               type="button"
               onClick={handleNewSession}
-              className="inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md border border-border bg-card hover:bg-muted text-foreground transition-all shadow-manus-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md border border-border bg-card hover:bg-muted text-foreground transition-all shadow-peldrun-xs cursor-pointer"
               title="Start a fresh autonomous session"
             >
               <Plus size={13} />
@@ -552,13 +552,13 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             )}
 
             {status === "running" ? (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-manus-warning/15 text-manus-warning border border-manus-warning/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-manus-warning animate-pulse" />
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-peldrun-warning/15 text-peldrun-warning border border-peldrun-warning/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-peldrun-warning animate-pulse" />
                 <span>RUNNING</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-manus-success/15 text-manus-success border border-manus-success/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-manus-success" />
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-peldrun-success/15 text-peldrun-success border border-peldrun-success/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-peldrun-success" />
                 <span>READY</span>
               </span>
             )}
@@ -608,7 +608,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               What can I do for you?
             </h1>
 
-            <div className="w-full bg-card rounded-2xl border border-border shadow-manus-md p-3.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all text-left">
+            <div className="w-full bg-card rounded-2xl border border-border shadow-peldrun-md p-3.5 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all text-left">
               <textarea
                 ref={textareaRef}
                 value={inputValue}
@@ -653,7 +653,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   type="button"
                   onClick={() => handleStartTask()}
                   disabled={!inputValue.trim()}
-                  className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs cursor-pointer hover:bg-primary/90"
+                  className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-peldrun-xs cursor-pointer hover:bg-primary/90"
                   title="Dispatch Task (Enter)"
                 >
                   <ArrowUp size={15} />
@@ -667,7 +667,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   key={idx}
                   type="button"
                   onClick={() => handleStartTask(pill.prompt)}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-card/60 hover:bg-muted text-xs text-foreground transition-all cursor-pointer shadow-manus-xs"
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-card/60 hover:bg-muted text-xs text-foreground transition-all cursor-pointer shadow-peldrun-xs"
                 >
                   <span className="text-muted-foreground">{pill.icon}</span>
                   <span>{pill.label}</span>
@@ -689,7 +689,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
               return (
                 <div key={turn.id || tIdx} className="space-y-3 pb-3 border-b border-border/60">
-                  <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+                  <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-peldrun-xs">
                     <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                       <span className="flex items-center gap-1.5 font-medium text-foreground">
                         <User size={13} className="text-primary" />
@@ -703,8 +703,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                       >
                         {copiedSection === `turn-prompt-${tIdx}` ? (
                           <>
-                            <Check size={11} className="text-manus-success" />
-                            <span className="text-manus-success">Copied</span>
+                            <Check size={11} className="text-peldrun-success" />
+                            <span className="text-peldrun-success">Copied</span>
                           </>
                         ) : (
                           <>
@@ -720,9 +720,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   </div>
 
                   {turn.finalResult && (
-                    <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
+                    <div className="p-4 rounded-sm bg-peldrun-success/10 border border-peldrun-success/30 text-xs space-y-3 shadow-peldrun-xs">
                       <div className="flex items-center justify-between">
-                        <span className="text-manus-success font-semibold tracking-wide text-xs">
+                        <span className="text-peldrun-success font-semibold tracking-wide text-xs">
                           DELIVERABLE COMPLETED #{tIdx + 1}
                         </span>
                         <button
@@ -732,8 +732,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                         >
                           {copiedSection === `turn-res-${tIdx}` ? (
                             <>
-                              <Check size={12} className="text-manus-success" />
-                              <span className="text-manus-success">Copied</span>
+                              <Check size={12} className="text-peldrun-success" />
+                              <span className="text-peldrun-success">Copied</span>
                             </>
                           ) : (
                             <>
@@ -755,7 +755,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                       )}
 
                       {turn.producedFiles && turn.producedFiles.length > 0 && (
-                        <div className="pt-2.5 border-t border-manus-success/20">
+                        <div className="pt-2.5 border-t border-peldrun-success/20">
                           <span className="text-[11px] font-semibold text-foreground block mb-1.5">
                             Generated Files:
                           </span>
@@ -768,9 +768,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                                   setSelectedFileForEditor(f.name);
                                   setShowRightPanel(true);
                                 }}
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-peldrun-xs transition-all"
                               >
-                                <FileText size={12} className="text-manus-accent" />
+                                <FileText size={12} className="text-peldrun-accent" />
                                 <span>{f.name}</span>
                                 <ExternalLink size={10} className="opacity-60" />
                               </button>
@@ -786,7 +786,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
             {/* 2. Active Turn Prompt */}
             {submittedPrompt && (
-              <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-manus-xs">
+              <div className="p-3.5 rounded-sm bg-card border border-border text-xs space-y-1.5 shadow-peldrun-xs">
                 <div className="flex items-center justify-between text-muted-foreground text-[11px]">
                   <span className="flex items-center gap-1.5 font-medium text-foreground">
                     <User size={13} className="text-primary" />
@@ -802,8 +802,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   >
                     {copiedSection === "user-prompt" ? (
                       <>
-                        <Check size={11} className="text-manus-success" />
-                        <span className="text-manus-success">Copied</span>
+                        <Check size={11} className="text-peldrun-success" />
+                        <span className="text-peldrun-success">Copied</span>
                       </>
                     ) : (
                       <>
@@ -822,8 +822,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
             {/* Human Intervention Required */}
             {humanQuery && (
-              <div className="p-4 rounded-sm bg-manus-warning/10 border border-manus-warning/30 text-xs space-y-2.5 animate-pulse">
-                <div className="flex items-center gap-2 text-manus-warning font-semibold text-xs">
+              <div className="p-4 rounded-sm bg-peldrun-warning/10 border border-peldrun-warning/30 text-xs space-y-2.5 animate-pulse">
+                <div className="flex items-center gap-2 text-peldrun-warning font-semibold text-xs">
                   <HelpCircle size={14} />
                   <span>Agent Requires Human Input:</span>
                 </div>
@@ -854,7 +854,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
             {status === "running" && (
               <div className="flex items-center justify-between px-3.5 py-2 rounded-lg border border-primary/20 bg-muted/50 text-foreground">
                 <div className="flex items-center gap-2 text-xs">
-                  <Loader2 size={13} className="animate-spin text-manus-accent" />
+                  <Loader2 size={13} className="animate-spin text-peldrun-accent" />
                   <span>{execMode === "chat" ? "Generating direct response..." : "Agent reasoning & executing autonomously..."}</span>
                 </div>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-background border border-border text-muted-foreground">
@@ -869,7 +869,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
               const isExpanded = expandedSteps[stepNum] === true;
 
               return (
-                <div key={stepNum} className="border border-border rounded-sm bg-card/60 overflow-hidden shadow-manus-xs transition-all">
+                <div key={stepNum} className="border border-border rounded-sm bg-card/60 overflow-hidden shadow-peldrun-xs transition-all">
                   <button
                     type="button"
                     onClick={() => toggleStep(stepNum)}
@@ -877,7 +877,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   >
                     <div className="flex items-center gap-2">
                       {isExpanded ? (
-                        <ChevronDown size={14} className="text-manus-accent" />
+                        <ChevronDown size={14} className="text-peldrun-accent" />
                       ) : (
                         <ChevronRight size={14} className="text-muted-foreground" />
                       )}
@@ -898,8 +898,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                       {stepEvents.map((evt) => (
                         <div key={evt.id} className="text-xs space-y-1">
                           {evt.type === "thought" && (
-                            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
-                              <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
+                            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-peldrun-xs">
+                              <BrainCircuit size={15} className="text-peldrun-accent mt-0.5 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <MarkdownRenderer content={evt.content} />
                               </div>
@@ -908,7 +908,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
                           {evt.type === "tool_call" && evt.toolName && (
                             <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted border border-border text-foreground font-mono text-xs">
-                              <Wrench size={13} className="text-manus-info mt-0.5 flex-shrink-0" />
+                              <Wrench size={13} className="text-peldrun-info mt-0.5 flex-shrink-0" />
                               <div className="truncate">
                                 <span className="font-semibold text-primary mr-1">{evt.toolName}:</span>
                                 <span>{evt.content}</span>
@@ -918,7 +918,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
                           {evt.type === "observation" && (
                             <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
-                              <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
+                              <Terminal size={13} className="mt-0.5 flex-shrink-0 text-peldrun-success" />
                               <div className="flex-1 min-w-0 overflow-x-auto">
                                 <MarkdownRenderer content={evt.content} />
                               </div>
@@ -926,7 +926,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                           )}
 
                           {evt.type === "error" && (
-                            <div className="p-2.5 text-xs text-manus-error bg-manus-error/10 rounded-lg border border-manus-error/20 flex items-start gap-2">
+                            <div className="p-2.5 text-xs text-peldrun-error bg-peldrun-error/10 rounded-lg border border-peldrun-error/20 flex items-start gap-2">
                               <span className="whitespace-pre-wrap">{evt.content}</span>
                             </div>
                           )}
@@ -940,9 +940,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
 
             {/* Active Turn Deliverable Completed Card */}
             {finalResult && (
-              <div className="p-4 rounded-sm bg-manus-success/10 border border-manus-success/30 text-xs space-y-3 shadow-manus-xs">
+              <div className="p-4 rounded-sm bg-peldrun-success/10 border border-peldrun-success/30 text-xs space-y-3 shadow-peldrun-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-manus-success font-semibold tracking-wide text-xs flex items-center gap-1.5">
+                  <span className="text-peldrun-success font-semibold tracking-wide text-xs flex items-center gap-1.5">
                     <span>{execMode === "chat" ? "RESPONSE" : "TASK DELIVERABLE COMPLETED"}</span>
                   </span>
                   <button
@@ -953,8 +953,8 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                   >
                     {copiedSection === "final-result" ? (
                       <>
-                        <Check size={12} className="text-manus-success" />
-                        <span className="text-manus-success">Copied</span>
+                        <Check size={12} className="text-peldrun-success" />
+                        <span className="text-peldrun-success">Copied</span>
                       </>
                     ) : (
                       <>
@@ -1003,7 +1003,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 )}
 
                 {producedFiles.length > 0 && (
-                  <div className="pt-2.5 border-t border-manus-success/20">
+                  <div className="pt-2.5 border-t border-peldrun-success/20">
                     <span className="text-[11px] font-semibold text-foreground block mb-1.5">
                       Generated Files:
                     </span>
@@ -1016,9 +1016,9 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                             setSelectedFileForEditor(f.name);
                             setShowRightPanel(true);
                           }}
-                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-manus-xs transition-all"
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-card hover:bg-muted text-foreground border border-border text-xs cursor-pointer shadow-peldrun-xs transition-all"
                         >
-                          <FileText size={12} className="text-manus-accent" />
+                          <FileText size={12} className="text-peldrun-accent" />
                           <span>{f.name}</span>
                           <ExternalLink size={10} className="opacity-60" />
                         </button>
@@ -1036,7 +1036,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
         {/* Bottom Composer */}
         {!isFreshSession && (
           <div className="p-4 border-t border-border bg-card/40 space-y-2 shrink-0">
-            <div className="relative flex items-center rounded-sm border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
+            <div className="relative flex items-center rounded-sm border border-border bg-background shadow-peldrun-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all p-1.5 pl-3">
               <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -1051,7 +1051,7 @@ export function ChatContainer({ initialJobId }: ChatContainerProps) {
                 onClick={() => handleStartTask()}
                 size="sm"
                 disabled={status === "running" || !inputValue.trim()}
-                className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs"
+                className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-peldrun-xs"
               >
                 <Send size={12} />
               </Button>

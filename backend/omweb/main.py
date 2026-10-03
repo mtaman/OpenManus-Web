@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from omweb.routers import status, run, files, config_rtr, mcp, setup, chats, store_rtr
 from omweb.config import get_workspace_root
 
-app = FastAPI(title="OpenManus Web API", version="2.0.0")
+app = FastAPI(title="peldrun Web API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,4 +24,4 @@ app.include_router(store_rtr.router, prefix="/api/store", tags=["Store"])
 
 @app.get("/")
 async def root():
-    return {"message": "OpenManus Web Backend is running"}
+    return {"message": "peldrun Web Backend is running"}

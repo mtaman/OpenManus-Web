@@ -179,7 +179,7 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
         onSave?.(filePath, content);
         if (typeof window !== "undefined") {
           window.dispatchEvent(
-            new CustomEvent("openmanus:file-saved", {
+            new CustomEvent("peldrun:file-saved", {
               detail: { path: filePath, content },
             })
           );
@@ -232,7 +232,7 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
           {!saving && statusMsg && (
             <span
               className={`flex items-center gap-1 text-[11px] font-mono ${
-                statusMsg.includes("success") ? "text-manus-success" : "text-manus-error"
+                statusMsg.includes("success") ? "text-peldrun-success" : "text-peldrun-error"
               }`}
             >
               {statusMsg.includes("success") && <Check size={11} />}
@@ -249,8 +249,8 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
           >
             {copied ? (
               <>
-                <Check size={12} className="text-manus-success" />
-                <span className="text-manus-success">Copied</span>
+                <Check size={12} className="text-peldrun-success" />
+                <span className="text-peldrun-success">Copied</span>
               </>
             ) : (
               <>
@@ -265,7 +265,7 @@ export function EditorTab({ filePath, initialContent, activeJobId, onSave }: Edi
             size="sm"
             onClick={handleSave}
             disabled={saving || loading || !filePath}
-            className="h-7 px-2.5 text-xs shadow-manus-xs cursor-pointer font-sans min-w-[70px]"
+            className="h-7 px-2.5 text-xs shadow-peldrun-xs cursor-pointer font-sans min-w-[70px]"
             title="Save changes to disk"
           >
             {saving ? (

@@ -7,7 +7,7 @@ import shutil
 from omweb.engine_resolver import (
     get_persisted_engine_path,
     detect_potential_engine_paths,
-    is_valid_openmanus_dir,
+    is_valid_peldrun_dir,
     save_engine_path,
     PROJECT_ROOT
 )
@@ -29,24 +29,24 @@ async def detect_engines():
 @router.post("/link")
 async def link_engine(payload: LinkEngineRequest):
     target_path = Path(payload.engine_path).resolve()
-    if not is_valid_openmanus_dir(target_path):
-        raise HTTPException(status_code=400, detail="Invalid OpenManus directory: missing app/agent/manus.py or config files")
+    if not is_valid_peldrun_dir(target_path):
+        raise HTTPException(status_code=400, detail="Invalid peldrun directory: missing app/agent/peldrun.py or config files")
     save_engine_path(target_path)
     return {"status": "linked", "engine_path": str(target_path)}
 
 @router.post("/install-embedded")
 async def install_embedded():
-    embedded_dir = (PROJECT_ROOT / "engine" / "openmanus").resolve()
-    if is_valid_openmanus_dir(embedded_dir):
+    embedded_dir = (PROJECT_ROOT / "engine" / "peldrun").resolve()
+    if is_valid_peldrun_dir(embedded_dir):
         save_engine_path(embedded_dir)
         return {"status": "already_installed", "engine_path": str(embedded_dir)}
 
     embedded_dir.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        # Clone OpenManus core repo
+        # Clone peldrun core repo
         subprocess.run(
-            ["git", "clone", "https://github.com/FoundationAgents/OpenManus.git", str(embedded_dir)],
+            ["git", "clone", "https://github.com/FoundationAgents/peldrun.git", str(embedded_dir)],
             check=True,
             capture_output=True,
             text=True

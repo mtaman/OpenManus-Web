@@ -1,5 +1,5 @@
 ﻿"""
-OpenManus Web Dashboard - Safe TOML Configuration Manager.
+peldrun Web Dashboard - Safe TOML Configuration Manager.
 Handles atomic reads, atomic writes, backups, and secret masking.
 """
 

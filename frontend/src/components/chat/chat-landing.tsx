@@ -255,7 +255,7 @@ export function ChatLanding({
               setLandingAttachedFiles([]);
             }}
             disabled={!inputValue.trim() && landingAttachedFiles.length === 0}
-            className="h-8 w-8 rounded-full bg-black text-primary-foreground flex items-center justify-center transition-all disabled:opacity-90 disabled:cursor-not-allowed shadow-manus-xs cursor-pointer hover:bg-primary/90"
+            className="h-8 w-8 rounded-full bg-black text-primary-foreground flex items-center justify-center transition-all disabled:opacity-90 disabled:cursor-not-allowed shadow-peldrun-xs cursor-pointer hover:bg-primary/90"
             title="Dispatch Task (Enter)"
           >
             <ArrowUp size={15} />
@@ -269,7 +269,7 @@ export function ChatLanding({
             key={idx}
             type="button"
             onClick={() => onStartTask(pill.prompt)}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-card/60 hover:bg-muted text-xs text-foreground transition-all cursor-pointer shadow-manus-xs"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-border bg-card/60 hover:bg-muted text-xs text-foreground transition-all cursor-pointer shadow-peldrun-xs"
           >
             <span className="text-muted-foreground">{pill.icon}</span>
             <span>{pill.label}</span>

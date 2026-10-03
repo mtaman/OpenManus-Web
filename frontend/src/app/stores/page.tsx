@@ -127,8 +127,8 @@ export default function StoresPage() {
 
   // Agent Toggle Action
   const handleToggleAgent = async (agentId: string) => {
-    if (agentId === "manus") {
-      showToast.info("Protected Core", "Default primary agent 'manus' cannot be disabled.");
+    if (agentId === "peldrun") {
+      showToast.info("Protected Core", "Default primary agent 'peldrun' cannot be disabled.");
       return;
     }
     setTogglingAgentId(agentId);
@@ -706,7 +706,7 @@ export default function StoresPage() {
 
                             {/* Toggle Switch */}
                             <div className="flex items-center gap-2">
-                              {ag.id !== "manus" && (
+                              {ag.id !== "peldrun" && (
                                 <button
                                   type="button"
                                   onClick={() => handleToggleAgent(ag.id)}

@@ -7,7 +7,7 @@ sys.path.insert(0, str(backend_dir))
 
 from omweb.engine_resolver import inject_engine_to_syspath
 engine_path = inject_engine_to_syspath()
-print(f"[TEST] Resolved OpenManus engine path: {engine_path}")
+print(f"[TEST] Resolved peldrun engine path: {engine_path}")
 
 from omweb.agent_bridge import read_active_toml_config, inject_runtime_llm
 from omweb.routers.run import RunRequest
@@ -29,10 +29,10 @@ cfg = read_active_toml_config()
 assert isinstance(cfg, dict)
 print(f"[TEST 2 PASSED] Read active config.toml from disk. Top-level keys: {list(cfg.keys())}")
 
-# Test 3: Test agent runtime injection on Manus instance
+# Test 3: Test agent runtime injection on peldrun instance
 try:
-    from app.agent.manus import Manus
-    agent = Manus()
+    from app.agent.peldrun import peldrun
+    agent = peldrun()
     test_override = {
         "model": "qwen-test-injection-model",
         "base_url": "http://127.0.0.1:1234/v1",

@@ -154,8 +154,8 @@ export function ActiveToolsModal() {
   const activeAgent = useMemo(() => {
     return (
       agents.find((a) => a.id === selectedAgentId) || {
-        id: "manus",
-        name: "Manus Generalist",
+        id: "peldrun",
+        name: "peldrun Generalist",
         role: "General Autonomous Specialist",
         tools: ["python_execute", "bash", "str_replace_editor", "web_search", "chrome_browser", "mcp"]
       }

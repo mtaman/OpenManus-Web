@@ -28,7 +28,7 @@ class RunRequest(BaseModel):
     prompt: str
     project_id: Optional[str] = "default_project"
     max_steps: Optional[int] = 30
-    agent_id: Optional[str] = "manus"
+    agent_id: Optional[str] = "peldrun"
     chat_id: Optional[str] = None
     model: Optional[str] = None
     provider: Optional[str] = None
@@ -160,7 +160,7 @@ async def start_run(req: RunRequest, background_tasks: BackgroundTasks):
     except Exception:
         pass
 
-    effective_agent = (req.agent_id or "manus").strip()
+    effective_agent = (req.agent_id or "peldrun").strip()
 
     project_manager.save_chat_session(chat_id=chat_id, project_id=project_id, title=title, job_id=actual_job_id, prompt=prompt, events=[], result="", status="running", agent_id=effective_agent, mode=exec_mode)
 
@@ -245,7 +245,7 @@ async def get_job_detail(job_id: str):
         "events": effective_events,
         "turns": chat.get("turns", []),
         "created_at": chat.get("created_at"),
-        "agent_id": chat.get("agent_id", "manus"),
+        "agent_id": chat.get("agent_id", "peldrun"),
         "model": chat.get("model"),
         "mode": chat.get("mode", "agent"),
         "produced_files": job_scoped_artifacts.get(job_id, [])
@@ -439,7 +439,7 @@ async def stream_job_events(job_id: str):
                     events=collected_events,
                     result=final_res,
                     status=final_status,
-                    agent_id=chat.get("agent_id", "manus"), mode=chat.get("mode", "agent"))
+                    agent_id=chat.get("agent_id", "peldrun"), mode=chat.get("mode", "agent"))
 
                 try:
                     s_file = project_manager.get_chat_dir(chat_id, p_id) / "session.json"

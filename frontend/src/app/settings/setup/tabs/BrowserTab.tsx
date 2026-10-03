@@ -54,7 +54,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
                 value={config.browser.cdp_url || ""}
                 onChange={(e) => setConfig({ ...config, browser: { ...config.browser, cdp_url: e.target.value } })}
                 placeholder="http://localhost:9222"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
             <div>
@@ -64,7 +64,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
                 value={config.browser.chrome_instance_path || ""}
                 onChange={(e) => setConfig({ ...config, browser: { ...config.browser, chrome_instance_path: e.target.value } })}
                 placeholder="C:\Program Files\Google\Chrome\Application\chrome.exe"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
             <div>
@@ -74,7 +74,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
                 value={config.browser.wss_url || ""}
                 onChange={(e) => setConfig({ ...config, browser: { ...config.browser, wss_url: e.target.value } })}
                 placeholder="wss://browserless.example.com"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
             <div>
@@ -83,7 +83,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
                 type="number"
                 value={config.browser.max_content_length || 2000}
                 onChange={(e) => setConfig({ ...config, browser: { ...config.browser, max_content_length: parseInt(e.target.value, 10) || 2000 } })}
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
           </div>
@@ -126,7 +126,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
                 value={proxy.server || ""}
                 onChange={(e) => updateProxy("server", e.target.value)}
                 placeholder="http://proxy-server:8080 or socks5://127.0.0.1:1080"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
             <div>
@@ -136,7 +136,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
                 value={proxy.username || ""}
                 onChange={(e) => updateProxy("username", e.target.value)}
                 placeholder="Username"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
             <div className="md:col-span-2">
@@ -156,7 +156,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
                 value={proxy.password || ""}
                 onChange={(e) => updateProxy("password", e.target.value)}
                 placeholder="Password"
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
               />
             </div>
           </div>

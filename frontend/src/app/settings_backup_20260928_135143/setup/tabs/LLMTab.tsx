@@ -38,7 +38,7 @@ export function LLMTab({
     <div className="space-y-6 max-w-4xl">
       <div className="border-b border-border pb-4">
         <div className="flex items-center gap-2">
-          <Sparkles size={16} className="text-manus-accent" />
+          <Sparkles size={16} className="text-peldrun-accent" />
           <h2 className="text-sm font-semibold font-heading text-foreground uppercase tracking-wide">
             Model Hub & Multi-Provider Architecture
           </h2>
@@ -59,7 +59,7 @@ export function LLMTab({
                 onClick={() => selectProviderPreset(p)}
                 className={`flex flex-col items-start p-3 rounded-lg border text-left transition-all cursor-pointer ${
                   isCurrent
-                    ? "bg-muted border-primary shadow-manus-xs text-foreground"
+                    ? "bg-muted border-primary shadow-peldrun-xs text-foreground"
                     : "bg-card border-border hover:border-primary/40 text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -78,10 +78,10 @@ export function LLMTab({
         </div>
       </div>
 
-      <div className="p-4 rounded-sm border border-border bg-card space-y-3 shadow-manus-xs">
+      <div className="p-4 rounded-sm border border-border bg-card space-y-3 shadow-peldrun-xs">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Layers size={14} className="text-manus-accent" />
+            <Layers size={14} className="text-peldrun-accent" />
             <span className="text-xs font-medium text-foreground uppercase tracking-wider">
               Detected Local Models ({availableModels.length})
             </span>
@@ -91,7 +91,7 @@ export function LLMTab({
             size="sm"
             onClick={handleFetchModels}
             disabled={fetchingModels}
-            className="h-7 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-manus-xs"
+            className="h-7 text-xs border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-peldrun-xs"
           >
             {fetchingModels ? <RefreshCw size={11} className="animate-spin mr-1" /> : <RefreshCw size={11} className="mr-1" />}
             <span>Scan Models</span>
@@ -105,7 +105,7 @@ export function LLMTab({
               {availableModels.map((m) => (
                 <div
                   key={m}
-                  className="flex items-center gap-1.5 p-1.5 px-2.5 rounded-md bg-background border border-border text-xs text-foreground shadow-manus-xs font-mono"
+                  className="flex items-center gap-1.5 p-1.5 px-2.5 rounded-md bg-background border border-border text-xs text-foreground shadow-peldrun-xs font-mono"
                 >
                   <span className="font-semibold text-primary">{m}</span>
                   <div className="flex items-center gap-1 ml-2 border-l border-border pl-2">
@@ -118,7 +118,7 @@ export function LLMTab({
                     </button>
                     <button
                       onClick={() => assignDetectedModel(m, "vision")}
-                      className="px-1.5 py-0.5 rounded-sm bg-manus-accent/10 hover:bg-manus-accent/20 text-manus-accent text-[10px] font-sans font-medium cursor-pointer"
+                      className="px-1.5 py-0.5 rounded-sm bg-peldrun-accent/10 hover:bg-peldrun-accent/20 text-peldrun-accent text-[10px] font-sans font-medium cursor-pointer"
                       title="Set as Vision Model"
                     >
                       Vision
@@ -135,10 +135,10 @@ export function LLMTab({
         )}
       </div>
 
-      <div className="p-5 rounded-sm border border-border bg-card space-y-4 shadow-manus-xs">
+      <div className="p-5 rounded-sm border border-border bg-card space-y-4 shadow-peldrun-xs">
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-manus-success animate-pulse" />
+            <span className="flex h-2 w-2 rounded-full bg-peldrun-success animate-pulse" />
             <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
               Active Primary Reasoning Model [LLM]
             </span>
@@ -152,7 +152,7 @@ export function LLMTab({
                   const selected = customModels.find((m) => m.name === e.target.value);
                   if (selected) promoteToPrimary(selected);
                 }}
-                className="bg-background border border-border rounded-md px-2 py-1 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs"
+                className="bg-background border border-border rounded-md px-2 py-1 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary shadow-peldrun-xs"
               >
                 <option value="">Select custom profile...</option>
                 {customModels.map((cm) => (
@@ -170,7 +170,7 @@ export function LLMTab({
               type="text"
               value={config.llm.model}
               onChange={(e) => setConfig({ ...config, llm: { ...config.llm, model: e.target.value } })}
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-peldrun-xs"
             />
           </div>
           <div>
@@ -179,7 +179,7 @@ export function LLMTab({
               type="text"
               value={config.llm.base_url}
               onChange={(e) => setConfig({ ...config, llm: { ...config.llm, base_url: e.target.value } })}
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-peldrun-xs"
             />
           </div>
           <div>
@@ -189,7 +189,7 @@ export function LLMTab({
               value={config.llm.api_key}
               onChange={(e) => setConfig({ ...config, llm: { ...config.llm, api_key: e.target.value } })}
               placeholder="Leave masked to retain key"
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-peldrun-xs"
             />
           </div>
           <div>
@@ -199,7 +199,7 @@ export function LLMTab({
               value={config.llm.api_type || ""}
               onChange={(e) => setConfig({ ...config, llm: { ...config.llm, api_type: e.target.value } })}
               placeholder="ollama / azure / aws / jiekou (blank for OpenAI)"
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-peldrun-xs"
             />
           </div>
           <div>
@@ -208,7 +208,7 @@ export function LLMTab({
               type="number"
               value={config.llm.max_tokens}
               onChange={(e) => setConfig({ ...config, llm: { ...config.llm, max_tokens: parseInt(e.target.value, 10) } })}
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-peldrun-xs"
             />
           </div>
           <div>
@@ -218,7 +218,7 @@ export function LLMTab({
               step="0.1"
               value={config.llm.temperature}
               onChange={(e) => setConfig({ ...config, llm: { ...config.llm, temperature: parseFloat(e.target.value) } })}
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-peldrun-xs"
             />
           </div>
         </div>
@@ -229,14 +229,14 @@ export function LLMTab({
             size="sm"
             onClick={() => handleTestLLM()}
             disabled={testingLLM}
-            className="flex items-center gap-1.5 text-xs border-border bg-background hover:bg-muted text-foreground rounded-md shadow-manus-xs cursor-pointer"
+            className="flex items-center gap-1.5 text-xs border-border bg-background hover:bg-muted text-foreground rounded-md shadow-peldrun-xs cursor-pointer"
           >
-            {testingLLM ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} className="text-manus-warning" />}
+            {testingLLM ? <RefreshCw size={12} className="animate-spin" /> : <Zap size={12} className="text-peldrun-warning" />}
             <span>Test Primary Endpoint</span>
           </Button>
 
           {testResult && (
-            <span className={`text-xs flex items-center gap-1.5 ${testResult.ok ? "text-manus-success" : "text-manus-error"}`}>
+            <span className={`text-xs flex items-center gap-1.5 ${testResult.ok ? "text-peldrun-success" : "text-peldrun-error"}`}>
               {testResult.ok ? <Check size={13} /> : <AlertTriangle size={13} />}
               <span>{testResult.message}</span>
             </span>
@@ -244,7 +244,7 @@ export function LLMTab({
         </div>
       </div>
 
-      <div className="p-4 rounded-sm border border-border bg-card space-y-3 shadow-manus-xs">
+      <div className="p-4 rounded-sm border border-border bg-card space-y-3 shadow-peldrun-xs">
         <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">
           Visual Perception Model [llm.vision]
         </span>
@@ -255,7 +255,7 @@ export function LLMTab({
               type="text"
               value={config.llm_vision.model}
               onChange={(e) => setConfig({ ...config, llm_vision: { ...config.llm_vision, model: e.target.value } })}
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-peldrun-xs"
             />
           </div>
           <div>
@@ -264,7 +264,7 @@ export function LLMTab({
               type="text"
               value={config.llm_vision.base_url}
               onChange={(e) => setConfig({ ...config, llm_vision: { ...config.llm_vision, base_url: e.target.value } })}
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-manus-xs"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono shadow-peldrun-xs"
             />
           </div>
         </div>
@@ -274,7 +274,7 @@ export function LLMTab({
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Bot size={15} className="text-manus-accent" />
+              <Bot size={15} className="text-peldrun-accent" />
               <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
                 Specialized Agent Profiles [llm.*]
               </h3>
@@ -286,7 +286,7 @@ export function LLMTab({
           <Button
             onClick={addCustomModel}
             size="sm"
-            className="flex items-center gap-1 h-7 px-2.5 text-xs bg-primary text-primary-foreground font-medium rounded-md shadow-manus-xs cursor-pointer"
+            className="flex items-center gap-1 h-7 px-2.5 text-xs bg-primary text-primary-foreground font-medium rounded-md shadow-peldrun-xs cursor-pointer"
           >
             <Plus size={12} />
             <span>Add Dedicated Agent</span>
@@ -294,15 +294,15 @@ export function LLMTab({
         </div>
 
         {customModels.map((cm, idx) => (
-          <div key={cm.id} className="p-4 rounded-sm border border-border bg-card space-y-3 shadow-manus-xs">
+          <div key={cm.id} className="p-4 rounded-sm border border-border bg-card space-y-3 shadow-peldrun-xs">
             <div className="flex items-center justify-between border-b border-border/60 pb-2">
-              <span className="text-xs font-semibold text-manus-warning font-mono">
+              <span className="text-xs font-semibold text-peldrun-warning font-mono">
                 [llm.{cm.name || `agent_${idx + 1}`}]
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => promoteToPrimary(cm)}
-                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-manus-success/15 hover:bg-manus-success/25 text-manus-success border border-manus-success/30 font-medium cursor-pointer transition-all"
+                  className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-peldrun-success/15 hover:bg-peldrun-success/25 text-peldrun-success border border-peldrun-success/30 font-medium cursor-pointer transition-all"
                   title="Set this profile as the active Primary Model"
                 >
                   <ArrowUpCircle size={12} />
@@ -317,7 +317,7 @@ export function LLMTab({
                 </button>
                 <button
                   onClick={() => removeCustomModel(cm.id)}
-                  className="text-muted-foreground hover:text-manus-error p-1 cursor-pointer"
+                  className="text-muted-foreground hover:text-peldrun-error p-1 cursor-pointer"
                   title="Remove Agent Profile"
                 >
                   <Trash2 size={13} />
@@ -335,7 +335,7 @@ export function LLMTab({
                     const val = e.target.value;
                     setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, name: val } : m));
                   }}
-                  className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-manus-xs"
+                  className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-peldrun-xs"
                 />
               </div>
               <div>
@@ -347,7 +347,7 @@ export function LLMTab({
                     const val = e.target.value;
                     setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, model: val } : m));
                   }}
-                  className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-manus-xs"
+                  className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-peldrun-xs"
                 />
               </div>
               <div>
@@ -359,7 +359,7 @@ export function LLMTab({
                     const val = e.target.value;
                     setCustomModels((prev) => prev.map((m) => m.id === cm.id ? { ...m, base_url: val } : m));
                   }}
-                  className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-manus-xs"
+                  className="w-full bg-background border border-border rounded-md px-2.5 py-1 text-xs text-foreground font-mono shadow-peldrun-xs"
                 />
               </div>
             </div>

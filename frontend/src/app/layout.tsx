@@ -27,7 +27,7 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "OpenManusWeb - Open Autonomous Agent",
+  title: "peldrunWeb - Open Autonomous Agent",
   description: "Next-generation Web Interface for Autonomous AI Agents",
   icons: {
     icon: "/favicon.ico",
@@ -105,7 +105,7 @@ export default async function RootLayout({
       </head>
       <body
         data-sidebar={sidebarState}
-        className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-manus-accent selection:text-white"
+        className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-peldrun-accent selection:text-white"
       >
         <StorageProvider cookieSnapshot={cookieSnapshot}>
           <ThemeProvider

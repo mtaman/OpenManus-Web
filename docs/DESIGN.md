@@ -1,12 +1,12 @@
-# OpenManus Web Dashboard — Architectural & Design Document
+# peldrun Web Dashboard — Architectural & Design Document
 
 ## 1. System Overview
-OpenManus Web Dashboard is a sovereign, local-first web interface designed to control and monitor the OpenManus autonomous AI agent. It provides a real-time reactive interface inspired by Manus.im, offering complete visibility into internal thoughts, tool executions, browser automations, and workspace management.
+peldrun Web Dashboard is a sovereign, local-first web interface designed to control and monitor the peldrun autonomous AI agent. It provides a real-time reactive interface inspired by peldrun.im, offering complete visibility into internal thoughts, tool executions, browser automations, and workspace management.
 
 ### Key Characteristics:
-- **Zero-Tampering OpenManus Integration**: Core OpenManus (`D:\AI\OpenManus`) remains 100% read-only at frozen commit `3309bf4`.
+- **Zero-Tampering peldrun Integration**: Core peldrun (`D:\AI\peldrun`) remains 100% read-only at frozen commit `3309bf4`.
 - **Full Bidirectional Live Streaming**: Real-time event propagation using Server-Sent Events (SSE).
-- **Localized State Isolation**: File operations, configurations, and job histories are sandboxed locally under `D:\AI\OpenManus-Web\`.
+- **Localized State Isolation**: File operations, configurations, and job histories are sandboxed locally under `D:\AI\PELDRUN-Web\`.
 
 ---
 
@@ -30,7 +30,7 @@ OpenManus Web Dashboard is a sovereign, local-first web interface designed to co
 │ sys.path import (READ-ONLY)
 ▼
 ┌─────────────────────────────────────────────────────────────┐
-│           OpenManus Core (Commit 3309bf4 - Read Only)       │
+│           peldrun Core (Commit 3309bf4 - Read Only)       │
 │  - App / Agent / Memory layers                              │
 └──────────────────────────────┬──────────────────────────────┘
 │
@@ -46,7 +46,7 @@ OpenManus Web Dashboard is a sovereign, local-first web interface designed to co
 ## 3. Core Subsystems
 
 ### 3.1 Agent Bridge & Non-Invasive Instrumentation
-To stream agent reasoning without altering OpenManus source files, `omweb.agent_bridge` applies dynamic monkey-patching to the agent's memory recording method (`Memory.add_message`). Whenever the agent records a thought, a tool call, or an observation, the hook intercepts the message, wraps it in an AG-UI compatible format, and queues it to an asynchronous event bus linked to the client's SSE connection.
+To stream agent reasoning without altering peldrun source files, `omweb.agent_bridge` applies dynamic monkey-patching to the agent's memory recording method (`Memory.add_message`). Whenever the agent records a thought, a tool call, or an observation, the hook intercepts the message, wraps it in an AG-UI compatible format, and queues it to an asynchronous event bus linked to the client's SSE connection.
 
 ### 3.2 Job Management & Persistence
 - Execution states are tracked using an in-memory dictionary for instant retrieval.

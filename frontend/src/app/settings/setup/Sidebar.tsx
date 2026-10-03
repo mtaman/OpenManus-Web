@@ -70,7 +70,7 @@ export function Sidebar({
               onClick={() => setActiveTab(tab.id)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-0 text-xs font-medium transition-all cursor-pointer ${
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-manus-xs"
+                  ? "bg-primary text-primary-foreground shadow-peldrun-xs"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
               }`}
             >
@@ -93,7 +93,7 @@ export function Sidebar({
             className="w-full flex items-center justify-between px-3 py-2 rounded-0 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-2.5">
-              <Activity size={14} className="text-manus-accent group-hover:scale-110 transition-transform" />
+              <Activity size={14} className="text-peldrun-accent group-hover:scale-110 transition-transform" />
               <span className="group-hover:text-foreground transition-colors">System Health</span>
             </div>
             <ExternalLink size={12} className="text-muted-foreground/50 group-hover:text-foreground transition-colors" />
@@ -106,7 +106,7 @@ export function Sidebar({
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="primary flex-1 flex items-center justify-center gap-1.5 h-8 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs rounded-0 shadow-manus-xs cursor-pointer hover:opacity-90"
+            className="primary flex-1 flex items-center justify-center gap-1.5 h-8 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs rounded-0 shadow-peldrun-xs cursor-pointer hover:opacity-90"
           >
             {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
             <span>{saving ? "Saving..." : "Save Config"}</span>

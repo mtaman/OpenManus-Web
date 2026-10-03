@@ -1,10 +1,10 @@
 {
-  "id": "manus",
-  "name": "Manus Generalist",
+  "id": "peldrun",
+  "name": "peldrun Generalist",
   "role": "General Autonomous Specialist",
   "icon": "Bot",
   "description": "Comprehensive autonomous agent equipped with terminal, python execution, file management, and browser automation.",
-  "system_prompt": "You are Manus, an all-capable AI agent specialized in autonomous task planning, coding, file creation, and deep web navigation. Execute tasks methodically with precision.",
+  "system_prompt": "You are peldrun, an all-capable AI agent specialized in autonomous task planning, coding, file creation, and deep web navigation. Execute tasks methodically with precision.",
   "tools": [
     "bash",
     "python_execute",

@@ -18,13 +18,13 @@ class AgentRegistry:
 
     def _init_builtin_agents(self) -> Dict[str, Dict[str, Any]]:
         return {
-            "manus": {
-                "id": "manus",
-                "name": "Manus Generalist",
+            "peldrun": {
+                "id": "peldrun",
+                "name": "peldrun Generalist",
                 "role": "General Autonomous Specialist",
                 "icon": "Bot",
                 "description": "Full-capability autonomous specialist capable of browsing, data analysis, terminal coding, and delivering complete project solutions.",
-                "system_prompt": "You are Manus, an all-around autonomous specialist agent.",
+                "system_prompt": "You are peldrun, an all-around autonomous specialist agent.",
                 "tools": ["python_execute", "bash", "str_replace_editor", "web_search", "browser_use", "mcp"],
                 "max_steps": 30,
                 "is_builtin": True,
@@ -111,11 +111,11 @@ class AgentRegistry:
 
     def get_agent(self, agent_id: str) -> Dict[str, Any]:
         agents = {a["id"]: a for a in self.list_agents()}
-        return agents.get(agent_id, self._builtin_agents["manus"])
+        return agents.get(agent_id, self._builtin_agents["peldrun"])
 
     def toggle_agent_status(self, agent_id: str) -> Dict[str, Any]:
-        if agent_id == "manus":
-            return {"error": "Default primary agent 'manus' cannot be disabled."}
+        if agent_id == "peldrun":
+            return {"error": "Default primary agent 'peldrun' cannot be disabled."}
 
         agent = self.get_agent(agent_id)
         if not agent:

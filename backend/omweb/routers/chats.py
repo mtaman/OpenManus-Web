@@ -23,7 +23,7 @@ class ChatCreateRequest(BaseModel):
     title: Optional[str] = "New Session"
     job_id: Optional[str] = ""
     prompt: Optional[str] = ""
-    agent_id: Optional[str] = "manus"
+    agent_id: Optional[str] = "peldrun"
 
 
 class ChatRenameRequest(BaseModel):
@@ -121,7 +121,7 @@ async def create_chat(req: ChatCreateRequest):
         events=[],
         result="",
         status="active",
-        agent_id=req.agent_id or "manus"
+        agent_id=req.agent_id or "peldrun"
     )
     return {"status": "ok", "chat": chat}
 

@@ -55,17 +55,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/chat"
             className="w-10 h-10 rounded-sm bg-transparent flex items-center justify-center p-1.5 transition-all group"
-            title="OpenManus Web"
+            title="peldrun Web"
           >
             <img
                 src="/peldrun-logo.svg"
-                alt="OpenManus Web Logo"
+                alt="peldrun Web Logo"
                 className="w-full h-full object-contain group-hover:scale-105 transition-transform bg-transparent 
                           [[data-theme='dark']_&]:hidden"
               />
             <img
                 src="/peldrun-logo-light.svg"
-                alt="OpenManus Web Logo"
+                alt="peldrun Web Logo"
                 className="w-full h-full object-contain group-hover:scale-105 transition-transform bg-transparent 
                           hidden [[data-theme='dark']_&]:block"
               />
@@ -96,7 +96,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   title={item.label}
                   className={`w-10 h-10 rounded-xs flex items-center justify-center transition-all ${
                     active
-                      ? "bg-muted text-black shadow-manus-xs"
+                      ? "bg-muted text-black shadow-peldrun-xs"
                       : "text-black hover:bg-muted hover:text-foreground"
                   }`}
                 >
@@ -114,7 +114,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             title="Stores"
             className={`w-10 h-10 mb-1 flex items-center justify-center rounded-xs transition-all ${
               isSettingsActive
-                ? "bg-transparent text-black shadow-manus-xs"
+                ? "bg-transparent text-black shadow-peldrun-xs"
                 : "text-black hover:bg-muted hover:text-foreground"
             }`}
           >
@@ -127,7 +127,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             title="Settings"
             className={`w-10 h-10 mb-1 flex items-center justify-center rounded-xs transition-all ${
               isSettingsActive
-                ? "bg-transparent text-black shadow-manus-xs"
+                ? "bg-transparent text-black shadow-peldrun-xs"
                 : "text-black hover:bg-muted hover:text-foreground"
             }`}
           >

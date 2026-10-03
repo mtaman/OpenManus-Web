@@ -97,8 +97,8 @@ export function ChatTimeline({
                 {stepEvents.map((evt) => (
                   <div key={evt.id} className="text-xs space-y-1">
                     {evt.type === "thought" && (
-                      <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-manus-xs">
-                        <BrainCircuit size={15} className="text-manus-accent mt-0.5 flex-shrink-0" />
+                      <div className="flex items-start gap-2.5 p-3 rounded-lg bg-card border border-border/80 text-foreground shadow-peldrun-xs">
+                        <BrainCircuit size={15} className="text-peldrun-accent mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <MarkdownRenderer content={evt.content} />
                         </div>
@@ -107,7 +107,7 @@ export function ChatTimeline({
 
                     {evt.type === "tool_call" && evt.toolName && (
                       <div className="flex items-start gap-2 p-2.5 rounded-lg bg-muted/80 border border-border text-foreground font-mono text-xs">
-                        <Wrench size={13} className="text-manus-info mt-0.5 flex-shrink-0" />
+                        <Wrench size={13} className="text-peldrun-info mt-0.5 flex-shrink-0" />
                         <div className="truncate">
                           <span className="font-semibold text-primary mr-1">{evt.toolName}:</span>
                           <span>{evt.content}</span>
@@ -117,7 +117,7 @@ export function ChatTimeline({
 
                     {evt.type === "observation" && (
                       <div className="p-2.5 text-xs font-mono text-foreground/90 bg-muted/60 rounded-lg border border-border flex items-start gap-2">
-                        <Terminal size={13} className="mt-0.5 flex-shrink-0 text-manus-success" />
+                        <Terminal size={13} className="mt-0.5 flex-shrink-0 text-peldrun-success" />
                         <div className="flex-1 min-w-0 overflow-x-auto">
                           <MarkdownRenderer content={evt.content} />
                         </div>
@@ -125,7 +125,7 @@ export function ChatTimeline({
                     )}
 
                     {evt.type === "error" && (
-                      <div className="p-2.5 text-xs text-manus-error bg-manus-error/10 rounded-lg border border-manus-error/20 flex items-start gap-2">
+                      <div className="p-2.5 text-xs text-peldrun-error bg-peldrun-error/10 rounded-lg border border-peldrun-error/20 flex items-start gap-2">
                         <span className="whitespace-pre-wrap">{evt.content}</span>
                       </div>
                     )}

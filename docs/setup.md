@@ -1,11 +1,11 @@
-# OpenManus Web – Installation & Operation Guide
+# peldrun Web – Installation & Operation Guide
 
-[![OpenManus Core](https://img.shields.io/badge/OpenManus-Core-blue?style=for-the-badge&logo=github)](https://github.com/FoundationAgents/OpenManus)
+[![peldrun Core](https://img.shields.io/badge/peldrun-Core-blue?style=for-the-badge&logo=github)](https://github.com/FoundationAgents/peldrun)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%202.0-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-000000?style=for-the-badge&logo=next.js)](https://nextjs.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-A complete web dashboard for the **OpenManus** AI agent. Visual execution, live streaming, and full file & settings management.
+A complete web dashboard for the **peldrun** AI agent. Visual execution, live streaming, and full file & settings management.
 
  
 
@@ -15,7 +15,7 @@ A complete web dashboard for the **OpenManus** AI agent. Visual execution, live 
 
 - **Split‑View Interface** – Chat and live telemetry side by side.
 - **Live Streaming (SSE)** – Real‑time thoughts and tool calls.
-- **Zero‑Config Setup Wizard** – Auto‑detect existing OpenManus or install embedded with one click.
+- **Zero‑Config Setup Wizard** – Auto‑detect existing peldrun or install embedded with one click.
 - **Secure File Explorer** – File tree, code editor, downloads, path‑traversal protection.
 - **Task History & Replay** – Persistent task storage with one‑click re‑run.
 - **Bilingual Support** – Arabic and English with full RTL/LTR.
@@ -33,7 +33,7 @@ Browser (localhost:3088)
 Frontend (Next.js 15) ── /api/* proxy → Backend (FastAPI 2.0) on port 8088
       │
       ▼
-OpenManus Core Engine (embedded or external)
+peldrun Core Engine (embedded or external)
 ```
 
 ---
@@ -41,12 +41,12 @@ OpenManus Core Engine (embedded or external)
 ## 📂 Project Structure
 
 ```
-OpenManus-Web/
+PELDRUN-Web/
 ├─ start-all.ps1
 ├─ start-backend.ps1
 ├─ start-frontend.ps1
-├─ engine/                 # Embedded OpenManus (Git ignored)
-│  └─ openmanus/
+├─ engine/                 # Embedded peldrun (Git ignored)
+│  └─ peldrun/
 ├─ backend/
 │  ├─ .venv/
 │  ├─ requirements.txt
@@ -64,12 +64,12 @@ OpenManus-Web/
 
 | Requirement | Recommended Version | Notes |
 |-------------|---------------------|-------|
-| **Python** | 3.12+ | Backend and OpenManus engine |
+| **Python** | 3.12+ | Backend and peldrun engine |
 | **Node.js** | 18+ | Next.js frontend |
 | **Git** | Latest | Cloning repositories |
 | **PowerShell** | 5.1+ | Windows launch scripts (optional) |
 
-> **Note:** If you don't have OpenManus installed, the setup wizard will install an embedded copy automatically.
+> **Note:** If you don't have peldrun installed, the setup wizard will install an embedded copy automatically.
 
 ---
 
@@ -78,8 +78,8 @@ OpenManus-Web/
 ### Step 1 – Clone the Repository
 
 ```bash
-git clone https://github.com/mtaman/OpenManus-Web.git
-cd OpenManus-Web
+git clone https://github.com/mtaman/PELDRUN-Web.git
+cd PELDRUN-Web
 ```
 
 ### Step 2 – Backend Setup
@@ -106,7 +106,7 @@ cd ../frontend
 npm install
 ```
 
-### Step 4 – Configure the OpenManus Engine
+### Step 4 – Configure the peldrun Engine
 
 You have two options:
 
@@ -115,13 +115,13 @@ You have two options:
 1. Start the backend and frontend (see Step 5).
 2. Open `http://localhost:3088/setup`.
 3. Click **"Install Embedded Engine"**.
-4. The system clones OpenManus into `engine/openmanus`, creates `config.toml`, and initialises the sandbox.
+4. The system clones peldrun into `engine/peldrun`, creates `config.toml`, and initialises the sandbox.
 
-#### 🔹 Option B – Link an Existing OpenManus Installation
+#### 🔹 Option B – Link an Existing peldrun Installation
 
 1. Open the `/setup` page.
 2. The system will list detected paths. Select one and click **"Connect"**, or enter a custom path manually.
-3. Ensure the path points to a valid OpenManus directory containing `config.toml`.
+3. Ensure the path points to a valid peldrun directory containing `config.toml`.
 
 ---
 
@@ -129,7 +129,7 @@ You have two options:
 
 ### ⚠️ Important Note About PowerShell Scripts
 
-The provided `start-all.ps1`, `start-backend.ps1`, and `start-frontend.ps1` scripts contain **absolute paths** such as `D:\AI\OpenManus-Web\`.  
+The provided `start-all.ps1`, `start-backend.ps1`, and `start-frontend.ps1` scripts contain **absolute paths** such as `D:\AI\PELDRUN-Web\`.  
 **They will not work on your machine unless you edit these paths.**
 
 You can either:
@@ -208,7 +208,7 @@ Go to `/setup` to configure the engine. Once the status shows **"READY & SYNCHRO
 Configure your LLM provider (OpenAI, DeepSeek, Ollama, etc.) either via:
 
 1. **Settings UI** at `/settings`.
-2. **`config.toml`** inside the OpenManus engine folder:
+2. **`config.toml`** inside the peldrun engine folder:
 
 ```toml
 [llm]
@@ -242,7 +242,7 @@ temperature = 0.0
 - **Path Traversal Guard** – All file operations validated with `Path.resolve()` and `is_relative_to(WORKSPACE_ROOT)`.
 - **Safe Deletion** – Files moved to `.trash/` instead of permanent removal.
 - **Secret Isolation** – Keys and runtime files are `.gitignore`d.
-- **Read‑Only Core** – OpenManus engine is treated as an immutable external module.
+- **Read‑Only Core** – peldrun engine is treated as an immutable external module.
 
 ---
 
@@ -252,7 +252,7 @@ temperature = 0.0
 |-------|----------|
 | Backend not starting | Ensure `.venv` is activated and dependencies installed. |
 | Frontend not loading | Run `npm install`; check port 3088 is free. |
-| OpenManus not found | Use `/setup` to install embedded or link existing path. |
+| peldrun not found | Use `/setup` to install embedded or link existing path. |
 | Invalid API key | Check `config.toml` or `/settings`. |
 | SSE streaming issues | Ensure port 8088 is not blocked by firewall. |
 
@@ -268,14 +268,14 @@ This project is licensed under the **MIT License**. See the `LICENSE` file for d
 
 | Resource | Link |
 |----------|------|
-| OpenManus Official Repository | [https://github.com/FoundationAgents/OpenManus](https://github.com/FoundationAgents/OpenManus) |
-| OpenManus Web Repository | [https://github.com/mtaman/OpenManus-Web](https://github.com/mtaman/OpenManus-Web) |
+| peldrun Official Repository | [https://github.com/FoundationAgents/peldrun](https://github.com/FoundationAgents/peldrun) |
+| peldrun Web Repository | [https://github.com/mtaman/PELDRUN-Web](https://github.com/mtaman/PELDRUN-Web) |
 | FoundationAgents Organization | [https://github.com/FoundationAgents](https://github.com/FoundationAgents) |
 
 ---
 
 <div align="center">
 
-**Made with ❤️ for the OpenManus community worldwide**
+**Made with ❤️ for the peldrun community worldwide**
 
 </div>

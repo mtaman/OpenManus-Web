@@ -145,7 +145,7 @@ export default function ProjectWorkspacePage() {
           >
             <ArrowLeft size={16} />
           </Link>
-          <Folder className="h-4 w-4 text-manus-accent" />
+          <Folder className="h-4 w-4 text-peldrun-accent" />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-heading font-semibold text-sm text-foreground">
@@ -162,7 +162,7 @@ export default function ProjectWorkspacePage() {
             variant="outline"
             size="sm"
             onClick={handleDeleteProject}
-            className="flex items-center gap-1.5 h-8 px-3 rounded-md border-manus-error/30 text-manus-error hover:bg-manus-error/10 text-xs transition cursor-pointer shadow-manus-xs"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-md border-peldrun-error/30 text-peldrun-error hover:bg-peldrun-error/10 text-xs transition cursor-pointer shadow-peldrun-xs"
           >
             <Trash2 size={13} />
             <span>Delete Workspace</span>
@@ -171,19 +171,19 @@ export default function ProjectWorkspacePage() {
       </div>
 
       <div className="flex-1 p-8 overflow-y-auto space-y-6 bg-background">
-        <div className="p-5 rounded-2xl border border-border bg-card space-y-3 shadow-manus-xs">
+        <div className="p-5 rounded-2xl border border-border bg-card space-y-3 shadow-peldrun-xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-manus-success uppercase tracking-wider flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-peldrun-success uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles size={12} />
               Project Objective & Context
             </span>
             <div className="flex items-center gap-3 text-xs font-mono">
-              <span className="px-2.5 py-1 rounded-md bg-background border border-border text-foreground flex items-center gap-1.5 shadow-manus-xs">
-                <MessageSquare size={12} className="text-manus-success" />
+              <span className="px-2.5 py-1 rounded-md bg-background border border-border text-foreground flex items-center gap-1.5 shadow-peldrun-xs">
+                <MessageSquare size={12} className="text-peldrun-success" />
                 <span>{chats.length} Sessions</span>
               </span>
-              <span className="px-2.5 py-1 rounded-md bg-background border border-border text-foreground flex items-center gap-1.5 shadow-manus-xs">
-                <Layers size={12} className="text-manus-accent" />
+              <span className="px-2.5 py-1 rounded-md bg-background border border-border text-foreground flex items-center gap-1.5 shadow-peldrun-xs">
+                <Layers size={12} className="text-peldrun-accent" />
                 <span>{totalFilesCount} Deliverables</span>
               </span>
             </div>
@@ -201,7 +201,7 @@ export default function ProjectWorkspacePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <MessageSquare size={13} className="text-manus-success" />
+              <MessageSquare size={13} className="text-peldrun-success" />
               <span>Project Sessions ({chats.length})</span>
             </h2>
           </div>
@@ -224,7 +224,7 @@ export default function ProjectWorkspacePage() {
                 return (
                   <div
                     key={chat.id}
-                    className="flex flex-col justify-between p-4 rounded-sm border border-border bg-card hover:border-primary/40 transition-all group shadow-manus-xs"
+                    className="flex flex-col justify-between p-4 rounded-sm border border-border bg-card hover:border-primary/40 transition-all group shadow-peldrun-xs"
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2">
@@ -234,10 +234,10 @@ export default function ProjectWorkspacePage() {
                         <span
                           className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-medium flex items-center gap-1 ${
                             chat.status === "completed"
-                              ? "bg-manus-success/15 text-manus-success border border-manus-success/30"
+                              ? "bg-peldrun-success/15 text-peldrun-success border border-peldrun-success/30"
                               : chat.status === "running"
-                              ? "bg-manus-warning/15 text-manus-warning border border-manus-warning/30 animate-pulse"
-                              : "bg-manus-error/15 text-manus-error border border-manus-error/30"
+                              ? "bg-peldrun-warning/15 text-peldrun-warning border border-peldrun-warning/30 animate-pulse"
+                              : "bg-peldrun-error/15 text-peldrun-error border border-peldrun-error/30"
                           }`}
                         >
                           {chat.status === "completed" && <CheckCircle2 size={10} />}
@@ -260,7 +260,7 @@ export default function ProjectWorkspacePage() {
                             {chat.files!.map((f) => (
                               <span
                                 key={f.name}
-                                className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-background text-primary border border-border flex items-center gap-1 shadow-manus-xs"
+                                className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-background text-primary border border-border flex items-center gap-1 shadow-peldrun-xs"
                               >
                                 <FileCode size={10} />
                                 <span>{f.name}</span>
@@ -284,7 +284,7 @@ export default function ProjectWorkspacePage() {
                         <a
                           href={`/api/run/jobs/${targetJob}/download-zip`}
                           title="Download ZIP"
-                          className="p-1.5 rounded-md bg-muted hover:bg-muted/80 text-foreground border border-border text-[11px] transition shadow-manus-xs"
+                          className="p-1.5 rounded-md bg-muted hover:bg-muted/80 text-foreground border border-border text-[11px] transition shadow-peldrun-xs"
                         >
                           <Download size={12} />
                         </a>
@@ -292,7 +292,7 @@ export default function ProjectWorkspacePage() {
                           type="button"
                           onClick={(e) => handleDeleteChat(e, chat.id, chat.job_id)}
                           title="Delete session"
-                          className="p-1.5 rounded-md bg-white-foreground hover:bg-manus-error/20 text-muted-foreground hover:text-manus-error border border-border transition cursor-pointer"
+                          className="p-1.5 rounded-md bg-white-foreground hover:bg-peldrun-error/20 text-muted-foreground hover:text-peldrun-error border border-border transition cursor-pointer"
                         >
                           <Trash2 size={12} />
                         </button>
@@ -307,7 +307,7 @@ export default function ProjectWorkspacePage() {
       </div>
 
       <div className="p-4 border-t border-border bg-card/60 backdrop-blur-sm shrink-0">
-        <form onSubmit={handleStartProjectChat} className="flex items-center gap-2 p-1.5 pl-3.5 rounded-sm border border-border bg-background shadow-manus-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all">
+        <form onSubmit={handleStartProjectChat} className="flex items-center gap-2 p-1.5 pl-3.5 rounded-sm border border-border bg-background shadow-peldrun-sm focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-all">
           <input
             type="text"
             value={promptInput}
@@ -320,7 +320,7 @@ export default function ProjectWorkspacePage() {
             type="submit"
             size="sm"
             disabled={isSubmitting || !promptInput.trim()}
-            className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-manus-xs"
+            className="h-7 w-7 p-0 rounded-md shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shadow-peldrun-xs"
           >
             <Send size={12} />
           </Button>

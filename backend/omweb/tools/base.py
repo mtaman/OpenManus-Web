@@ -1,5 +1,5 @@
 """
-Sovereign Base Tool Specification - OpenManus Web Core.
+Sovereign Base Tool Specification - peldrun Web Core.
 Independent base class for native, custom, and sandboxed execution tools.
 Decoupled entirely from external runner frameworks.
 """

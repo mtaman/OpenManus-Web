@@ -28,7 +28,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
             value={config.browser.cdp_url}
             onChange={(e) => setConfig({ ...config, browser: { ...config.browser, cdp_url: e.target.value } })}
             placeholder="http://localhost:9222"
-            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
           />
         </div>
         <div>
@@ -38,7 +38,7 @@ export function BrowserTab({ config, setConfig }: BrowserTabProps) {
             value={config.browser.chrome_instance_path || ""}
             onChange={(e) => setConfig({ ...config, browser: { ...config.browser, chrome_instance_path: e.target.value } })}
             placeholder="C:\Program Files\Google\Chrome\Application\chrome.exe"
-            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-manus-xs"
+            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground font-mono shadow-peldrun-xs"
           />
         </div>
       </div>

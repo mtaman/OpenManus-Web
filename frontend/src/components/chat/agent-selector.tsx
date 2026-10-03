@@ -55,8 +55,8 @@ export function AgentSelector({ disabled = false }: AgentSelectorProps) {
   }, [isOpen]);
 
   const activeAgent = agents.find((a) => a.id === selectedAgentId) || {
-    id: "manus",
-    name: "Manus Generalist",
+    id: "peldrun",
+    name: "peldrun Generalist",
     role: "General Autonomous Specialist",
     icon: "Bot",
     max_steps: 30
@@ -86,7 +86,7 @@ export function AgentSelector({ disabled = false }: AgentSelectorProps) {
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
           disabled
             ? "opacity-50 cursor-not-allowed bg-muted/40 border-border text-muted-foreground"
-            : "bg-card hover:bg-muted border-border text-foreground shadow-manus-xs cursor-pointer"
+            : "bg-card hover:bg-muted border-border text-foreground shadow-peldrun-xs cursor-pointer"
         }`}
         title={`Active: ${activeAgent.name} (Max${activeAgent.max_steps || 30} Steps)`}
       >

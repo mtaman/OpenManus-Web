@@ -26,7 +26,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
           <select
             value={config.search.engine}
             onChange={(e) => setConfig({ ...config, search: { ...config.search, engine: e.target.value } })}
-            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs"
+            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-peldrun-xs"
           >
             <option value="Google">Google</option>
             <option value="DuckDuckGo">DuckDuckGo</option>
@@ -40,7 +40,7 @@ export function SearchTab({ config, setConfig }: SearchTabProps) {
             type="text"
             value={Array.isArray(config.search.fallback_engines) ? config.search.fallback_engines.join(", ") : ""}
             onChange={(e) => setConfig({ ...config, search: { ...config.search, fallback_engines: e.target.value.split(",").map((s) => s.trim()) } })}
-            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+            className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
           />
         </div>
       </div>

@@ -81,7 +81,7 @@ const config: Config = {
 
         custom: "var(--custom-color)",
         
-        manus: {
+        peldrun: {
           black: "#34322D",
           gray: "#F8F8F8",
           white: "#FFFFFF",
@@ -109,10 +109,10 @@ const config: Config = {
         full: "9999px",
       },
       boxShadow: {
-        "manus-xs": "0 1px 2px rgba(0, 0, 0, 0.02)",
-        "manus-sm": "0 1px 3px rgba(0, 0, 0, 0.04)",
-        "manus-md": "0 4px 6px rgba(0, 0, 0, 0.04)",
-        "manus-lg": "0 4px 20px rgba(0, 0, 0, 0.06)",
+        "peldrun-xs": "0 1px 2px rgba(0, 0, 0, 0.02)",
+        "peldrun-sm": "0 1px 3px rgba(0, 0, 0, 0.04)",
+        "peldrun-md": "0 4px 6px rgba(0, 0, 0, 0.04)",
+        "peldrun-lg": "0 4px 20px rgba(0, 0, 0, 0.06)",
       },
     },
   },

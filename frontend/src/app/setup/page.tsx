@@ -71,7 +71,7 @@ export default function SetupPage() {
         setCandidates(detectData.candidates || []);
       }
     } catch {
-      setMessage({ text: "Unable to communicate with OpenManus setup service.", type: "error" });
+      setMessage({ text: "Unable to communicate with peldrun setup service.", type: "error" });
     } finally {
       setLoading(false);
     }
@@ -102,14 +102,14 @@ export default function SetupPage() {
 
   const handleInstallEmbedded = async () => {
     setInstalling(true);
-    setMessage({ text: "Provisioning embedded OpenManus core engine...", type: "info" });
+    setMessage({ text: "Provisioning embedded peldrun core engine...", type: "info" });
     try {
       const res = await fetch("/api/setup/install-embedded", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.detail || "Embedded engine installation failed.");
       }
-      setMessage({ text: "Embedded OpenManus engine successfully installed and configured!", type: "success" });
+      setMessage({ text: "Embedded peldrun engine successfully installed and configured!", type: "success" });
       await fetchStatusAndDetect();
     } catch (err: any) {
       setMessage({ text: err.message || "Installation failed", type: "error" });
@@ -152,12 +152,12 @@ export default function SetupPage() {
       {/* Top Navigation Bar */}
       <header className="h-16 border-b border-border/80 bg-card/60 backdrop-blur-md px-6 md:px-12 flex items-center justify-between shrink-0 sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-card border border-border p-1 shadow-manus-xs flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-card border border-border p-1 shadow-peldrun-xs flex items-center justify-center">
             <img src="/peldrun-logo.svg" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-heading font-semibold text-sm text-foreground tracking-tight">OpenManus Web</span>
+              <span className="font-heading font-semibold text-sm text-foreground tracking-tight">peldrun Web</span>
               <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-primary/10 text-primary border border-primary/20">
                 Setup Wizard
               </span>
@@ -172,7 +172,7 @@ export default function SetupPage() {
             size="sm"
             onClick={fetchStatusAndDetect}
             disabled={loading || installing}
-            className="h-8 text-xs font-sans border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-manus-xs"
+            className="h-8 text-xs font-sans border-border bg-background hover:bg-muted text-foreground cursor-pointer shadow-peldrun-xs"
           >
             <RefreshCw size={12} className={`mr-1.5 ${loading ? "animate-spin" : ""}`} />
             <span>Refresh Diagnostics</span>
@@ -184,7 +184,7 @@ export default function SetupPage() {
             <Button
               variant={isEngineReady ? "primary" : "secondary"}
               size="sm"
-              className="h-8 text-xs font-sans gap-1 shadow-manus-xs cursor-pointer"
+              className="h-8 text-xs font-sans gap-1 shadow-peldrun-xs cursor-pointer"
             >
               <span>{isEngineReady ? "Go to Workspace" : "Skip Setup"}</span>
               <ArrowRight size={12} />
@@ -202,10 +202,10 @@ export default function SetupPage() {
             <span>Autonomous Intelligence Gateway</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-heading font-bold text-foreground tracking-tight">
-            Connect Your OpenManus Engine
+            Connect Your peldrun Engine
           </h1>
           <p className="text-xs md:text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed">
-            OpenManus Web operates alongside the core autonomous agent. Configure your runtime engine below to unlock autonomous execution, multi-modal reasoning, and sovereign workspaces.
+            peldrun Web operates alongside the core autonomous agent. Configure your runtime engine below to unlock autonomous execution, multi-modal reasoning, and sovereign workspaces.
           </p>
 
           {/* 3-Step Visual Progress Bar */}
@@ -222,9 +222,9 @@ export default function SetupPage() {
               <span className="font-medium">Configuration</span>
             </div>
             <div className="w-8 md:w-16 h-px bg-border" />
-            <div className={`flex items-center gap-1.5 ${isEngineReady ? "text-manus-success" : "text-muted-foreground"}`}>
+            <div className={`flex items-center gap-1.5 ${isEngineReady ? "text-peldrun-success" : "text-muted-foreground"}`}>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                isEngineReady ? "bg-manus-success text-white" : "bg-muted text-muted-foreground border border-border"
+                isEngineReady ? "bg-peldrun-success text-white" : "bg-muted text-muted-foreground border border-border"
               }`}>3</span>
               <span className="font-medium">Launch</span>
             </div>
@@ -234,11 +234,11 @@ export default function SetupPage() {
         {/* Dynamic Alerts */}
         {message && (
           <div
-            className={`p-3.5 rounded-sm border text-xs flex items-center gap-2.5 transition-all shadow-manus-xs ${
+            className={`p-3.5 rounded-sm border text-xs flex items-center gap-2.5 transition-all shadow-peldrun-xs ${
               message.type === "success"
-                ? "bg-manus-success/10 border-manus-success/30 text-manus-success"
+                ? "bg-peldrun-success/10 border-peldrun-success/30 text-peldrun-success"
                 : message.type === "error"
-                ? "bg-manus-error/10 border-manus-error/30 text-manus-error"
+                ? "bg-peldrun-error/10 border-peldrun-error/30 text-peldrun-error"
                 : "bg-primary/10 border-primary/30 text-primary"
             }`}
           >
@@ -248,7 +248,7 @@ export default function SetupPage() {
         )}
 
         {/* Diagnostic Radar Card */}
-        <Card className="p-5 md:p-6 bg-card border-border shadow-manus-sm rounded-sm space-y-4">
+        <Card className="p-5 md:p-6 bg-card border-border shadow-peldrun-sm rounded-sm space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-border/70">
             <div className="flex items-center gap-2.5">
               <Cpu size={17} className="text-primary" />
@@ -261,13 +261,13 @@ export default function SetupPage() {
             </div>
 
             {isEngineReady ? (
-              <span className="px-2.5 py-1 rounded-full bg-manus-success/15 border border-manus-success/30 text-manus-success font-mono text-[10px] font-semibold flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-manus-success animate-ping" />
+              <span className="px-2.5 py-1 rounded-full bg-peldrun-success/15 border border-peldrun-success/30 text-peldrun-success font-mono text-[10px] font-semibold flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-peldrun-success animate-ping" />
                 READY & SYNCHRONIZED
               </span>
             ) : (
-              <span className="px-2.5 py-1 rounded-full bg-manus-warning/15 border border-manus-warning/30 text-manus-warning font-mono text-[10px] font-semibold flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-manus-warning" />
+              <span className="px-2.5 py-1 rounded-full bg-peldrun-warning/15 border border-peldrun-warning/30 text-peldrun-warning font-mono text-[10px] font-semibold flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-peldrun-warning" />
                 ENGINE BINDING REQUIRED
               </span>
             )}
@@ -292,7 +292,7 @@ export default function SetupPage() {
                     className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
                     title="Copy engine path"
                   >
-                    {copiedKey === "engine" ? <Check size={14} className="text-manus-success" /> : <Copy size={14} />}
+                    {copiedKey === "engine" ? <Check size={14} className="text-peldrun-success" /> : <Copy size={14} />}
                   </button>
                 )}
               </div>
@@ -313,7 +313,7 @@ export default function SetupPage() {
                     className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition cursor-pointer shrink-0"
                     title="Copy storage path"
                   >
-                    {copiedKey === "storage" ? <Check size={14} className="text-manus-success" /> : <Copy size={14} />}
+                    {copiedKey === "storage" ? <Check size={14} className="text-peldrun-success" /> : <Copy size={14} />}
                   </button>
                 )}
               </div>
@@ -322,7 +322,7 @@ export default function SetupPage() {
             {/* Sub-status badges */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div className="flex items-center gap-2.5 p-3 rounded-lg bg-background border border-border/60">
-                <HardDrive size={15} className={status?.is_embedded ? "text-primary" : "text-manus-accent"} />
+                <HardDrive size={15} className={status?.is_embedded ? "text-primary" : "text-peldrun-accent"} />
                 <div>
                   <span className="text-[10px] text-muted-foreground block font-mono">CORE TYPE</span>
                   <span className="text-xs font-medium text-foreground">
@@ -332,7 +332,7 @@ export default function SetupPage() {
               </div>
 
               <div className="flex items-center gap-2.5 p-3 rounded-lg bg-background border border-border/60">
-                <FileCode2 size={15} className={status?.has_config ? "text-manus-success" : "text-manus-warning"} />
+                <FileCode2 size={15} className={status?.has_config ? "text-peldrun-success" : "text-peldrun-warning"} />
                 <div>
                   <span className="text-[10px] text-muted-foreground block font-mono">CONFIG TOML</span>
                   <span className="text-xs font-medium text-foreground">
@@ -342,7 +342,7 @@ export default function SetupPage() {
               </div>
 
               <div className="flex items-center gap-2.5 p-3 rounded-lg bg-background border border-border/60">
-                <FolderCheck size={15} className={status?.workspace_exists ? "text-manus-success" : "text-muted-foreground"} />
+                <FolderCheck size={15} className={status?.workspace_exists ? "text-peldrun-success" : "text-muted-foreground"} />
                 <div>
                   <span className="text-[10px] text-muted-foreground block font-mono">WORKSPACE STORAGE</span>
                   <span className="text-xs font-medium text-foreground">
@@ -357,7 +357,7 @@ export default function SetupPage() {
         {/* Options Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Pathway A: Zero-Config Embedded */}
-          <Card className="p-6 bg-card border-border shadow-manus-sm rounded-sm flex flex-col justify-between space-y-5 relative overflow-hidden group hover:border-primary/40 transition-all">
+          <Card className="p-6 bg-card border-border shadow-peldrun-sm rounded-sm flex flex-col justify-between space-y-5 relative overflow-hidden group hover:border-primary/40 transition-all">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20 text-primary w-fit">
@@ -373,21 +373,21 @@ export default function SetupPage() {
                   Option 1: Embedded Core Engine
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Provisions an isolated OpenManus repository directly inside the local engine workspace. Ideal for zero-dependency local setups.
+                  Provisions an isolated peldrun repository directly inside the local engine workspace. Ideal for zero-dependency local setups.
                 </p>
               </div>
 
               <div className="space-y-1.5 text-xs text-muted-foreground pt-1">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck size={13} className="text-manus-success" />
+                  <ShieldCheck size={13} className="text-peldrun-success" />
                   <span>Isolated sandbox environment</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <ShieldCheck size={13} className="text-manus-success" />
+                  <ShieldCheck size={13} className="text-peldrun-success" />
                   <span>Automatic config synchronization</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <ShieldCheck size={13} className="text-manus-success" />
+                  <ShieldCheck size={13} className="text-peldrun-success" />
                   <span>Guaranteed version compatibility</span>
                 </div>
               </div>
@@ -398,7 +398,7 @@ export default function SetupPage() {
               size="md"
               onClick={handleInstallEmbedded}
               disabled={installing || (status?.is_embedded && status?.is_valid)}
-              className="w-full text-xs font-sans gap-2 shadow-manus-sm cursor-pointer"
+              className="w-full text-xs font-sans gap-2 shadow-peldrun-sm cursor-pointer"
             >
               <Download size={14} className={installing ? "animate-spin" : ""} />
               <span>
@@ -412,9 +412,9 @@ export default function SetupPage() {
           </Card>
 
           {/* Pathway B: Link Existing / Detected Engine */}
-          <Card className="p-6 bg-card border-border shadow-manus-sm rounded-sm flex flex-col justify-between space-y-5 hover:border-primary/40 transition-all">
+          <Card className="p-6 bg-card border-border shadow-peldrun-sm rounded-sm flex flex-col justify-between space-y-5 hover:border-primary/40 transition-all">
             <div className="space-y-4">
-              <div className="p-2.5 rounded-lg bg-manus-accent/10 border border-manus-accent/20 text-manus-accent w-fit">
+              <div className="p-2.5 rounded-lg bg-peldrun-accent/10 border border-peldrun-accent/20 text-peldrun-accent w-fit">
                 <FolderSearch size={20} />
               </div>
 
@@ -423,7 +423,7 @@ export default function SetupPage() {
                   Option 2: Connect Existing Installation
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Already have OpenManus cloned elsewhere on your computer? Link its directory to reuse your existing tools and custom agents.
+                  Already have peldrun cloned elsewhere on your computer? Link its directory to reuse your existing tools and custom agents.
                 </p>
               </div>
 
@@ -432,7 +432,7 @@ export default function SetupPage() {
                 <span className="text-[10px] font-mono uppercase text-muted-foreground block">Detected Candidates</span>
                 {candidates.length === 0 ? (
                   <div className="p-2.5 rounded-lg bg-background border border-border/60 text-center text-xs text-muted-foreground">
-                    No pre-existing OpenManus installations detected.
+                    No pre-existing peldrun installations detected.
                   </div>
                 ) : (
                   <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
@@ -445,7 +445,7 @@ export default function SetupPage() {
                         >
                           <div className="flex items-center gap-2 truncate">
                             {cand.is_valid ? (
-                              <CheckCircle2 size={13} className="text-manus-success shrink-0" />
+                              <CheckCircle2 size={13} className="text-peldrun-success shrink-0" />
                             ) : (
                               <AlertCircle size={13} className="text-muted-foreground shrink-0" />
                             )}
@@ -455,7 +455,7 @@ export default function SetupPage() {
                             <Button
                               variant={isActive ? "primary" : "secondary"}
                               size="sm"
-                              className="h-6 px-2 text-[10px] font-sans cursor-pointer shrink-0 shadow-manus-xs"
+                              className="h-6 px-2 text-[10px] font-sans cursor-pointer shrink-0 shadow-peldrun-xs"
                               onClick={() => handleLinkPath(cand.path)}
                               disabled={loading || isActive}
                             >
@@ -479,15 +479,15 @@ export default function SetupPage() {
                     type="text"
                     value={customPath}
                     onChange={(e) => setCustomPath(e.target.value)}
-                    placeholder={candidates.length > 0 ? candidates[0].path : "Enter path to OpenManus directory..."}
-                    className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-background border border-border text-foreground font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary shadow-manus-xs"
+                    placeholder={candidates.length > 0 ? candidates[0].path : "Enter path to peldrun directory..."}
+                    className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-background border border-border text-foreground font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary shadow-peldrun-xs"
                   />
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleLinkPath(customPath)}
                     disabled={loading || !customPath.trim()}
-                    className="h-8 px-3 text-xs font-sans gap-1.5 cursor-pointer shadow-manus-xs"
+                    className="h-8 px-3 text-xs font-sans gap-1.5 cursor-pointer shadow-peldrun-xs"
                   >
                     <Link2 size={12} />
                     <span>Link</span>
@@ -500,28 +500,28 @@ export default function SetupPage() {
 
         {/* Launch Gate & Next Steps */}
         {isEngineReady && (
-          <Card className="p-6 bg-manus-success/5 border-manus-success/30 rounded-sm shadow-manus-md flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <Card className="p-6 bg-peldrun-success/5 border-peldrun-success/30 rounded-sm shadow-peldrun-md flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="space-y-1 text-center md:text-left">
               <div className="flex items-center justify-center md:justify-start gap-2">
-                <CheckCircle2 size={18} className="text-manus-success" />
+                <CheckCircle2 size={18} className="text-peldrun-success" />
                 <h3 className="text-sm font-semibold text-foreground font-heading">
                   All Systems Operational and Ready!
                 </h3>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                OpenManus core engine is synchronized. You can now launch autonomous sessions or customize your model API keys.
+                peldrun core engine is synchronized. You can now launch autonomous sessions or customize your model API keys.
               </p>
             </div>
 
             <div className="flex items-center gap-2.5 shrink-0">
               <Link href="/settings">
-                <Button variant="outline" size="sm" className="h-9 px-3 text-xs font-sans gap-1.5 border-border shadow-manus-xs cursor-pointer">
+                <Button variant="outline" size="sm" className="h-9 px-3 text-xs font-sans gap-1.5 border-border shadow-peldrun-xs cursor-pointer">
                   <Settings size={13} />
                   <span>Configure API Keys</span>
                 </Button>
               </Link>
               <Link href="/chat">
-                <Button variant="primary" size="sm" className="h-9 px-4 text-xs font-sans gap-1.5 shadow-manus-sm cursor-pointer">
+                <Button variant="primary" size="sm" className="h-9 px-4 text-xs font-sans gap-1.5 shadow-peldrun-sm cursor-pointer">
                   <span>Start Autonomous Session</span>
                   <ArrowRight size={13} />
                 </Button>

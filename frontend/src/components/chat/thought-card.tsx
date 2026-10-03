@@ -15,13 +15,13 @@ export function ThoughtCard({ thought, isStreaming }: ThoughtCardProps) {
   if (!thought && !isStreaming) return null;
 
   return (
-    <div className="my-1.5 rounded-sm border border-border bg-card/60 text-xs overflow-hidden shadow-manus-xs transition-all">
+    <div className="my-1.5 rounded-sm border border-border bg-card/60 text-xs overflow-hidden shadow-peldrun-xs transition-all">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between px-3.5 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer select-none font-sans"
       >
         <div className="flex items-center gap-2 truncate">
-          <BrainCircuit size={14} className="text-manus-accent flex-shrink-0" />
+          <BrainCircuit size={14} className="text-peldrun-accent flex-shrink-0" />
           <span className="text-xs font-semibold text-foreground">Agent Reasoning</span>
           {!isOpen && thought && (
             <span className="text-[11px] text-muted-foreground truncate max-w-sm font-normal">
@@ -29,7 +29,7 @@ export function ThoughtCard({ thought, isStreaming }: ThoughtCardProps) {
             </span>
           )}
           {isStreaming && (
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-manus-accent animate-pulse flex-shrink-0" />
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-peldrun-accent animate-pulse flex-shrink-0" />
           )}
         </div>
         <div className="text-muted-foreground pl-2 flex-shrink-0">

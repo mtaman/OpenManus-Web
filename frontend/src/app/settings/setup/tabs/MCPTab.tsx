@@ -353,7 +353,7 @@ export function MCPTab({ config, setConfig }: MCPTabProps) {
                 }))
               }
               placeholder="app.mcp.server"
-              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-manus-xs font-mono"
+              className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-xs text-foreground shadow-peldrun-xs font-mono"
             />
             <span className="text-[10px] text-muted-foreground mt-1.5 block">
               Points to the backend Python module implementing native MCP server tools for external integrations.

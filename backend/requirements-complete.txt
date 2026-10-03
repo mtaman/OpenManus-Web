@@ -1,5 +1,5 @@
 ﻿# ============================================================
-# OpenManus-Web Unified Requirements (Web UI + Core Agent)
+# PELDRUN-Web Unified Requirements (Web UI + Core Agent)
 # Python 3.12 Compatible
 # ============================================================
 

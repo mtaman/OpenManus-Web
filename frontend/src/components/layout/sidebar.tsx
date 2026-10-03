@@ -391,7 +391,7 @@ export function Sidebar() {
           className="p-2.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground font-mono hover:bg-muted/70 hover:text-foreground transition-all group cursor-pointer"
         >
           <span className="flex items-center gap-1.5">
-            <Activity size={13} className="text-manus-accent group-hover:scale-110 transition-transform" />
+            <Activity size={13} className="text-peldrun-accent group-hover:scale-110 transition-transform" />
             <span className="group-hover:text-foreground transition-colors">System Health</span>
           </span>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground group-hover:text-foreground">

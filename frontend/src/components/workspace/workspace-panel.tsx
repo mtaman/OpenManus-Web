@@ -116,12 +116,12 @@ export function WorkspacePanel({
       }
     };
 
-    window.addEventListener("openmanus:switch-tab", handleSwitchTab);
-    window.addEventListener("openmanus:artifact-created", handleArtifactCreated);
+    window.addEventListener("peldrun:switch-tab", handleSwitchTab);
+    window.addEventListener("peldrun:artifact-created", handleArtifactCreated);
 
     return () => {
-      window.removeEventListener("openmanus:switch-tab", handleSwitchTab);
-      window.removeEventListener("openmanus:artifact-created", handleArtifactCreated);
+      window.removeEventListener("peldrun:switch-tab", handleSwitchTab);
+      window.removeEventListener("peldrun:artifact-created", handleArtifactCreated);
     };
   }, []);
 
@@ -248,7 +248,7 @@ export function WorkspacePanel({
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-manus-xs"
+                    ? "bg-primary text-primary-foreground shadow-peldrun-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 }`}
               >
@@ -272,7 +272,7 @@ export function WorkspacePanel({
               size="sm"
               onClick={handleExportZip}
               disabled={exporting}
-              className="h-7 px-2.5 text-xs font-sans gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground border-border/60 hover:bg-muted/60 shadow-manus-xs"
+              className="h-7 px-2.5 text-xs font-sans gap-1.5 cursor-pointer text-muted-foreground hover:text-foreground border-border/60 hover:bg-muted/60 shadow-peldrun-xs"
               title="Export all session files as ZIP"
             >
               {exporting ? (

@@ -28,13 +28,13 @@ class DelegateSubtaskTool(BaseTool):
 
 async def delegate_subtask_to_agent(target_agent_id: str, subtask_prompt: str) -> str:
     from omweb.agents.registry import agent_registry
-    from app.agent.manus import Manus
+    from app.agent.peldrun import peldrun
     
     manifest = agent_registry.get_agent(target_agent_id)
     if not manifest:
         return f"Handover Error: Target agent '{target_agent_id}' does not exist in registry."
 
-    sub_agent = Manus()
+    sub_agent = peldrun()
     allowed_tools = [t.lower() for t in manifest.get("tools", [])]
     allowed_tools.extend(["terminate", "ask_human"])
 

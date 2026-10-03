@@ -6,7 +6,7 @@
 @layer base {
 
   :root {
-    /* Manus Light Mode (Official Brand Palette) */
+    /* peldrun Light Mode (Official Brand Palette) */
     --background: 60 6.67% 97.06%;             /* #f8f8f7 */
     --foreground: 0 0% 6.27%;             /* #101010 */
     --card: 0 0% 100%;                  /* #ffffff */
@@ -44,7 +44,7 @@
   }
 
   .dark {
-    /* Manus Dark Mode (Deep Charcoal Canvas) */
+    /* peldrun Dark Mode (Deep Charcoal Canvas) */
     --background: 60 4% 6%;              /* #0F0F0E */
     --foreground: 60 5% 96%;             /* #F5F5F4 */
     --card: 30 6% 10%;                   /* #1A1918 */
@@ -102,7 +102,7 @@
  
 }
 
-/* Manus Ultra-Subtle Scrollbar */
+/* peldrun Ultra-Subtle Scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;

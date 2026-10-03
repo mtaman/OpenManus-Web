@@ -57,7 +57,7 @@ export function ChatSubHeader({
           <button
             type="button"
             onClick={onNewSession}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md border border-border bg-card hover:bg-muted text-foreground transition-all shadow-manus-xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md border border-border bg-card hover:bg-muted text-foreground transition-all shadow-peldrun-xs cursor-pointer"
             title="Start a fresh autonomous session"
           >
             <Plus size={13} />

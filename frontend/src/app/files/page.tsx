@@ -291,7 +291,7 @@ export default function StorageArtifactsHubPage() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground font-mono truncate max-w-xl">
-                {stats?.storage_path || "D:\\AI\\OpenManus-Web\\storage"}
+                {stats?.storage_path || "D:\\AI\\PELDRUN-Web\\storage"}
               </p>
             </div>
           </div>
@@ -301,7 +301,7 @@ export default function StorageArtifactsHubPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => openInWindowsExplorer(stats?.storage_path || "D:\\AI\\OpenManus-Web\\storage", true)}
+              onClick={() => openInWindowsExplorer(stats?.storage_path || "D:\\AI\\PELDRUN-Web\\storage", true)}
               className="h-8 text-xs gap-1.5 border-border hover:bg-muted text-foreground cursor-pointer shadow-xs"
               title="Open Storage folder in foreground Windows Explorer"
             >

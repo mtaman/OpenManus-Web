@@ -49,7 +49,7 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
           },
           table({ children }: any) {
             return (
-              <div className="my-3 overflow-x-auto rounded-sm border border-border bg-card/60 shadow-manus-xs">
+              <div className="my-3 overflow-x-auto rounded-sm border border-border bg-card/60 shadow-peldrun-xs">
                 <table className="w-full border-collapse text-xs text-left">
                   {children}
                 </table>

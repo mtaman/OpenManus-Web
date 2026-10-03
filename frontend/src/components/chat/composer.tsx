@@ -69,7 +69,7 @@ export function Composer({ onSend, onStop, isRunning, disabled, placeholder }: C
       api_key: "",
       api_type: "",
       mode: execMode,
-      agent_id: execMode === "agent" ? (selectedAgentId || "manus") : "manus"
+      agent_id: execMode === "agent" ? (selectedAgentId || "peldrun") : "peldrun"
     };
 
     if (activeLlmOverride) {
