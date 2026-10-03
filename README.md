@@ -1,6 +1,6 @@
 ﻿<div align="center">
 
-<img src="assets/image/PELDRUN-Web-logo-2.png" alt="peldrun Web Logo" width="200">
+<img src="assets\image\peldrun-logo.svg" alt="peldrun Web Logo" width="200">
 
 [![peldrun](https://img.shields.io/badge/peldrun-Core-blue?style=for-the-badge&logo=github)](https://github.com/FoundationAgents/peldrun)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI%202.0-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
@@ -10,7 +10,7 @@
 
 </div>
 
-# 👋 peldrun Web — Professional Dashboard for the peldrun AI Agent
+# 👋 Peldrun Web — Professional Dashboard for the peldrun AI Agent
 
 <div align="center">
 
