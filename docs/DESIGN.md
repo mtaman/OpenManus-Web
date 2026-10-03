@@ -6,7 +6,7 @@ peldrun Web Dashboard is a sovereign, local-first web interface designed to cont
 ### Key Characteristics:
 - **Zero-Tampering peldrun Integration**: Core peldrun (`D:\AI\peldrun`) remains 100% read-only at frozen commit `3309bf4`.
 - **Full Bidirectional Live Streaming**: Real-time event propagation using Server-Sent Events (SSE).
-- **Localized State Isolation**: File operations, configurations, and job histories are sandboxed locally under `D:\AI\PELDRUN-Web\`.
+- **Localized State Isolation**: File operations, configurations, and job histories are sandboxed locally under `D:\AI\peldrun\`.
 
 ---
 

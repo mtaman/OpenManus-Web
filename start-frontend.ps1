@@ -1,5 +1,5 @@
 ﻿Write-Host ">>> Starting peldrun Web Frontend in FAST DEV MODE (Hot-Reload)..." -ForegroundColor Cyan
-Set-Location -Path "D:\AI\PELDRUN-Web\frontend"
+Set-Location -Path "D:\AI\peldrun\frontend"
 
 # Free port 3088
 Get-NetTCPConnection -LocalPort 3088 -ErrorAction SilentlyContinue |

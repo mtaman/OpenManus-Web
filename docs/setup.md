@@ -129,7 +129,7 @@ You have two options:
 
 ### ⚠️ Important Note About PowerShell Scripts
 
-The provided `start-all.ps1`, `start-backend.ps1`, and `start-frontend.ps1` scripts contain **absolute paths** such as `D:\AI\PELDRUN-Web\`.  
+The provided `start-all.ps1`, `start-backend.ps1`, and `start-frontend.ps1` scripts contain **absolute paths** such as `D:\AI\peldrun\`.  
 **They will not work on your machine unless you edit these paths.**
 
 You can either:

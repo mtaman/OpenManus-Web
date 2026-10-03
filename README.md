@@ -92,7 +92,7 @@ Instead of dealing only with the terminal, **peldrun Web** gives you a modern br
 ## 📂 Project Directory Structure
 
 ```text
-D:\AI\PELDRUN-Web\
+D:\AI\peldrun\
 ├─ README.md
 ├─ .gitignore
 ├─ start-all.ps1

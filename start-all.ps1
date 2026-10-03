@@ -3,13 +3,13 @@ Write-Host "   Launching peldrun Web Dashboard (All)       " -ForegroundColor Cy
 Write-Host "=================================================" -ForegroundColor Cyan
 
 # Start Backend in independent window
-Start-Process powershell -ArgumentList "-NoExit", "-File", "D:\AI\PELDRUN-Web\start-backend.ps1"
+Start-Process powershell -ArgumentList "-NoExit", "-File", "D:\AI\peldrun\start-backend.ps1"
 
 # Wait 2 seconds for backend initialization
 Start-Sleep -Seconds 2
 
 # Start Frontend in independent window
-Start-Process powershell -ArgumentList "-NoExit", "-File", "D:\AI\PELDRUN-Web\start-frontend.ps1"
+Start-Process powershell -ArgumentList "-NoExit", "-File", "D:\AI\peldrun\start-frontend.ps1"
 
 Write-Host "`n>>> Both servers launched in background windows." -ForegroundColor Green
 Write-Host ">>> Access Dashboard UI at: http://localhost:3088" -ForegroundColor Yellow

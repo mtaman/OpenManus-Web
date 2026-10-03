@@ -62,7 +62,7 @@
 ## 📂 Project Directory Structure
 
 ```text
-D:\AI\PELDRUN-Web\
+D:\AI\peldrun\
 ├─ README.md
 ├─ .gitignore
 ├─ start-all.ps1

@@ -1,7 +1,7 @@
 ﻿Write-Host ">>> Starting peldrun Web Backend (FastAPI 2.0)..." -ForegroundColor Cyan
-Set-Location -Path "D:\AI\PELDRUN-Web\backend"
+Set-Location -Path "D:\AI\peldrun\backend"
 
-$venvPython = "D:\AI\PELDRUN-Web\backend\.venv\Scripts\python.exe"
+$venvPython = "D:\AI\peldrun\backend\.venv\Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
     Write-Host "[ERROR] Virtual environment not found at: $venvPython" -ForegroundColor Red
     exit 1
