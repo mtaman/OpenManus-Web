@@ -26,6 +26,7 @@ import {
 } from "@/lib/chatsApi";
 import { useConfirmModal } from "@/components/ui/ConfirmModal";
 import { showToast, ToastContainer } from "@/components/ui/ToastNotification";
+import { ServerStatusIndicator } from "./ServerStatusIndicator";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -209,7 +210,7 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="w-[260px] border-r border-border bg-custom backdrop-blur-md flex flex-col h-screen select-none shrink-0 font-sans transition-all duration-200">
+      <aside className="w-[260px] border-r border-border bg-card backdrop-blur-md flex flex-col h-screen select-none shrink-0 font-sans transition-all duration-200">
         {/* Workspace Header */}
         <div className="h-14 flex items-center justify-between px-4 border-b border-border">
           <span className="font-heading font-semibold text-xs tracking-wider text-muted-foreground uppercase">
@@ -397,6 +398,13 @@ export function Sidebar() {
             v1.0.0
           </span>
         </Link>
+
+        {/* Right: Live Dynamic Server Status Indicator */}
+          <div className="flex items-center gap-2 shrink-0 p-2.5 border-t border-border flex items-center justify-between text-[11px] text-muted-foreground font-mono hover:bg-muted/70 hover:text-foreground transition-all group cursor-pointer">
+            <ServerStatusIndicator showLatency={true} />
+          </div>
+
+
       </aside>
 
       {/* Standalone Injected Dialog and Toasts (Zero Layout footprint) */}

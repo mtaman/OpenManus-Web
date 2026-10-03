@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
+import NeuralLoaderV3 from '@/components/NeuralLoaderV3';
 import {
   Bot,
   MessageSquare,
@@ -90,7 +91,13 @@ export function ChatLanding({
       : `Chat directly with ${activeProvider} (${activeModel})...`;
 
   return (
-    <div className="glow-wrapper flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full font-sans">
+    <div className="glow-wrapper flex-1 flex flex-col items-center justify-center p-6 text-center max-w-3xl mx-auto w-full font-sans relative">
+
+      <div className="flex  items-center justify-center chatlanding-neuralloader">
+      <NeuralLoaderV3 size={100} color="blue" speed={30} />
+    </div>
+
+
       <h1 className="font-serif text-3xl sm:text-5xl font-normal text-black tracking-tight mb-4">
         What can I do for you?
       </h1>
@@ -102,15 +109,15 @@ export function ChatLanding({
             onClick={() => handleModeChange("agent")}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs transition-all duration-300 cursor-pointer ${
               execMode === "agent"
-                ? "bg-card text-emerald-500 border border-emerald-500/50 shadow-[0_0_16px_rgba(16,185,129,0.38)] font-semibold ring-1 ring-emerald-500/30"
+                ? "bg-card text-sky-500 border shadow-[0_0_8px_#0ea5e9] border-sky-500/50 font-semibold ring-1 ring-sky-500/30"
                 : "text-muted-foreground hover:text-foreground border border-transparent"
             }`}
             title="Autonomous Agent: multi-step planning, tools & execution"
           >
-            <Bot size={12} className={execMode === "agent" ? "text-emerald-500 animate-pulse" : ""} />
+            <Bot size={12} className={execMode === "agent" ? "text-sky-500 animate-pulse" : ""} />
             <span>Agent</span>
             {execMode === "agent" && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-[0_0_8px_#10b981] animate-pulse ring-sky-500/30" />
             )}
           </button>
           <button
@@ -118,15 +125,15 @@ export function ChatLanding({
             onClick={() => handleModeChange("chat")}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs transition-all duration-300 cursor-pointer ${
               execMode === "chat"
-                ? "bg-card text-sky-500 border border-sky-500/50 shadow-[0_0_16px_rgba(14,165,233,0.38)] font-semibold ring-1 ring-sky-500/30"
+                ? "bg-card text-emerald-500 border border-emerald-500/50   shadow-[0_0_16px_rgba(14,165,233,0.38)] font-semibold ring-1 ring-emerald-500/30"
                 : "text-muted-foreground hover:text-foreground border border-transparent"
             }`}
             title="Direct Chat: fast response, no tools or execution steps"
           >
-            <MessageSquare size={14} className={execMode === "chat" ? "text-sky-500 animate-pulse" : ""} />
+            <MessageSquare size={14} className={execMode === "chat" ? "text-emerald-500 animate-pulse" : ""} />
             <span>Chat</span>
             {execMode === "chat" && (
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 shadow-[0_0_8px_#0ea5e9] animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500  shadow-[0_0_16px_rgba(14,165,233,0.38)]  animate-pulse" />
             )}
           </button>
         </div>

@@ -68,6 +68,15 @@
   opacity: 1;
 }
 
+.chatlanding-neuralloader {
+  opacity: 0.1;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.glow-wrapper:has(.peldrun-input-bar:focus-within) .chatlanding-neuralloader{
+opacity: .5;
+}
+
 /* ===== احترام تقليل الحركة ===== */
 @media (prefers-reduced-motion: reduce) {
   .glow-wrapper::before {

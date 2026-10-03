@@ -226,14 +226,14 @@ export default function HistoryPage() {
       <div className="flex flex-col flex-1 h-full w-full bg-background text-foreground overflow-hidden font-sans">
         {/* Header Bar */}
         <header className="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-10 shrink-0">
-          <div className="max-w-[1240px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+          <div className=" mx-auto w-full px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-xs">
                 <History className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-base font-bold text-foreground tracking-tight">
+                  <h1 className="text-base font-bold text-foreground tracking-tight font-serif">
                     Session Archives & Disk Governance
                   </h1>
                   <span className="hidden sm:inline-flex px-2 py-0.5 text-[10px] font-mono font-medium rounded-full bg-muted text-muted-foreground border border-border">
@@ -288,7 +288,7 @@ export default function HistoryPage() {
 
         {/* Metrics Bar */}
         {stats && (
-          <div className="border-b border-border bg-muted/15 py-3 shrink-0">
+          <div className="border-b border-border bg-muted/15 py-3 shrink-0 font-sans">
             <div className="max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="p-2.5 rounded-lg border border-border/80 bg-card shadow-xs flex items-center justify-between">
                 <div>
@@ -334,7 +334,7 @@ export default function HistoryPage() {
         )}
 
         {/* Tabs & Deep Search Filter Navigation */}
-        <div className="w-full border-b border-border bg-muted/20">
+        <div className="w-full border-b border-border bg-custom">
           <div className="max-w-[1240px] mx-auto w-full px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-1 overflow-x-auto pt-2 scrollbar-none">
               <button

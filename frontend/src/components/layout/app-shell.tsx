@@ -23,9 +23,10 @@ import { useAppStorage } from "@/hooks/use-app-storage";
 const navItems = [
   { href: "/chat", icon: MessageSquare, label: "Chat" },
   { href: "/projects", icon: FolderOpen, label: "Projects" },
-  { href: "/stores", icon: Store, label: "Stores" },
-  { href: "/history", icon: History, label: "History" },
   { href: "/files", icon: Folder, label: "Files" },
+  { href: "/history", icon: History, label: "History" },
+  
+  
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -86,7 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               const active =
                 pathname === item.href ||
                 (item.href !== "/chat" && pathname.startsWith(item.href)) ||
-                (item.href === "/chat" && pathname.startsWith("/chat"));
+                (item.href === "/chat" && pathname.startsWith("/chat")); 
 
               return (
                 <Link
@@ -107,12 +108,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="flex flex-col items-center gap-2">
+
+          <Link
+            href="/stores"
+            title="Stores"
+            className={`w-10 h-10 mb-1 flex items-center justify-center rounded-xs transition-all ${
+              isSettingsActive
+                ? "bg-transparent text-black shadow-manus-xs"
+                : "text-black hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            <Store size={18} />
+          </Link>
+
+
           <Link
             href="/settings"
             title="Settings"
             className={`w-10 h-10 mb-1 flex items-center justify-center rounded-xs transition-all ${
               isSettingsActive
-                ? "bg-muted text-black shadow-manus-xs"
+                ? "bg-transparent text-black shadow-manus-xs"
                 : "text-black hover:bg-muted hover:text-foreground"
             }`}
           >

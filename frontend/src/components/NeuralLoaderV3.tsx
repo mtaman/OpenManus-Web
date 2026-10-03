@@ -13,7 +13,7 @@ const COLOR_GRADIENTS: Record<
   LoaderColor,
   { start: string; mid: string; end: string; glow: string }
 > = {
-  blue: { start: '#00d4ff', mid: '#4a9eff', end: '#8a2be2', glow: 'rgba(0, 212, 255, 0.5)' },
+  blue: { start: '#00d4ff', mid: '#4a9eff', end: '#e22b7d', glow: 'rgba(0, 212, 255, 0.5)' },
   green: { start: '#00ff88', mid: '#00d47e', end: '#00a86b', glow: 'rgba(0, 255, 136, 0.5)' },
   red: { start: '#ff4d4d', mid: '#ff2e63', end: '#c9184a', glow: 'rgba(255, 77, 77, 0.5)' },
   purple: { start: '#c77dff', mid: '#9d4edd', end: '#7b2cbf', glow: 'rgba(199, 125, 255, 0.5)' },

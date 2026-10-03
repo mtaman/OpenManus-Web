@@ -11,7 +11,6 @@ interface ChatSubHeaderProps {
   activeChatId: string | null;
   activeJobId: string | null;
   historyTurnsCount: number;
-  status: "idle" | "running" | "completed" | "failed";
   tokensUsed: { input: number; output: number; total: number };
   currentStepNum: number;
   maxSteps?: number;
@@ -22,6 +21,10 @@ interface ChatSubHeaderProps {
   onStopTask: () => void;
   showRightPanel: boolean;
   onToggleRightPanel: () => void;
+
+    status?: "idle" | "running" | "ready" | "completed" | "error";
+    sessionTitle?: string;
+    stepCount?: number;
 }
 
 export function ChatSubHeader({
@@ -30,7 +33,7 @@ export function ChatSubHeader({
   activeChatId,
   activeJobId,
   historyTurnsCount,
-  status,
+   
   tokensUsed,
   currentStepNum,
   maxSteps = 30,
@@ -41,9 +44,12 @@ export function ChatSubHeader({
   onStopTask,
   showRightPanel,
   onToggleRightPanel,
+
+  status = "idle",
+   stepCount,
 }: ChatSubHeaderProps) {
   return (
-    <div className="h-12 flex items-center justify-between px-5 border-b border-border bg-[#ffffff]/1 backdrop-blur-sm shrink-0 font-sans">
+    <div className="h-12 flex items-center justify-between px-5  bg-transparent backdrop-blur-sm shrink-0 font-sans"> 
       <div className="flex items-center gap-2.5">
         {isFreshSession ? (
           <EngineSelector />
@@ -59,23 +65,6 @@ export function ChatSubHeader({
           </button>
         )}
 
-        <span className="text-xs font-medium text-foreground truncate max-w-[140px] sm:max-w-xs">
-          {submittedPrompt ? submittedPrompt : (activeChatId ? `Chat ${activeChatId}` : (activeJobId ? `Session ${activeJobId}` : " "))}
-        </span>
-
-        {historyTurnsCount > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono bg-muted border border-border text-muted-foreground">
-            <History size={10} />
-            <span>Turn {historyTurnsCount + 1}</span>
-          </span>
-        )}
-
-        {status === "running" && (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span>RUNNING</span>
-          </span>
-        )}
       </div>
 
       <div className="flex items-center gap-2.5">
@@ -93,6 +82,29 @@ export function ChatSubHeader({
           </span>
         )}
 
+        {historyTurnsCount > 0 && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono bg-muted border border-border text-muted-foreground">
+            <History size={10} />
+            <span>Turn {historyTurnsCount + 1}</span>
+          </span>
+        )}
+
+        {/* Semantic Status Badge - Only visible when actively RUNNING */}
+        {status === "running" && (
+          <div className="hidden sm:flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[11px] font-mono font-medium bg-amber-500/15 text-amber-500 border border-amber-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <span>RUNNING</span>
+            </span>
+
+            {typeof stepCount === "number" && (
+              <span className="text-[11px] font-mono text-muted-foreground px-1.5 py-0.5 rounded-sm bg-background border border-border">
+                Step {stepCount}
+              </span>
+            )}
+          </div>
+        )}
+
         {status === "running" && (
           <Button
             variant="destructive"
@@ -104,6 +116,8 @@ export function ChatSubHeader({
             <span>Stop</span>
           </Button>
         )}
+
+
 
         <button
           type="button"
