@@ -1,12 +1,21 @@
+"""
+PELDRUN Universal Agent Bridge.
+Dual-Engine runtime router dispatching execution to:
+- PELDRUN Core: Native event-driven execution using EventEmitter and typed lifecycle contracts.
+- OpenManus (Legacy): Backward-compatible execution using runtime memory instrumentation.
+"""
+
 from __future__ import annotations
+
+import asyncio
+import json
 import os
 import sys
-import json
-import asyncio
 import traceback
-import httpx
 from pathlib import Path
-from typing import Any, Dict, Optional, List, Union, Set
+from typing import Any, Dict, List, Optional, Set, Union
+
+import httpx
 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -16,10 +25,18 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["MPLBACKEND"] = "Agg"
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
-from omweb.sse_events import dispatch_event, SSEEvent, SSEEventType
+from omweb.sse_events import SSEEvent, SSEEventType, dispatch_event
 from omweb.job_manager import job_manager
 from omweb.project_manager import project_manager
-from omweb.engine_resolver import resolve_active_engine_path, inject_engine_to_syspath
+from omweb.engine_resolver import (
+    EngineType,
+    get_active_engine_type,
+    inject_engine_to_syspath,
+    is_core_engine_available,
+    is_legacy_engine_available,
+    resolve_active_engine_path,
+)
+
 inject_engine_to_syspath()
 
 human_answers: Dict[str, asyncio.Event] = {}
@@ -36,7 +53,8 @@ def read_active_toml_config() -> Dict[str, Any]:
         engine_path / "config" / "config.toml",
         engine_path / "config.toml",
         Path(__file__).resolve().parent.parent / "config.toml",
-        Path(r"D:\AI\peldrun\config\config.toml")
+        Path(r"D:\AI\peldrun\config\config.toml"),
+        Path(r"D:\AI\peldrun-core\config.toml"),
     ]
 
     target_file = None
@@ -67,18 +85,9 @@ def read_active_toml_config() -> Dict[str, Any]:
         return {}
 
 
-def _err_card(
-    title: str,
-    description: str,
-    hint: str = "",
-    code: str = "",
-) -> str:
+def _err_card(title: str, description: str, hint: str = "", code: str = "") -> str:
     """Build a Markdown error card ready for the chat UI."""
-    parts = [
-        f"### ⚠️ {title}",
-        "",
-        description,
-    ]
+    parts = [f"### ⚠️ {title}", "", description]
     if hint:
         parts += ["", f"> 💡 **Hint:** {hint}"]
     if code:
@@ -142,7 +151,7 @@ async def check_lmstudio_model_readiness(base_url: str, model_name: str, api_key
 
     endpoints = [
         f"{clean_base}/api/v1/models",
-        f"{clean_base}/api/v0/models"
+        f"{clean_base}/api/v0/models",
     ]
 
     for ep in endpoints:
@@ -162,7 +171,7 @@ async def check_lmstudio_model_readiness(base_url: str, model_name: str, api_key
                                 "found": True,
                                 "is_loaded": is_loaded,
                                 "context_length": ctx_len,
-                                "unreachable": False
+                                "unreachable": False,
                             }
                     return {"found": False, "is_loaded": False, "unreachable": False}
         except Exception:
@@ -171,68 +180,9 @@ async def check_lmstudio_model_readiness(base_url: str, model_name: str, api_key
     return {"found": False, "is_loaded": False, "unreachable": True}
 
 
-def scope_mcp_servers(agent: Any, manifest: Dict[str, Any], project_dir: Optional[Path] = None) -> None:
-    """Dynamically hooks active MCP servers or bypasses initialization if not required."""
-    import shutil
-    from omweb.extensions.registry import extension_registry
-
-    allowed = [t.lower() for t in manifest.get("tools", [])]
-    needs_mcp = any("browser" in t or "mcp" in t for t in allowed)
-
-    if not needs_mcp and hasattr(agent, "initialize_mcp_servers"):
-        async def dummy_init_mcp():
-            return None
-        agent.initialize_mcp_servers = dummy_init_mcp
-        print(f"[BRIDGE] MCP Scoping: Bypassed MCP servers for agent '{manifest.get('name')}'")
-        return
-
-    if hasattr(agent, "connect_mcp_server"):
-        async def dynamic_init_mcp():
-            active_mcp = extension_registry.get_active_mcp_servers()
-            print(f"[BRIDGE] Connecting {len(active_mcp)} active MCP servers...")
-            for s in active_mcp:
-                sid = s.get("id")
-                cmd = s.get("command", "")
-                transport = s.get("transport", "stdio")
-                if transport == "stdio" and cmd:
-                    parts = cmd.split()
-                    exe = shutil.which(parts[0]) or parts[0]
-                    args = list(parts[1:])
-                    if "filesystem" in sid and project_dir:
-                        args.append(str(project_dir.resolve()))
-                    try:
-                        await asyncio.wait_for(
-                            agent.connect_mcp_server(
-                                exe,
-                                server_id=sid,
-                                use_stdio=True,
-                                stdio_args=args,
-                                tool_name_prefix=False
-                            ),
-                            timeout=10.0
-                        )
-                        print(f"[BRIDGE] Connected MCP server '{sid}' successfully.")
-                    except Exception as mcp_err:
-                        print(f"[BRIDGE WARNING] Could not connect MCP server '{sid}': {mcp_err}")
-                elif transport == "sse" and s.get("url"):
-                    try:
-                        await asyncio.wait_for(
-                            agent.connect_mcp_server(
-                                s["url"],
-                                server_id=sid,
-                                use_stdio=False
-                            ),
-                            timeout=10.0
-                        )
-                        print(f"[BRIDGE] Connected MCP SSE server '{sid}' successfully.")
-                    except Exception as mcp_err:
-                        print(f"[BRIDGE WARNING] Could not connect MCP SSE server '{sid}': {mcp_err}")
-
-        agent.initialize_mcp_servers = dynamic_init_mcp
-
-
-def apply_global_ask_human_patch():
-    """Intercept AskHuman.execute globally in memory to prevent terminal blocking."""
+# Legacy monkey-patches: Applied ONLY if legacy OpenManus app module exists on sys.path
+def apply_legacy_patches_if_available() -> None:
+    """Silently attempt legacy patches without emitting warnings if running in PELDRUN Core mode."""
     try:
         import app.tool.ask_human as ask_human_module
         if hasattr(ask_human_module, "AskHuman"):
@@ -241,7 +191,7 @@ def apply_global_ask_human_patch():
             async def patched_execute(self, inquire: str = "", **kwargs):
                 job_id = current_active_job_id.get("current", "")
                 question = inquire or kwargs.get("question") or "Agent requires your feedback."
-                print(f"[BRIDGE] Intercepted ask_human for job {job_id}: {question}")
+                print(f"[BRIDGE LEGACY] Intercepted ask_human for job {job_id}: {question}")
 
                 if job_id:
                     await dispatch_event(
@@ -264,17 +214,16 @@ def apply_global_ask_human_patch():
                     finally:
                         human_answers.pop(job_id, None)
 
-                    print(f"[BRIDGE] Received human response: {user_reply}")
+                    print(f"[BRIDGE LEGACY] Received human response: {user_reply}")
                     return f"User response: {user_reply}"
                 return "Proceed with autonomous decision."
 
             cls.execute = patched_execute
+    except ImportError:
+        pass
     except Exception as e:
-        print(f"[BRIDGE WARNING] Could not patch AskHuman: {e}")
+        print(f"[BRIDGE WARNING] Could not patch legacy AskHuman: {e}")
 
-
-def apply_global_python_execute_patch():
-    """Enforce headless backend and execution timeout on PythonExecute."""
     try:
         import app.tool.python_execute as py_tool_mod
         if hasattr(py_tool_mod, "PythonExecute"):
@@ -313,16 +262,360 @@ def apply_global_python_execute_patch():
                     return "Error: Python execution timed out after 60 seconds."
 
             cls.execute = patched_execute
+    except ImportError:
+        pass
     except Exception as e:
-        print(f"[BRIDGE WARNING] Could not patch PythonExecute module directly: {e}")
+        print(f"[BRIDGE WARNING] Could not patch legacy PythonExecute: {e}")
 
 
-apply_global_ask_human_patch()
-apply_global_python_execute_patch()
+apply_legacy_patches_if_available()
 
 
-def inject_runtime_llm(agent: Any, active_llm: Dict[str, Any]):
-    """Dynamically inject runtime LLM configuration into the agent instance."""
+# ============================================================================
+# PRIMARY ENGINE: PELDRUN Core Runtime Execution (Native EventEmitter & Contracts)
+# ============================================================================
+
+async def _run_peldrun_core_agent(
+    job_id: str,
+    prompt: str,
+    agent_id: str,
+    active_llm: Dict[str, Any],
+    model_name: str,
+    provider_name: str,
+    project_dir: Path,
+    chat_id: str,
+    manifest: Dict[str, Any],
+) -> None:
+    """Execute autonomous agent workflow natively via peldrun-core package."""
+    print(f"[BRIDGE CORE] Executing job {job_id} using PELDRUN Core native engine.")
+
+    from peldrun.events.emitter import EventEmitter
+    from peldrun.events.schema import EventType, PeldrunEvent
+    from peldrun.tools.registry import ToolRegistry
+    from peldrun.security.policy import SecurityPolicy
+    from peldrun.tools.builtins.file_ops import FileOpsTool
+    from peldrun.tools.builtins.shell_exec import ShellExecTool
+    from peldrun.tools.builtins.web_search import WebSearchTool
+    from peldrun.tools.builtins.human_input import HumanInputTool
+    from peldrun.llm.client import LLMConfig
+    from peldrun.llm.providers.openai_compat import OpenAICompatProvider
+    from peldrun.llm.providers.lmstudio import LMStudioProvider
+    from peldrun.llm.providers.ollama import OllamaProvider
+    from peldrun.agents.react_agent import ReActAgent, ReActAgentConfig
+    from peldrun.engine.runner import AgentRunner
+
+    files_baseline: Set[str] = {p.name for p in project_dir.iterdir() if p.is_file()} if project_dir.exists() else set()
+    latest_meaningful_thought: str = ""
+
+    # 1. Wire LLM Provider
+    base_url = active_llm.get("base_url") or "http://127.0.0.1:1234/v1"
+    api_key = active_llm.get("api_key") or "EMPTY"
+    p_name_lower = provider_name.lower()
+
+    if "lmstudio" in p_name_lower or "1234" in base_url:
+        provider_kind = "lmstudio"
+    elif "ollama" in p_name_lower or "11434" in base_url:
+        provider_kind = "ollama"
+    else:
+        provider_kind = "openai_compat"
+
+    llm_config = LLMConfig(
+        provider=provider_kind,
+        model=model_name,
+        base_url=base_url,
+        api_key=api_key,
+        temperature=float(active_llm.get("temperature", 0.7)),
+        max_tokens=int(active_llm.get("max_tokens", 8192)),
+    )
+
+    if provider_kind == "lmstudio":
+        llm_provider = LMStudioProvider(config=llm_config)
+    elif provider_kind == "ollama":
+        llm_provider = OllamaProvider(config=llm_config)
+    else:
+        llm_provider = OpenAICompatProvider(config=llm_config)
+
+    # 2. Wire Security Policy & Tools
+    sec_policy = SecurityPolicy(workspace_root=project_dir)
+    tool_registry = ToolRegistry(workspace_root=str(project_dir))
+
+    tool_registry.register(FileOpsTool(workspace_root=str(project_dir), security_policy=sec_policy))
+    tool_registry.register(ShellExecTool(workspace_root=str(project_dir), security_policy=sec_policy))
+    tool_registry.register(WebSearchTool())
+    tool_registry.register(HumanInputTool())
+
+    # Dynamic MCP server discovery & attachment
+    try:
+        from omweb.extensions.registry import extension_registry
+        active_mcp = extension_registry.get_active_mcp_servers()
+        if active_mcp:
+            print(f"[BRIDGE CORE] Detected {len(active_mcp)} active MCP extensions.")
+    except Exception as ex:
+        print(f"[BRIDGE CORE] MCP registry notice: {ex}")
+
+    # 3. Setup Canonical Event Emitter with SSE Bridge Subscriber
+    emitter = EventEmitter(run_id=job_id)
+
+    async def on_core_event(event: PeldrunEvent) -> None:
+        nonlocal latest_meaningful_thought
+        curr_step = event.step or 1
+
+        if event.type == EventType.STEP_START:
+            await dispatch_event(
+                job_id,
+                SSEEvent(
+                    type=SSEEventType.STEP_START,
+                    step=curr_step,
+                    data={"step": curr_step, "model": model_name, "engine": "peldrun-core", "status": "running"}
+                )
+            )
+
+        elif event.type == EventType.THOUGHT:
+            thought_text = str(event.payload.get("thought", "")).strip()
+            if thought_text:
+                latest_meaningful_thought = thought_text
+                await dispatch_event(
+                    job_id,
+                    SSEEvent(
+                        type=SSEEventType.THOUGHT,
+                        step=curr_step,
+                        data={"thought": thought_text, "model": model_name}
+                    )
+                )
+
+        elif event.type == EventType.AGENT_ACTIVITY:
+            act_msg = str(event.payload.get("message", ""))
+            act_phase = str(event.payload.get("phase", "general"))
+            latest_meaningful_thought = act_msg
+            await dispatch_event(
+                job_id,
+                SSEEvent(
+                    type=SSEEventType.THOUGHT,
+                    step=curr_step,
+                    data={"thought": f"[{act_phase.upper()}] {act_msg}", "model": model_name}
+                )
+            )
+
+        elif event.type == EventType.TOOL_CALL:
+            tool_name = str(event.payload.get("tool_name", "tool"))
+            arguments = event.payload.get("arguments", {})
+            raw_args = json.dumps(arguments, ensure_ascii=False) if isinstance(arguments, dict) else str(arguments)
+            await dispatch_event(
+                job_id,
+                SSEEvent(
+                    type=SSEEventType.TOOL_CALL,
+                    step=curr_step,
+                    data={"name": tool_name, "arguments": raw_args, "model": model_name}
+                )
+            )
+
+        elif event.type == EventType.OBSERVATION:
+            obs_out = event.payload.get("output", "")
+
+            # Real-time filesystem artifact detection
+            if project_dir.exists():
+                current_files = {p.name for p in project_dir.iterdir() if p.is_file()}
+                new_files = current_files - files_baseline
+                for nf in new_files:
+                    if nf not in job_scoped_artifacts[job_id]:
+                        job_scoped_artifacts[job_id].append(nf)
+                        await dispatch_event(
+                            job_id,
+                            SSEEvent(
+                                type=SSEEventType.OBSERVATION,
+                                step=curr_step,
+                                data={
+                                    "artifact": nf,
+                                    "path": nf,
+                                    "chat_id": chat_id,
+                                    "event": "artifact_created",
+                                    "model": model_name
+                                }
+                            )
+                        )
+
+            await dispatch_event(
+                job_id,
+                SSEEvent(
+                    type=SSEEventType.OBSERVATION,
+                    step=curr_step,
+                    data={"output": obs_out, "model": model_name}
+                )
+            )
+
+        elif event.type == EventType.ASK_HUMAN:
+            question = str(event.payload.get("question", "Agent requires human feedback."))
+            await dispatch_event(
+                job_id,
+                SSEEvent(
+                    type=SSEEventType.TOOL_CALL,
+                    step=curr_step,
+                    data={"name": "ask_human", "arguments": question, "model": model_name}
+                )
+            )
+
+            wait_event = asyncio.Event()
+            human_answers[job_id] = wait_event
+            try:
+                await asyncio.wait_for(wait_event.wait(), timeout=600.0)
+                user_reply = human_data.pop(job_id, "Approved.")
+            except asyncio.TimeoutError:
+                user_reply = "No user response provided within timeout."
+            finally:
+                human_answers.pop(job_id, None)
+
+            await dispatch_event(
+                job_id,
+                SSEEvent(
+                    type=SSEEventType.OBSERVATION,
+                    step=curr_step,
+                    data={"output": f"User response: {user_reply}", "model": model_name}
+                )
+            )
+
+        elif event.type == EventType.ERROR:
+            err_msg = str(event.payload.get("error", "Runtime Error"))
+            await dispatch_event(
+                job_id,
+                SSEEvent(
+                    type=SSEEventType.ERROR,
+                    step=curr_step,
+                    data={"message": err_msg, "model": model_name}
+                )
+            )
+
+    emitter.subscribe_all(on_core_event)
+
+    # 4. Instantiate ReAct Agent & Execution Runner
+    max_steps = int(manifest.get("max_steps") or 15)
+    agent_config = ReActAgentConfig(
+        name=manifest.get("name") or agent_id,
+        max_steps=max_steps,
+        enable_streaming=False,
+    )
+
+    agent = ReActAgent(
+        config=agent_config,
+        llm_provider=llm_provider,
+        tool_registry=tool_registry,
+        emitter=emitter,
+    )
+
+    runner = AgentRunner(agent=agent, emitter=emitter)
+
+    # Scoped prompt with explicit workspace deliverables rules
+    scoped_prompt = (
+        f"[PROJECT WORKSPACE RULES]\n"
+        f"1. Working Directory: Your active workspace is: {project_dir.resolve()}\n"
+        f"2. File Deliverables: Save all generated files, code, documents, charts using clean relative names.\n"
+        f"3. Headless Visualization: Never display GUI windows. Save figures directly to disk.\n"
+        f"4. Direct Delivery: Fulfill the user task completely and concisely.\n\n"
+        f"[USER TASK]\n"
+        f"{prompt}"
+    )
+
+    orig_cwd = os.getcwd()
+    try:
+        os.chdir(str(project_dir.resolve()))
+        state = await runner.run(task_prompt=scoped_prompt)
+    finally:
+        try:
+            os.chdir(orig_cwd)
+        except Exception:
+            pass
+
+    # 5. Finalize Deliverables and Complete Job
+    if project_dir.exists():
+        current_files = {p.name for p in project_dir.iterdir() if p.is_file()}
+        for f_name in (current_files - files_baseline):
+            if f_name not in job_scoped_artifacts[job_id]:
+                job_scoped_artifacts[job_id].append(f_name)
+
+    new_turn_files = job_scoped_artifacts.get(job_id, [])
+
+    if state and hasattr(state, "final_answer") and state.final_answer:
+        result_text = state.final_answer
+    elif new_turn_files:
+        file_bullets = "\n".join([f"- `{f}`" for f in new_turn_files])
+        result_text = (
+            f"### Deliverables Created Successfully\n\n"
+            f"The requested project files have been built and saved in your workspace:\n\n"
+            f"{file_bullets}\n\n"
+            f"You can preview and interact with the application live in the **Preview** panel."
+        )
+    elif latest_meaningful_thought:
+        result_text = latest_meaningful_thought
+    else:
+        result_text = "Task completed successfully."
+
+    job_manager.complete_job(job_id, result_text)
+    await dispatch_event(
+        job_id,
+        SSEEvent(
+            type=SSEEventType.FINAL,
+            step=getattr(state, "current_step", 1) if state else 1,
+            data={
+                "result": result_text,
+                "model": model_name,
+                "engine": "peldrun-core",
+                "produced_files": new_turn_files,
+            }
+        )
+    )
+
+
+# ============================================================================
+# SECONDARY ENGINE: OpenManus Legacy Execution (Fallback / Compatibility)
+# ============================================================================
+
+def scope_legacy_mcp_servers(agent: Any, manifest: Dict[str, Any], project_dir: Optional[Path] = None) -> None:
+    """Dynamically hooks active MCP servers for legacy OpenManus agent instances."""
+    import shutil
+    from omweb.extensions.registry import extension_registry
+
+    allowed = [t.lower() for t in manifest.get("tools", [])]
+    needs_mcp = any("browser" in t or "mcp" in t for t in allowed)
+
+    if not needs_mcp and hasattr(agent, "initialize_mcp_servers"):
+        async def dummy_init_mcp():
+            return None
+        agent.initialize_mcp_servers = dummy_init_mcp
+        return
+
+    if hasattr(agent, "connect_mcp_server"):
+        async def dynamic_init_mcp():
+            active_mcp = extension_registry.get_active_mcp_servers()
+            for s in active_mcp:
+                sid = s.get("id")
+                cmd = s.get("command", "")
+                transport = s.get("transport", "stdio")
+                if transport == "stdio" and cmd:
+                    parts = cmd.split()
+                    exe = shutil.which(parts[0]) or parts[0]
+                    args = list(parts[1:])
+                    if "filesystem" in sid and project_dir:
+                        args.append(str(project_dir.resolve()))
+                    try:
+                        await asyncio.wait_for(
+                            agent.connect_mcp_server(exe, server_id=sid, use_stdio=True, stdio_args=args, tool_name_prefix=False),
+                            timeout=10.0
+                        )
+                    except Exception as mcp_err:
+                        print(f"[BRIDGE WARNING] Could not connect legacy MCP server '{sid}': {mcp_err}")
+                elif transport == "sse" and s.get("url"):
+                    try:
+                        await asyncio.wait_for(
+                            agent.connect_mcp_server(s["url"], server_id=sid, use_stdio=False),
+                            timeout=10.0
+                        )
+                    except Exception as mcp_err:
+                        print(f"[BRIDGE WARNING] Could not connect legacy MCP SSE server '{sid}': {mcp_err}")
+
+        agent.initialize_mcp_servers = dynamic_init_mcp
+
+
+def inject_legacy_runtime_llm(agent: Any, active_llm: Dict[str, Any]) -> None:
+    """Dynamically inject runtime LLM configuration into the legacy agent instance."""
     model = active_llm.get("model")
     base_url = active_llm.get("base_url")
     api_key = active_llm.get("api_key") or "EMPTY"
@@ -339,176 +632,57 @@ def inject_runtime_llm(agent: Any, active_llm: Dict[str, Any]):
                     for k, v in active_llm.items():
                         if hasattr(llm_attr, k):
                             setattr(llm_attr, k, v)
-    except Exception as ex:
-        print(f"[BRIDGE] Notice: could not patch app.config directly: {ex}")
+    except Exception:
+        pass
 
     if hasattr(agent, "llm"):
         if model and hasattr(agent.llm, "model"):
             agent.llm.model = model
-
         if base_url:
             try:
                 from openai import AsyncOpenAI
-                agent.llm.client = AsyncOpenAI(
-                    api_key=api_key,
-                    base_url=base_url
-                )
-                print(f"[BRIDGE] Injected runtime AsyncOpenAI client (model={model}, base_url={base_url})")
+                agent.llm.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
             except Exception as client_err:
-                print(f"[BRIDGE WARNING] Could not rebuild AsyncOpenAI client: {client_err}")
+                print(f"[BRIDGE WARNING] Could not rebuild legacy AsyncOpenAI client: {client_err}")
 
 
-async def run_instrumented(
+async def _run_legacy_openmanus_agent(
     job_id: str,
     prompt: str,
-    *args: Any,
-    agent_id: Any = None,
-    llm_override: Optional[Dict[str, Any]] = None,
-    **kwargs: Any
+    agent_id: str,
+    active_llm: Dict[str, Any],
+    model_name: str,
+    provider_name: str,
+    project_dir: Path,
+    chat_id: str,
+    manifest: Dict[str, Any],
 ) -> None:
-    for arg in args:
-        if isinstance(arg, dict) and llm_override is None:
-            llm_override = arg
-        elif isinstance(arg, str) and agent_id is None:
-            agent_id = arg
-
-    if not agent_id and isinstance(llm_override, dict):
-        agent_id = llm_override.get("agent_id")
-
-    if not agent_id or not isinstance(agent_id, str):
-        agent_id = kwargs.get("agent_id") or "peldrun"
-
-    print(f"\n[BRIDGE] Initializing agent for job: {job_id}")
-    current_active_job_id["current"] = job_id
-    job_scoped_artifacts[job_id] = []
-
-    toml_cfg = read_active_toml_config()
-    active_llm = dict(toml_cfg.get("llm", {}))
-    if llm_override:
-        for k, v in llm_override.items():
-            if v:
-                active_llm[k] = v
-
-    if llm_override:
-        if llm_override.get("provider_name"):
-            active_llm["provider_name"] = llm_override["provider_name"]
-        elif llm_override.get("provider"):
-            active_llm["provider_name"] = llm_override["provider"]
-        elif llm_override.get("model") and llm_override["model"] != active_llm.get("model"):
-            if "1234" not in str(active_llm.get("base_url", "")):
-                active_llm["provider_name"] = active_llm.get("provider") or active_llm.get("model")
-        active_llm.update(llm_override)
-
-    p_cand = active_llm.get("provider_name") or active_llm.get("provider") or ""
-    b_cand = str(active_llm.get("base_url") or "")
-    if "1234" not in b_cand and "lmstudio" not in str(active_llm.get("provider") or "").lower():
-        if "lm studio" in p_cand.lower():
-            p_cand = active_llm.get("provider") or active_llm.get("model") or "Custom Engine"
-    provider_name = p_cand or "Active Primary"
-    model_name = active_llm.get("model") or "default"
-    base_url = b_cand or "http://127.0.0.1:1234/v1"
-
-    print(f"[BRIDGE] Target LLM: [{provider_name}] Model: '{model_name}' | URL: '{base_url}'")
-
-    if "1234" in base_url or "lmstudio" in provider_name.lower():
-        readiness = await check_lmstudio_model_readiness(base_url, model_name, active_llm.get("api_key", ""))
-        if readiness.get("unreachable"):
-            err_msg = format_smart_error(Exception("Connection refused (Port 1234)"), model_name, provider_name)
-            job_manager.fail_job(job_id, err_msg)
-            await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": err_msg, "model": model_name}))
-            return
+    """Execute autonomous agent workflow via legacy OpenManus files."""
+    print(f"[BRIDGE LEGACY] Executing job {job_id} using OpenManus legacy engine.")
 
     try:
-        from app.agent.peldrun import peldrun
-    except ImportError as e:
-        print(f"[BRIDGE ERROR] Failed to import peldrun core: {e}")
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": str(e), "model": model_name}))
-        return
+        from app.agent.peldrun import peldrun as legacy_peldrun_agent
+    except ImportError:
+        try:
+            from app.agent.manus import Manus as legacy_peldrun_agent
+        except ImportError as e:
+            err_msg = (
+                f"OpenManus legacy engine files are not found on disk: {e}. "
+                "Switch to 'peldrun-core' engine in Settings or restore the legacy engine files."
+            )
+            print(f"[BRIDGE ERROR] {err_msg}")
+            job_manager.fail_job(job_id, err_msg)
+            await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": err_msg, "model": model_name}))
+            return
 
-    await asyncio.sleep(0.1)
-    await dispatch_event(
-        job_id,
-        SSEEvent(
-            type=SSEEventType.STEP_START,
-            step=1,
-            data={
-                "status": "running",
-                "model": model_name,
-                "provider": provider_name,
-                "mode": "agent"
-            }
-        )
-    )
-
-    from omweb.agents.registry import agent_registry
     from omweb.tools.registry import tool_registry
 
-    manifest = agent_registry.get_agent(agent_id)
-    if manifest.get("status") == "disabled":
-        err_msg = f"Agent '{manifest.get('name')}' is currently disabled in the Capability Store. Enable it first to run tasks."
-        job_manager.fail_job(job_id, err_msg)
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": err_msg, "model": model_name}))
-        return
-
-    print(f"[BRIDGE] Activating agent '{manifest['name']}' (ID: {agent_id})")
-
-    # Filter only currently enabled tools from tool_registry
     all_active_tool_ids = {t["id"].lower() for t in tool_registry.list_tools() if t.get("is_enabled", True)}
     allowed_tools = [t.lower() for t in manifest.get("tools", []) if t.lower() in all_active_tool_ids or t.lower() in ["mcp", "browser"]]
     allowed_tools.extend(["terminate", "ask_human"])
 
-    chat = project_manager.get_chat(job_id) or {}
-    chat_id = chat.get("id", f"chat_{job_id}")
-    project_id = chat.get("project_id", "default_project")
-    project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
-    project_dir.mkdir(parents=True, exist_ok=True)
-
-    agent = peldrun()
-    scope_mcp_servers(agent, manifest, project_dir)
-
-    allowed_tools = [t.lower() for t in manifest.get("tools", [])]
-    allowed_tools.extend(["terminate", "ask_human"])
-
-    # Dynamically attach Bash / WebSearch if manifest requests them and they are missing
-    if hasattr(agent, "available_tools") and hasattr(agent.available_tools, "tools"):
-        curr_tool_names = [getattr(t, "name", t.__class__.__name__).lower() for t in agent.available_tools.tools]
-        if "bash" in allowed_tools and "bash" not in curr_tool_names:
-            try:
-                from app.tool.bash import Bash
-                agent.available_tools.add_tools(Bash())
-                print("[BRIDGE] Attached missing 'bash' tool to agent.available_tools")
-            except Exception as b_err:
-                print(f"[BRIDGE WARNING] Could not attach Bash: {b_err}")
-        if "web_search" in allowed_tools and "web_search" not in curr_tool_names:
-            try:
-                from app.tool.web_search import WebSearch
-                agent.available_tools.add_tools(WebSearch())
-                print("[BRIDGE] Attached missing 'web_search' tool to agent.available_tools")
-            except Exception as ws_err:
-                print(f"[BRIDGE WARNING] Could not attach WebSearch: {ws_err}")
-
-    # Scope tools in both agent.available_tools and agent.tools
-    target_collection = None
-    if hasattr(agent, "available_tools"):
-        target_collection = agent.available_tools
-    elif hasattr(agent, "tools"):
-        target_collection = agent.tools
-
-    if target_collection is not None:
-        if isinstance(target_collection, list):
-            filtered = [
-                t for t in target_collection
-                if getattr(t, "name", t.__class__.__name__).lower() in allowed_tools
-            ]
-            if hasattr(agent, "available_tools"):
-                agent.available_tools = filtered
-            if hasattr(agent, "tools"):
-                agent.tools = filtered
-        elif hasattr(target_collection, "tools") and isinstance(target_collection.tools, list):
-            target_collection.tools = [
-                t for t in target_collection.tools
-                if getattr(t, "name", t.__class__.__name__).lower() in allowed_tools
-            ]
+    agent = legacy_peldrun_agent()
+    scope_legacy_mcp_servers(agent, manifest, project_dir)
 
     if manifest.get("max_steps"):
         agent.max_steps = manifest["max_steps"]
@@ -520,13 +694,7 @@ async def run_instrumented(
         except Exception:
             pass
 
-    inject_runtime_llm(agent, active_llm)
-
-    chat = project_manager.get_chat(job_id) or {}
-    chat_id = chat.get("id", f"chat_{job_id}")
-    project_id = chat.get("project_id", "default_project")
-    project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
-    project_dir.mkdir(parents=True, exist_ok=True)
+    inject_legacy_runtime_llm(agent, active_llm)
 
     files_baseline: Set[str] = {p.name for p in project_dir.iterdir() if p.is_file()} if project_dir.exists() else set()
     latest_meaningful_thought: str = ""
@@ -536,7 +704,7 @@ async def run_instrumented(
     async def instrumented_step():
         nonlocal latest_meaningful_thought
         curr_step = getattr(agent, "current_step", 1)
-        await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=curr_step, data={"step": curr_step, "model": model_name}))
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.STEP_START, step=curr_step, data={"step": curr_step, "model": model_name, "engine": "openmanus"}))
         result = await original_step()
 
         if hasattr(agent, "memory") and hasattr(agent.memory, "messages"):
@@ -558,35 +726,6 @@ async def run_instrumented(
         raw_args = getattr(command.function, "arguments", "{}") if hasattr(command, "function") else "{}"
         curr_step = getattr(agent, "current_step", 1)
 
-        if tool_name in ["str_replace_editor", "editor"]:
-            try:
-                args_dict = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
-                target_p = args_dict.get("path", "")
-                if target_p and not Path(target_p).is_absolute():
-                    resolved_p = str((project_dir / target_p).resolve())
-                    args_dict["path"] = resolved_p
-                    command.function.arguments = json.dumps(args_dict) if isinstance(raw_args, str) else args_dict
-                    print(f"[BRIDGE] Auto-resolved relative path for editor: '{target_p}' -> '{resolved_p}'")
-            except Exception as e_err:
-                print(f"[BRIDGE WARNING] Could not normalize editor path: {e_err}")
-
-        if tool_name in ["python_execute", "python"]:
-            try:
-                args_dict = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
-                orig_code = args_dict.get("code", "")
-                if orig_code:
-                    p_str = str(project_dir.resolve())
-                    safe_head = (
-                        "import os, sys\n"
-                        f"try:\n    os.chdir(r'{p_str}')\nexcept Exception:\n    pass\n"
-                        "os.environ['MPLBACKEND'] = 'Agg'\n"
-                        "try:\n    import matplotlib\n    matplotlib.use('Agg')\n    import matplotlib.pyplot as plt\n    plt.show = lambda *args, **kwargs: None\nexcept Exception:\n    pass\n\n"
-                    )
-                    args_dict["code"] = safe_head + orig_code
-                    command.function.arguments = json.dumps(args_dict) if isinstance(raw_args, str) else args_dict
-            except Exception as patch_err:
-                print(f"[BRIDGE WARNING] Could not inject headless wrapper: {patch_err}")
-
         await dispatch_event(
             job_id,
             SSEEvent(
@@ -596,35 +735,16 @@ async def run_instrumented(
             )
         )
 
-        files_before: Set[str] = set()
-        if project_dir.exists():
-            files_before = {p.name for p in project_dir.iterdir() if p.is_file()}
+        files_before: Set[str] = {p.name for p in project_dir.iterdir() if p.is_file()} if project_dir.exists() else set()
 
         try:
-            if tool_name in ["python_execute", "python"]:
-                obs_output = await asyncio.wait_for(original_execute_tool(command), timeout=60.0)
-            elif tool_name in ["chrome_browser", "browser"]:
-                try:
-                    obs_output = await asyncio.wait_for(original_execute_tool(command), timeout=45.0)
-                except Exception as b_err:
-                    obs_output = f"Browser Notice: Chrome CDP connection unavailable ({b_err}). Ensure Chrome is running with '--remote-debugging-port=9222' or rely on local workspace files."
-            elif tool_name in ["web_search", "search"]:
-                try:
-                    obs_output = await asyncio.wait_for(original_execute_tool(command), timeout=30.0)
-                except Exception as s_err:
-                    obs_output = f"Search Notice: Web search query could not be completed ({s_err}). Continuing with available workspace context."
-            else:
-                obs_output = await original_execute_tool(command)
-        except asyncio.TimeoutError:
-            obs_output = f"Error: Tool '{tool_name}' timed out to prevent blocking the agent execution."
+            obs_output = await original_execute_tool(command)
         except Exception as tool_err:
             obs_output = f"Tool Execution Error ({tool_name}): {str(tool_err)}"
 
         if project_dir.exists():
             files_after = {p.name for p in project_dir.iterdir() if p.is_file()}
-            new_files = files_after - files_before
-            for nf in new_files:
-                print(f"[BRIDGE] New artifact generated in this turn: {nf}")
+            for nf in (files_after - files_before):
                 if nf not in job_scoped_artifacts[job_id]:
                     job_scoped_artifacts[job_id].append(nf)
                 await dispatch_event(
@@ -632,13 +752,7 @@ async def run_instrumented(
                     SSEEvent(
                         type=SSEEventType.OBSERVATION,
                         step=curr_step,
-                        data={
-                            "artifact": nf,
-                            "path": nf,
-                            "chat_id": chat_id,
-                            "event": "artifact_created",
-                            "model": model_name
-                        }
+                        data={"artifact": nf, "path": nf, "chat_id": chat_id, "event": "artifact_created", "model": model_name}
                     )
                 )
 
@@ -655,66 +769,191 @@ async def run_instrumented(
     agent.execute_tool = instrumented_execute_tool
     agent.step = instrumented_step
 
+    scoped_prompt = (
+        f"[PROJECT WORKSPACE RULES]\n"
+        f"1. Working Directory: Your active directory is set to: {project_dir.resolve()}\n"
+        f"2. File Deliverables: Save generated files using clean relative names.\n\n"
+        f"[USER PROMPT]\n"
+        f"{prompt}"
+    )
+
+    orig_cwd = os.getcwd()
     try:
-        scoped_prompt = (
-            f"[PROJECT WORKSPACE RULES]\n"
-            f"1. Working Directory: Your active directory is already set to: {project_dir.resolve()}\n"
-            f"2. File Deliverables: Save all generated figures, images, charts, and files using clean relative names. Do NOT construct long absolute paths.\n"
-            f"3. Headless Visualization: NEVER call plt.show(). Always save figures directly to file using plt.savefig('filename.png') and close them.\n"
-            f"4. Live Sandbox: Web applications, UI mockups, and interactive demos should be saved as .html or .svg files.\n\n"
-            f"[USER PROMPT]\n"
-            f"{prompt}"
-        )
-        orig_system_cwd = os.getcwd()
+        os.chdir(str(project_dir.resolve()))
+        final_out = await agent.run(scoped_prompt)
+    finally:
         try:
-            os.chdir(str(project_dir.resolve()))
-            final_out = await agent.run(scoped_prompt)
-        finally:
-            try:
-                os.chdir(orig_system_cwd)
-            except Exception:
-                pass
-        print(f"[BRIDGE] Execution completed successfully for job: {job_id}")
+            os.chdir(orig_cwd)
+        except Exception:
+            pass
 
-        # Check total newly generated files in this job
-        if project_dir.exists():
-            current_files = {p.name for p in project_dir.iterdir() if p.is_file()}
-            for f_name in (current_files - files_baseline):
-                if f_name not in job_scoped_artifacts[job_id]:
-                    job_scoped_artifacts[job_id].append(f_name)
+    if project_dir.exists():
+        current_files = {p.name for p in project_dir.iterdir() if p.is_file()}
+        for f_name in (current_files - files_baseline):
+            if f_name not in job_scoped_artifacts[job_id]:
+                job_scoped_artifacts[job_id].append(f_name)
 
-        new_turn_files = job_scoped_artifacts.get(job_id, [])
+    new_turn_files = job_scoped_artifacts.get(job_id, [])
 
-        # Construct beautiful Markdown final result
-        if new_turn_files:
-            file_bullets = "\n".join([f"- `{f}`" for f in new_turn_files])
-            result_text = (
-                f"### Deliverables Created Successfully\n\n"
-                f"The requested project files have been built and saved in your workspace:\n\n"
-                f"{file_bullets}\n\n"
-                f"You can preview and interact with the application live in the **Preview** panel."
-            )
-        elif latest_meaningful_thought:
-            result_text = latest_meaningful_thought
-        else:
-            raw_final = str(final_out) if final_out else ""
-            for stop_tag in ["terminate(status=\"success\")", "terminate(status='success')", "</tool_call>"]:
-                raw_final = raw_final.replace(stop_tag, "").strip()
-            result_text = raw_final if raw_final else "Task completed successfully."
-
-        job_manager.complete_job(job_id, result_text)
-        await dispatch_event(
-            job_id,
-            SSEEvent(
-                type=SSEEventType.FINAL,
-                step=getattr(agent, "current_step", 1),
-                data={
-                    "result": result_text,
-                    "model": model_name,
-                    "produced_files": new_turn_files
-                }
-            )
+    if new_turn_files:
+        file_bullets = "\n".join([f"- `{f}`" for f in new_turn_files])
+        result_text = (
+            f"### Deliverables Created Successfully\n\n"
+            f"The requested project files have been built and saved in your workspace:\n\n"
+            f"{file_bullets}\n\n"
+            f"You can preview and interact with the application live in the **Preview** panel."
         )
+    elif latest_meaningful_thought:
+        result_text = latest_meaningful_thought
+    else:
+        raw_final = str(final_out) if final_out else ""
+        for stop_tag in ["terminate(status=\"success\")", "terminate(status='success')", "</tool_call>"]:
+            raw_final = raw_final.replace(stop_tag, "").strip()
+        result_text = raw_final if raw_final else "Task completed successfully."
+
+    job_manager.complete_job(job_id, result_text)
+    await dispatch_event(
+        job_id,
+        SSEEvent(
+            type=SSEEventType.FINAL,
+            step=getattr(agent, "current_step", 1),
+            data={
+                "result": result_text,
+                "model": model_name,
+                "engine": "openmanus",
+                "produced_files": new_turn_files
+            }
+        )
+    )
+
+
+# ============================================================================
+# UNIVERSAL PUBLIC DISPATCHER ENTRY POINTS
+# ============================================================================
+
+async def run_instrumented(
+    job_id: str,
+    prompt: str,
+    *args: Any,
+    agent_id: Any = None,
+    llm_override: Optional[Dict[str, Any]] = None,
+    **kwargs: Any
+) -> None:
+    """Universal task dispatcher routing to the designated engine (PELDRUN Core or OpenManus)."""
+    for arg in args:
+        if isinstance(arg, dict) and llm_override is None:
+            llm_override = arg
+        elif isinstance(arg, str) and agent_id is None:
+            agent_id = arg
+
+    if not agent_id and isinstance(llm_override, dict):
+        agent_id = llm_override.get("agent_id")
+
+    if not agent_id or not isinstance(agent_id, str):
+        agent_id = kwargs.get("agent_id") or "peldrun"
+
+    # Engine selection resolution
+    explicit_engine = kwargs.get("engine") or (llm_override.get("engine") if isinstance(llm_override, dict) else None)
+    if explicit_engine:
+        eng_str = str(explicit_engine).lower().strip()
+        target_engine = EngineType.LEGACY if eng_str in ["openmanus", "legacy", "manus"] else EngineType.CORE
+    else:
+        target_engine = get_active_engine_type()
+
+    print(f"\n[BRIDGE] Initializing job {job_id} using engine: '{target_engine.value}'")
+    current_active_job_id["current"] = job_id
+    job_scoped_artifacts[job_id] = []
+
+    toml_cfg = read_active_toml_config()
+    active_llm = dict(toml_cfg.get("llm", {}))
+    if llm_override:
+        for k, v in llm_override.items():
+            if v:
+                active_llm[k] = v
+
+        if llm_override.get("provider_name"):
+            active_llm["provider_name"] = llm_override["provider_name"]
+        elif llm_override.get("provider"):
+            active_llm["provider_name"] = llm_override["provider"]
+        elif llm_override.get("model") and llm_override["model"] != active_llm.get("model"):
+            if "1234" not in str(active_llm.get("base_url", "")):
+                active_llm["provider_name"] = active_llm.get("provider") or active_llm.get("model")
+        active_llm.update(llm_override)
+
+    p_cand = active_llm.get("provider_name") or active_llm.get("provider") or ""
+    b_cand = str(active_llm.get("base_url") or "")
+    if "1234" not in b_cand and "lmstudio" not in str(active_llm.get("provider") or "").lower():
+        if "lm studio" in p_cand.lower():
+            p_cand = active_llm.get("provider") or active_llm.get("model") or "Custom Engine"
+    provider_name = p_cand or "Active Primary"
+    model_name = active_llm.get("model") or "default"
+    base_url = b_cand or "[http://127.0.0.1:1234/v1](http://127.0.0.1:1234/v1)"
+
+    print(f"[BRIDGE] Target LLM: [{provider_name}] Model: '{model_name}' | URL: '{base_url}'")
+
+    if "1234" in base_url or "lmstudio" in provider_name.lower():
+        readiness = await check_lmstudio_model_readiness(base_url, model_name, active_llm.get("api_key", ""))
+        if readiness.get("unreachable"):
+            err_msg = format_smart_error(Exception("Connection refused (Port 1234)"), model_name, provider_name)
+            job_manager.fail_job(job_id, err_msg)
+            await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=1, data={"message": err_msg, "model": model_name}))
+            return
+
+    await asyncio.sleep(0.05)
+    await dispatch_event(
+        job_id,
+        SSEEvent(
+            type=SSEEventType.STEP_START,
+            step=1,
+            data={
+                "status": "running",
+                "model": model_name,
+                "provider": provider_name,
+                "mode": "agent",
+                "engine": target_engine.value
+            }
+        )
+    )
+
+    from omweb.agents.registry import agent_registry
+    manifest = agent_registry.get_agent(agent_id)
+    if manifest.get("status") == "disabled":
+        err_msg = f"Agent '{manifest.get('name')}' is currently disabled in the Capability Store. Enable it first to run tasks."
+        job_manager.fail_job(job_id, err_msg)
+        await dispatch_event(job_id, SSEEvent(type=SSEEventType.ERROR, step=0, data={"message": err_msg, "model": model_name}))
+        return
+
+    chat = project_manager.get_chat(job_id) or {}
+    chat_id = chat.get("id", f"chat_{job_id}")
+    project_id = chat.get("project_id", "default_project")
+    project_dir = project_manager.get_chat_files_dir(chat_id, project_id)
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        if target_engine == EngineType.CORE and is_core_engine_available():
+            await _run_peldrun_core_agent(
+                job_id=job_id,
+                prompt=prompt,
+                agent_id=agent_id,
+                active_llm=active_llm,
+                model_name=model_name,
+                provider_name=provider_name,
+                project_dir=project_dir,
+                chat_id=chat_id,
+                manifest=manifest,
+            )
+        else:
+            await _run_legacy_openmanus_agent(
+                job_id=job_id,
+                prompt=prompt,
+                agent_id=agent_id,
+                active_llm=active_llm,
+                model_name=model_name,
+                provider_name=provider_name,
+                project_dir=project_dir,
+                chat_id=chat_id,
+                manifest=manifest,
+            )
     except asyncio.CancelledError:
         print(f"[BRIDGE] Job was aborted: {job_id}")
     except Exception as err:
@@ -726,7 +965,7 @@ async def run_instrumented(
             job_id,
             SSEEvent(
                 type=SSEEventType.ERROR,
-                step=getattr(agent, "current_step", 1),
+                step=1,
                 data={"message": err_msg, "model": model_name}
             )
         )
@@ -755,7 +994,6 @@ async def run_direct_chat(
             if v:
                 active_llm[k] = v
 
-    if llm_override:
         if llm_override.get("provider_name"):
             active_llm["provider_name"] = llm_override["provider_name"]
         elif llm_override.get("provider"):
